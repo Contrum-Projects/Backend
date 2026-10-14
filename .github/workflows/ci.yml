@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verificar:
+    name: Lint, tipos, pruebas y build
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: cp
+          POSTGRES_PASSWORD: cp
+          POSTGRES_DB: cabello_perfecto
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U cp" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:8-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s
+          --health-timeout 3s --health-retries 10
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://cp:cp@localhost:5432/cabello_perfecto?schema=public
+      REDIS_URL: redis://localhost:6379
+      JWT_ACCESS_SECRET: secreto-de-acceso-solo-para-ci-0123456789
+      JWT_REFRESH_SECRET: secreto-de-refresco-solo-para-ci-0123456789
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm format:check
+      - run: pnpm typecheck
+      - run: pnpm test
+      - name: Migraciones
+        run: pnpm prisma migrate deploy
+      - name: El esquema no tiene cambios sin su migración
+        run: pnpm prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code
+      - run: pnpm test:e2e
+      - run: pnpm build
+
+  secretos:
+    name: Escaneo de secretos (RNF-10)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: gitleaks
+        run: >-
+          docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:latest
+          git /repo --redact --verbose
