@@ -1,0 +1,78 @@
+# Cabello Perfecto — servicios del servidor (RNF-24)
+#
+#   cp .env.example .env
+#   docker compose up -d --build
+#
+# Para desarrollar con recarga en caliente, levanta solo la base y Redis
+# (`docker compose up -d db redis`) y corre la API con `pnpm start:dev`.
+
+name: cabello-perfecto
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-cp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cp}
+      POSTGRES_DB: ${POSTGRES_DB:-cabello_perfecto}
+    ports:
+      - '5432:5432'
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    # Persistencia AOF: si el contenedor se reinicia no se pierden las colas
+    command: ['redis-server', '--appendonly', 'yes']
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Aplica las migraciones pendientes y termina; la API espera a que salga bien.
+  migrate:
+    build:
+      context: .
+      target: deps
+    command: ['pnpm', 'prisma', 'migrate', 'deploy']
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-cp}:${POSTGRES_PASSWORD:-cp}@db:5432/${POSTGRES_DB:-cabello_perfecto}?schema=public
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    build:
+      context: .
+      target: runtime
+    # Si el contenedor se cae, Docker lo reinicia (RNF-21)
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-cp}:${POSTGRES_PASSWORD:-cp}@db:5432/${POSTGRES_DB:-cabello_perfecto}?schema=public
+      REDIS_URL: redis://redis:6379
+    ports:
+      - '${PORT:-3000}:3000'
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      # Redis no es obligatorio para vender (RNF-32): basta con que se haya iniciado
+      redis:
+        condition: service_started
+
+volumes:
+  db-data:
+  redis-data:

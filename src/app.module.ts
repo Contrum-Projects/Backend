@@ -1,21 +1,62 @@
+import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
-import { createObserveModule } from '@nestjs/observe';
-import { AppController } from './app.controller.js';
-import { AppService } from './app.service.js';
-
-export const { ObserveModule, ObserveInstrument } = createObserveModule();
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { LoggerModule } from 'nestjs-pino';
+import { validarEntorno, type Entorno } from './config/entorno.js';
+import { PrismaModule } from './prisma/prisma.module.js';
+import { RedisModule } from './redis/redis.module.js';
+import { SaludController } from './salud/salud.controller.js';
 
 @Module({
   imports: [
-    // Distributed tracing, auto-correlated logs, request/job metrics, error
-    // telemetry, alarms, and more — out of the box. Sign up at https://observe.nestjs.com
-    ObserveModule.forRoot({
-      appKey: 'YOUR_APP_KEY',
-      appSecret: 'YOUR_APP_SECRET',
-      serviceId: 'cp-backend',
+    ConfigModule.forRoot({
+      isGlobal: true,
+      cache: true,
+      validate: validarEntorno,
     }),
+    LoggerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService<Entorno, true>) => {
+        const env = config.get('NODE_ENV', { infer: true });
+        return {
+          pinoHttp: {
+            level: env === 'production' ? 'info' : 'debug',
+            transport:
+              env === 'development'
+                ? { target: 'pino-pretty', options: { singleLine: true } }
+                : undefined,
+            // Nunca registrar credenciales ni tokens (RNF-02, RNF-05)
+            redact: [
+              'req.headers.authorization',
+              'req.headers.cookie',
+              'req.body.contrasena',
+              'req.body.password',
+            ],
+          },
+        };
+      },
+    }),
+    BullModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService<Entorno, true>) => ({
+        connection: {
+          url: config.get('REDIS_URL', { infer: true }),
+          // Requerido por los workers de BullMQ
+          maxRetriesPerRequest: null,
+        },
+        defaultJobOptions: {
+          attempts: 5,
+          backoff: { type: 'exponential', delay: 5_000 },
+          removeOnComplete: 1_000,
+          removeOnFail: 5_000,
+        },
+      }),
+    }),
+    PrismaModule,
+    RedisModule,
+    // Módulos de dominio: se agregan aquí a medida que se implementan las historias
+    // (ver src/modulos/README.md).
   ],
-  controllers: [AppController],
-  providers: [AppService],
+  controllers: [SaludController],
 })
 export class AppModule {}

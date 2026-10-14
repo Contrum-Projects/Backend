@@ -1,118 +1,88 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Cabello Perfecto — Backend
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+API de la tienda online de Cabello Perfecto: NestJS 12 + Prisma 7 + PostgreSQL 17 + Redis 8
+(BullMQ). Proyecto de título de Contrum-Projects.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Requisitos
 
-## Description
+- Node.js 22 o superior y pnpm 10 (`corepack enable`)
+- Docker con Docker Compose
+- Para trabajar con Claude Code: [Claude Code](https://code.claude.com/docs/en/overview) y, para
+  abrir PRs desde él, [GitHub CLI](https://cli.github.com/) con `gh auth login`
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
-## Project setup
+## Puesta en marcha
 
 ```bash
-$ pnpm install
+pnpm install                  # instala y genera el cliente de Prisma
+cp .env.example .env          # completa los secretos JWT (openssl rand -base64 48)
+docker compose up -d db redis # PostgreSQL y Redis
+pnpm db:deploy                # aplica las migraciones
+pnpm db:seed                  # 16 regiones y la cuenta admin de desarrollo
+pnpm start:dev                # http://localhost:3000/api  ·  docs en /api/docs
 ```
 
-## Compile and run the project
+La cuenta de desarrollo es `admin@cabelloperfecto.local` / `Cambiar.123456` (se cambian con
+`SEED_ADMIN_EMAIL` y `SEED_ADMIN_PASSWORD`). Solo para desarrollo.
+
+Para levantar todo en contenedores, como en el servidor (RNF-24):
 
 ```bash
-# development
-$ pnpm run start
-
-# watch mode
-$ pnpm run start:dev
-
-# production mode
-$ pnpm run start:prod
+cp .env.example .env
+docker compose up -d --build  # db, redis, migraciones y api
+curl localhost:3000/api/salud
 ```
 
-## Run tests
+## Scripts
 
-```bash
-# unit tests
-$ pnpm run test
+| Script | Qué hace |
+| --- | --- |
+| `pnpm verificar` | lint + formato + tipos + pruebas + build. Debe pasar antes de cada commit |
+| `pnpm test` / `pnpm test:e2e` | Pruebas unitarias / e2e (las e2e necesitan db y redis) |
+| `pnpm db:migrate --name <x>` | Crea y aplica una migración tras cambiar `prisma/schema.prisma` |
+| `pnpm db:deploy` | Aplica migraciones pendientes |
+| `pnpm db:seed` | Datos iniciales |
+| `pnpm db:studio` | Explorador de la base |
 
-# e2e tests
-$ pnpm run test:e2e
+## Flujo de trabajo
 
-# test coverage
-$ pnpm run test:cov
-```
+- Las historias están en Jira (proyecto **SCRUM**), en sprints quincenales con Scrumban.
+- Una rama por historia: `SCRUM-<n>-<descripcion>`. Pull request a `main` revisado por otro
+  integrante. CI corre lint, tipos, pruebas, migraciones, e2e, build y gitleaks.
+- Commits: `feat(<modulo>): <qué hace> (SCRUM-<n>)`.
 
-## Deployment
+## Claude Code
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+El repositorio trae la configuración compartida en `CLAUDE.md`, `.claude/` y `.mcp.json`.
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+**Primera vez (cada integrante):**
 
-```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
-```
+1. Abre Claude Code en la carpeta del repositorio y acepta los servidores MCP del proyecto
+   (Atlassian y Figma) cuando los pida.
+2. Escribe `/mcp`, elige **atlassian** y luego **figma**, y autentícate con tu cuenta en cada uno.
+3. Verifica con: «lee la historia SCRUM-19».
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+**Comandos:**
 
-## Observability
+| Comando | Para qué |
+| --- | --- |
+| `/historia SCRUM-<n>` | Toma una historia: la lee en Jira, propone un plan, crea la rama, implementa con pruebas por criterio y verifica |
+| `/migracion <nombre>` | Cambia el esquema de la base con su migración |
+| `/pr` | Verifica, publica la rama, abre el PR con la plantilla y mueve la historia a En revisión |
+| `/revisar [PR o rama]` | Revisión completa: código, seguridad y criterios de aceptación |
 
-In production applications, observability is essential for understanding how your system behaves, detecting issues early, and maintaining reliable performance.
+**Subagentes** (Claude los usa solo, o pídeselos por nombre): `revisor-codigo`,
+`verificador-criterios` y `auditor-seguridad`.
 
-[NestJS Observe](https://observe.nestjs.com) automatically instruments your NestJS application, giving you deep visibility into your system with minimal setup:
+**Protecciones:** Claude no puede leer `.env`, editar migraciones existentes ni código generado,
+hacer push a `main`, `push --force` ni merge de PRs. Antes de `git push`, `gh pr create`,
+cambios de estado en Jira o instalar dependencias, pide permiso. Cada archivo `.ts` que edita se
+formatea con Prettier.
 
-- **Distributed tracing:** Follow requests across services and understand how they flow through your system.
-- **Waterfall analysis:** Visualize request execution and identify slow operations, bottlenecks, and unexpected delays.
-- **Performance analysis:** Analyze application performance in real time and quickly pinpoint areas that need optimization.
-- **Metrics:** Track key application and infrastructure metrics to understand system health and performance trends.
-- **Logging:** Centralize and correlate logs with traces and other telemetry to make debugging easier.
-- **Error tracking:** Detect errors quickly and investigate their root causes with the surrounding context.
-- **SLA monitoring:** Track service-level objectives and identify when your application is approaching or exceeding defined thresholds.
-- **Alarms and alerts:** Set up alerts for critical errors, performance degradation, SLA violations, and other anomalies so your team can react quickly.
+Tus preferencias personales van en `.claude/settings.local.json` y `CLAUDE.local.md`, que no se
+versionan.
 
-This project is already instrumented. Create a free account at [observe.nestjs.com](https://observe.nestjs.com), add an application, and paste the generated app key and secret into the `ObserveModule.forRoot()` call in `src/app.module.ts`.
+## Documentación
 
-The free plan needs no payment details and covers 300,000 events a month. You can also browse the [live demo](https://www.observe-demo.nestjs.com/dashboard) first - the whole dashboard over a busy service's data, with nothing to install.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Auto-instrument your application with [NestJS Observe](https://observe.nestjs.com). Distributed tracing, metrics, and logging made easy. Error tracking and performance monitoring for your NestJS applications.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+- `docs/reglas-de-negocio.md`: reglas por épica y requerimientos no funcionales.
+- `src/modulos/README.md`: módulos de dominio y su épica.
+- `prisma/schema.prisma`: el MER (39 entidades) en Prisma.
