@@ -1,4 +1,11 @@
-import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  HttpCode,
+  HttpStatus,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiConflictResponse,
@@ -6,13 +13,21 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiTags,
+  ApiTooManyRequestsResponse,
 } from '@nestjs/swagger';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { LIMITES } from '../../limites/limites.js';
 import { CuentasService } from './cuentas.service.js';
 import { ConfirmarCorreoDto } from './dto/confirmar-correo.dto.js';
 import { RegistrarCuentaDto } from './dto/registrar-cuenta.dto.js';
 
 @ApiTags('cuentas')
 @Controller('cuentas')
+@UseGuards(ThrottlerGuard)
+@Throttle({ default: LIMITES.REGISTRO })
+@ApiTooManyRequestsResponse({
+  description: 'Más de 5 peticiones por minuto desde la misma IP.',
+})
 export class CuentasController {
   constructor(private readonly cuentas: CuentasService) {}
 
