@@ -4,8 +4,9 @@
  * listas en los DTOs (`@IsIn(Object.values(...))`) y en los servicios.
  *
  * Si una lista cambia, actualízala aquí y en docs/reglas-de-negocio.md.
- * Listas que siguen abiertas (no las inventes): estados de envío, de pago y de
- * notificación; tipos de movimiento y de token; modalidades y especialidades.
+ * Listas que siguen abiertas (no las inventes): estados de envío y de pago;
+ * tipos de movimiento; modalidades y especialidades. Los tipos de token y de
+ * notificación crecen con cada historia que los necesita.
  */
 
 /** PEDIDO.estado_actual (Épica 8: ocho estados). */
@@ -63,6 +64,30 @@ export const ESTADOS_SOLICITUD = {
 export const TIPOS_CAMPANA = {
   ENVIO_UNICO: 'envio_unico',
   CUMPLEANOS: 'cumpleanos',
+} as const;
+
+/**
+ * TOKEN_CORREO.tipo. Lista abierta: cada historia agrega el suyo
+ * (recuperación de contraseña, E1-H4).
+ */
+export const TIPOS_TOKEN = {
+  /** E1-H1, decisión del 14 de octubre de 2026. */
+  CONFIRMACION_CORREO: 'confirmacion_correo',
+} as const;
+
+/**
+ * NOTIFICACION.tipo. Lista abierta: cada historia que envía un correo agrega el suyo.
+ */
+export const TIPOS_NOTIFICACION = {
+  /** E1-H1, decisión del 14 de octubre de 2026. */
+  CONFIRMACION_CORREO: 'confirmacion_correo',
+} as const;
+
+/** NOTIFICACION.estado_envio (decisión del 14 de octubre de 2026, E1-H1). */
+export const ESTADOS_NOTIFICACION = {
+  PENDIENTE: 'pendiente',
+  ENVIADA: 'enviada',
+  FALLIDA: 'fallida',
 } as const;
 
 export type Valor<T extends Record<string, string>> = T[keyof T];
