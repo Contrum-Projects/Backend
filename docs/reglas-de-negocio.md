@@ -37,6 +37,9 @@ suscribirse a ofertas. No hay compra como invitado.
   correlativo (RNF-07). Pedir el pedido de otra cuenta devuelve error.
 - Límite de peticiones (RNF-09): 5/min por IP en suscripción; 5 intentos de inicio de sesión en
   15 min; también la recuperación de contraseña. Responde 429. Contador común en Redis.
+  Registro y confirmación del correo: 5/min por IP cada uno (decisión del 14 oct, E1-H1).
+  Los límites se declaran por ruta con `LIMITES` (`src/limites/limites.ts`); si Redis no
+  responde, la petición pasa (RNF-32).
 - Cierre de sesión, desactivación de cuenta y cambio de rol rigen de inmediato, sin esperar a que
   caduque el token (RNF-28): Redis recuerda qué cuentas deben renovar su token.
 - Credenciales solo en variables de entorno (RNF-10); gitleaks corre en CI.
@@ -63,6 +66,12 @@ suscribirse a ofertas. No hay compra como invitado.
 nacimiento y género opcionales. Correo en minúsculas; RUT en formato único; ninguno se repite.
 Hay que confirmar el correo para comprar. Recuperación de contraseña con enlace de un uso.
 Direcciones con una sola principal. Sin inicio de sesión con Google.
+Decisiones del 14 oct (E1-H1): «cuenta inactiva» = `activo` verdadero con
+`fechaVerificacionCorreo` vacía (`activo` falso queda para la desactivación); el enlace de
+confirmación dura 24 h (`CONFIRMACION_CORREO_HORAS`); contraseña de 8+ caracteres con letra y
+número; RUT guardado como `12345678-K`. Valores nuevos en `valores.ts`: `TIPOS_TOKEN`
+(`confirmacion_correo`), `TIPOS_NOTIFICACION` (`confirmacion_correo`) y `ESTADOS_NOTIFICACION`
+(`pendiente`, `enviada`, `fallida`).
 
 **E13 Personal y acceso.** El administrador crea y desactiva cuentas del personal; la desactivada
 pierde el acceso de inmediato. Cada acción del panel exige un permiso del rol (guard en backend).
