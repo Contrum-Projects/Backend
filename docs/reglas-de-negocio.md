@@ -63,6 +63,12 @@ suscribirse a ofertas. No hay compra como invitado.
 nacimiento y género opcionales. Correo en minúsculas; RUT en formato único; ninguno se repite.
 Hay que confirmar el correo para comprar. Recuperación de contraseña con enlace de un uso.
 Direcciones con una sola principal. Sin inicio de sesión con Google.
+Decisiones del 14 oct (E1-H1): «cuenta inactiva» = `activo` verdadero con
+`fechaVerificacionCorreo` vacía (`activo` falso queda para la desactivación); el enlace de
+confirmación dura 24 h (`CONFIRMACION_CORREO_HORAS`); contraseña de 8+ caracteres con letra y
+número; RUT guardado como `12345678-K`. Valores nuevos en `valores.ts`: `TIPOS_TOKEN`
+(`confirmacion_correo`), `TIPOS_NOTIFICACION` (`confirmacion_correo`) y `ESTADOS_NOTIFICACION`
+(`pendiente`, `enviada`, `fallida`).
 
 **E13 Personal y acceso.** El administrador crea y desactiva cuentas del personal; la desactivada
 pierde el acceso de inmediato. Cada acción del panel exige un permiso del rol (guard en backend).

@@ -5,6 +5,7 @@ import { LoggerModule } from 'nestjs-pino';
 import { validarEntorno, type Entorno } from './config/entorno.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { RedisModule } from './redis/redis.module.js';
+import { CuentasModule } from './modulos/cuentas/cuentas.module.js';
 import { SaludController } from './salud/salud.controller.js';
 
 @Module({
@@ -31,6 +32,8 @@ import { SaludController } from './salud/salud.controller.js';
               'req.headers.cookie',
               'req.body.contrasena',
               'req.body.password',
+              'req.body.confirmacionContrasena',
+              'req.body.token',
             ],
           },
         };
@@ -56,6 +59,7 @@ import { SaludController } from './salud/salud.controller.js';
     RedisModule,
     // Módulos de dominio: se agregan aquí a medida que se implementan las historias
     // (ver src/modulos/README.md).
+    CuentasModule,
   ],
   controllers: [SaludController],
 })
