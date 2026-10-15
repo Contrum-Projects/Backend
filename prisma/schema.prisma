@@ -1,0 +1,726 @@
+// Cabello Perfecto — esquema de base de datos (PostgreSQL)
+//
+// Traducción del MER del 9 de octubre de 2026 (claude/mer-completo-oracle.puml en el
+// proyecto): 39 entidades y 56 relaciones.
+//
+// Convenciones:
+// - Modelos y campos en español sin tildes (PascalCase / camelCase); tablas y columnas
+//   en snake_case con @@map / @map, iguales a los nombres del MER sin tildes.
+// - CHAR(1) S/N del MER → Boolean. CLOB → Text. TIMESTAMP WITH TIME ZONE → Timestamptz.
+// - NUMBER(12,2) → Decimal(12,2) (precios netos). Los montos de pedido, pago y documento
+//   son INTEGER en pesos chilenos, como en el MER (RNF-11: neto e IVA aparte).
+// - Los estados y tipos (VARCHAR2(30) en el MER) quedan como String: sus valores
+//   permitidos viven en src/common/dominio/valores.ts y roles.ts. Las listas que aún
+//   están abiertas se completan ahí cuando el equipo las cierre.
+//   Cuando una lista esté cerrada, conviene pasarla a enum de Prisma.
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─────────────────────────────── Cuentas ───────────────────────────────
+
+model Usuario {
+  id                           Int       @id @default(autoincrement()) @map("id_usuario")
+  codigoPublico                String    @unique @map("codigo_publico") @db.VarChar(36)
+  nombre                       String    @db.VarChar(100)
+  apellido                     String    @db.VarChar(100)
+  email                        String    @unique @db.VarChar(254)
+  contrasenaHash               String    @map("contrasena_hash") @db.VarChar(255)
+  rol                          String    @db.VarChar(30)
+  rut                          String?   @unique @db.VarChar(12)
+  fechaNacimiento              DateTime? @map("fecha_nacimiento") @db.Date
+  genero                       String?   @db.VarChar(30)
+  telefono                     String?   @db.VarChar(20)
+  fechaRegistro                DateTime  @default(now()) @map("fecha_registro") @db.Timestamptz(6)
+  fechaVerificacionCorreo      DateTime? @map("fecha_verificacion_correo") @db.Timestamptz(6)
+  aceptaMarketingEmail         Boolean   @default(false) @map("acepta_marketing_email")
+  fechaConsentimientoMarketing DateTime? @map("fecha_consentimiento_marketing") @db.Timestamptz(6)
+  activo                       Boolean   @default(true)
+
+  direcciones            Direccion[]
+  tokensCorreo           TokenCorreo[]
+  sesiones               Sesion[]
+  perfilProfesional      PerfilProfesional?
+  solicitudesPresentadas SolicitudVerificacion[] @relation("SolicitudPresentada")
+  solicitudesResueltas   SolicitudVerificacion[] @relation("SolicitudResuelta")
+  preciosFijados         HistorialPrecio[]
+  carrito                Carrito?
+  pedidos                Pedido[]
+  datosFacturacion       DatosFacturacion[]
+  cambiosEstadoPedido    HistorialEstadoPedido[]
+  notificaciones         Notificacion[]
+  campanas               Campana[]
+  entradasRecibidas      EntradaInventario[]
+  movimientos            MovimientoInventario[]
+
+  @@map("usuario")
+}
+
+model Direccion {
+  id          Int     @id @default(autoincrement()) @map("id_direccion")
+  usuarioId   Int     @map("id_usuario")
+  comunaId    Int     @map("id_comuna")
+  calle       String  @db.VarChar(150)
+  numero      String  @db.VarChar(20)
+  referencia  String? @db.VarChar(255)
+  esPrincipal Boolean @default(false) @map("es_principal")
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  comuna  Comuna  @relation(fields: [comunaId], references: [id])
+
+  @@index([usuarioId])
+  @@map("direccion")
+}
+
+model TokenCorreo {
+  id              Int       @id @default(autoincrement()) @map("id_token")
+  usuarioId       Int       @map("id_usuario")
+  tipo            String    @db.VarChar(30)
+  tokenHash       String    @unique @map("token_hash") @db.VarChar(255)
+  fechaCreacion   DateTime  @default(now()) @map("fecha_creacion") @db.Timestamptz(6)
+  fechaExpiracion DateTime  @map("fecha_expiracion") @db.Timestamptz(6)
+  fechaUso        DateTime? @map("fecha_uso") @db.Timestamptz(6)
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId])
+  @@map("token_correo")
+}
+
+model Sesion {
+  id                Int       @id @default(autoincrement()) @map("id_sesion")
+  usuarioId         Int       @map("id_usuario")
+  tokenRefrescoHash String    @unique @map("token_refresco_hash") @db.VarChar(255)
+  fechaCreacion     DateTime  @default(now()) @map("fecha_creacion") @db.Timestamptz(6)
+  fechaExpiracion   DateTime  @map("fecha_expiracion") @db.Timestamptz(6)
+  fechaRevocacion   DateTime? @map("fecha_revocacion") @db.Timestamptz(6)
+  dispositivo       String?   @db.VarChar(255)
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId])
+  @@map("sesion")
+}
+
+// ─────────────────────────── Canal profesional ───────────────────────────
+
+model PerfilProfesional {
+  id                 Int      @id @default(autoincrement()) @map("id_perfil")
+  usuarioId          Int      @unique @map("id_usuario")
+  comunaId           Int?     @map("id_comuna")
+  anosExperiencia    Int      @map("anos_experiencia")
+  modalidad          String   @db.VarChar(30)
+  especialidades     String[] @db.VarChar(30)
+  nombreLugarTrabajo String?  @map("nombre_lugar_trabajo") @db.VarChar(150)
+  redSocial          String?  @map("red_social") @db.VarChar(255)
+  fechaActualizacion DateTime @updatedAt @map("fecha_actualizacion") @db.Timestamptz(6)
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  comuna  Comuna? @relation(fields: [comunaId], references: [id])
+
+  @@map("perfil_profesional")
+}
+
+model SolicitudVerificacion {
+  id               Int       @id @default(autoincrement()) @map("id_solicitud")
+  solicitanteId    Int       @map("id_usuario_solicitante")
+  resolutorId      Int?      @map("id_usuario_resolutor")
+  fechaSolicitud   DateTime  @default(now()) @map("fecha_solicitud") @db.Timestamptz(6)
+  fechaResolucion  DateTime? @map("fecha_resolucion") @db.Timestamptz(6)
+  estado           String    @db.VarChar(30)
+  motivoRechazo    String?   @map("motivo_rechazo") @db.Text
+  puntajeConfianza Int?      @map("puntaje_confianza")
+  versionReglas    String?   @map("version_reglas") @db.VarChar(20)
+
+  solicitante  Usuario                    @relation("SolicitudPresentada", fields: [solicitanteId], references: [id])
+  resolutor    Usuario?                   @relation("SolicitudResuelta", fields: [resolutorId], references: [id])
+  antecedentes Antecedente[]
+  factores     ResultadoFactorConfianza[]
+
+  @@index([solicitanteId])
+  @@index([estado])
+  @@map("solicitud_verificacion")
+}
+
+model Antecedente {
+  id                      Int       @id @default(autoincrement()) @map("id_antecedente")
+  solicitudId             Int       @map("id_solicitud")
+  tipo                    String    @db.VarChar(30)
+  nombreArchivo           String    @map("nombre_archivo") @db.VarChar(255)
+  ubicacionArchivo        String    @map("ubicacion_archivo") @db.VarChar(500)
+  hashArchivo             String    @map("hash_archivo") @db.VarChar(64)
+  estadoOcr               String    @map("estado_ocr") @db.VarChar(30)
+  resultadoOcr            String?   @map("resultado_ocr") @db.Text
+  fechaProcesoOcr         DateTime? @map("fecha_proceso_ocr") @db.Timestamptz(6)
+  fechaEliminacionArchivo DateTime? @map("fecha_eliminacion_archivo") @db.Timestamptz(6)
+
+  solicitud SolicitudVerificacion @relation(fields: [solicitudId], references: [id], onDelete: Cascade)
+
+  @@index([solicitudId])
+  @@map("antecedente")
+}
+
+model ResultadoFactorConfianza {
+  solicitudId     Int      @map("id_solicitud")
+  codigoFactor    String   @map("codigo_factor") @db.VarChar(50)
+  resultado       String   @db.VarChar(30)
+  puntos          Int
+  detalle         String?  @db.Text
+  fechaEvaluacion DateTime @default(now()) @map("fecha_evaluacion") @db.Timestamptz(6)
+
+  solicitud SolicitudVerificacion @relation(fields: [solicitudId], references: [id], onDelete: Cascade)
+
+  @@id([solicitudId, codigoFactor])
+  @@map("resultado_factor_confianza")
+}
+
+// ─────────────────────────────── Catálogo ───────────────────────────────
+
+model Marca {
+  id     Int     @id @default(autoincrement()) @map("id_marca")
+  nombre String  @unique @db.VarChar(100)
+  activa Boolean @default(true)
+
+  productos Producto[]
+
+  @@map("marca")
+}
+
+model Categoria {
+  id          Int     @id @default(autoincrement()) @map("id_categoria")
+  padreId     Int?    @map("id_categoria_padre")
+  nombre      String  @db.VarChar(100)
+  descripcion String? @db.VarChar(255)
+
+  padre         Categoria?  @relation("Subcategorias", fields: [padreId], references: [id])
+  subcategorias Categoria[] @relation("Subcategorias")
+  productos     Producto[]
+
+  @@index([padreId])
+  @@map("categoria")
+}
+
+model Producto {
+  id                Int      @id @default(autoincrement()) @map("id_producto")
+  marcaId           Int?     @map("id_marca")
+  categoriaId       Int      @map("id_categoria")
+  nombre            String   @db.VarChar(200)
+  descripcion       String   @db.Text
+  origenDescripcion String   @map("origen_descripcion") @db.VarChar(30)
+  canalVenta        String   @map("canal_venta") @db.VarChar(30)
+  activo            Boolean  @default(true)
+  fechaCreacion     DateTime @default(now()) @map("fecha_creacion") @db.Timestamptz(6)
+
+  marca     Marca?            @relation(fields: [marcaId], references: [id])
+  categoria Categoria         @relation(fields: [categoriaId], references: [id])
+  formatos  FormatoProducto[]
+
+  @@index([categoriaId])
+  @@index([marcaId])
+  @@map("producto")
+}
+
+/// Supertipo de FormatoProducto y Pack: lo que se vende es un formato o un pack.
+/// `tipo` es el discriminador ("formato" | "pack").
+model ArticuloVenta {
+  id                  Int      @id @default(autoincrement()) @map("id_articulo")
+  sku                 String   @unique @db.VarChar(50)
+  tipo                String   @db.VarChar(30)
+  precioMinoristaNeto Decimal? @map("precio_minorista_neto") @db.Decimal(12, 2)
+  precioMayoristaNeto Decimal  @map("precio_mayorista_neto") @db.Decimal(12, 2)
+  activo              Boolean  @default(true)
+
+  formato         FormatoProducto?
+  pack            Pack?
+  imagenes        ImagenArticulo[]
+  historialPrecio HistorialPrecio[]
+  itemsCarrito    ItemCarrito[]
+  detallesPedido  DetallePedido[]
+
+  @@map("articulo_venta")
+}
+
+model FormatoProducto {
+  id               Int       @id @map("id_formato")
+  productoId       Int       @map("id_producto")
+  codigoBarras     String?   @unique @map("codigo_barras") @db.VarChar(14)
+  nombreFormato    String    @map("nombre_formato") @db.VarChar(100)
+  contenido        Decimal?  @db.Decimal(10, 2)
+  unidadMedida     String?   @map("unidad_medida") @db.VarChar(30)
+  fechaVencimiento DateTime? @map("fecha_vencimiento") @db.Date
+  stockMinimo      Int       @default(0) @map("stock_minimo")
+  pesoGramos       Int       @map("peso_gramos")
+  altoCm           Decimal   @map("alto_cm") @db.Decimal(7, 2)
+  anchoCm          Decimal   @map("ancho_cm") @db.Decimal(7, 2)
+  largoCm          Decimal   @map("largo_cm") @db.Decimal(7, 2)
+  esPredeterminado Boolean   @default(false) @map("es_predeterminado")
+
+  articulo        ArticuloVenta          @relation(fields: [id], references: [id], onDelete: Cascade)
+  producto        Producto               @relation(fields: [productoId], references: [id])
+  componenteDe    ComponentePack[]
+  detallesEntrada DetalleEntrada[]
+  existencias     Existencia[]
+  movimientos     MovimientoInventario[]
+
+  @@index([productoId])
+  @@map("formato_producto")
+}
+
+model Pack {
+  id                  Int       @id @map("id_pack")
+  nombre              String    @db.VarChar(200)
+  descripcion         String    @db.Text
+  canalVenta          String    @map("canal_venta") @db.VarChar(30)
+  fechaInicioVigencia DateTime? @map("fecha_inicio_vigencia") @db.Date
+  fechaFinVigencia    DateTime? @map("fecha_fin_vigencia") @db.Date
+  fechaCreacion       DateTime  @default(now()) @map("fecha_creacion") @db.Timestamptz(6)
+
+  articulo    ArticuloVenta    @relation(fields: [id], references: [id], onDelete: Cascade)
+  componentes ComponentePack[]
+
+  @@map("pack")
+}
+
+model ComponentePack {
+  packId    Int @map("id_pack")
+  formatoId Int @map("id_formato")
+  cantidad  Int
+
+  pack    Pack            @relation(fields: [packId], references: [id], onDelete: Cascade)
+  formato FormatoProducto @relation(fields: [formatoId], references: [id])
+
+  @@id([packId, formatoId])
+  @@map("componente_pack")
+}
+
+model ImagenArticulo {
+  id               Int     @id @default(autoincrement()) @map("id_imagen")
+  articuloId       Int     @map("id_articulo")
+  ubicacionArchivo String  @map("ubicacion_archivo") @db.VarChar(500)
+  orden            Int
+  esPrincipal      Boolean @default(false) @map("es_principal")
+
+  articulo ArticuloVenta @relation(fields: [articuloId], references: [id], onDelete: Cascade)
+
+  @@index([articuloId])
+  @@map("imagen_articulo")
+}
+
+model HistorialPrecio {
+  id                  Int       @id @default(autoincrement()) @map("id_historial_precio")
+  articuloId          Int       @map("id_articulo")
+  usuarioId           Int       @map("id_usuario")
+  tipoPrecio          String    @map("tipo_precio") @db.VarChar(30)
+  precioNeto          Decimal   @map("precio_neto") @db.Decimal(12, 2)
+  fechaInicioVigencia DateTime  @default(now()) @map("fecha_inicio_vigencia") @db.Timestamptz(6)
+  fechaFinVigencia    DateTime? @map("fecha_fin_vigencia") @db.Timestamptz(6)
+  motivo              String?   @db.Text
+
+  articulo ArticuloVenta @relation(fields: [articuloId], references: [id], onDelete: Cascade)
+  usuario  Usuario       @relation(fields: [usuarioId], references: [id])
+
+  @@index([articuloId])
+  @@map("historial_precio")
+}
+
+// ──────────────────────────────── Venta ────────────────────────────────
+
+model Carrito {
+  id                    Int       @id @default(autoincrement()) @map("id_carrito")
+  usuarioId             Int       @unique @map("id_usuario")
+  fechaCreacion         DateTime  @default(now()) @map("fecha_creacion") @db.Timestamptz(6)
+  fechaActualizacion    DateTime  @updatedAt @map("fecha_actualizacion") @db.Timestamptz(6)
+  fechaRecordatorio     DateTime? @map("fecha_recordatorio") @db.Timestamptz(6)
+  recordatoriosEnviados Int       @default(0) @map("recordatorios_enviados")
+
+  usuario Usuario       @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  items   ItemCarrito[]
+
+  @@map("carrito")
+}
+
+model ItemCarrito {
+  carritoId     Int      @map("id_carrito")
+  articuloId    Int      @map("id_articulo")
+  cantidad      Int
+  fechaAgregado DateTime @default(now()) @map("fecha_agregado") @db.Timestamptz(6)
+
+  carrito  Carrito       @relation(fields: [carritoId], references: [id], onDelete: Cascade)
+  articulo ArticuloVenta @relation(fields: [articuloId], references: [id])
+
+  @@id([carritoId, articuloId])
+  @@map("item_carrito")
+}
+
+model Pedido {
+  id                      Int      @id @default(autoincrement()) @map("id_pedido")
+  codigoPublico           String   @unique @map("codigo_publico") @db.VarChar(12)
+  usuarioId               Int      @map("id_usuario")
+  datosFacturacionId      Int?     @map("id_datos_facturacion")
+  fechaPedido             DateTime @default(now()) @map("fecha_pedido") @db.Timestamptz(6)
+  fechaExpiracionPago     DateTime @map("fecha_expiracion_pago") @db.Timestamptz(6)
+  estadoActual            String   @map("estado_actual") @db.VarChar(30)
+  tipoEntrega             String   @map("tipo_entrega") @db.VarChar(30)
+  tipoDocumentoSolicitado String   @map("tipo_documento_solicitado") @db.VarChar(30)
+  porcentajeIva           Decimal  @map("porcentaje_iva") @db.Decimal(5, 2)
+  montoNeto               Int      @map("monto_neto")
+  montoIva                Int      @map("monto_iva")
+  montoTotal              Int      @map("monto_total")
+
+  usuario          Usuario                 @relation(fields: [usuarioId], references: [id])
+  datosFacturacion DatosFacturacion?       @relation(fields: [datosFacturacionId], references: [id])
+  detalles         DetallePedido[]
+  pagos            Pago[]
+  documentos       DocumentoTributario[]
+  envio            Envio?
+  historial        HistorialEstadoPedido[]
+  notificaciones   Notificacion[]
+  movimientos      MovimientoInventario[]
+
+  @@index([usuarioId])
+  @@index([estadoActual])
+  @@map("pedido")
+}
+
+model DetallePedido {
+  pedidoId                   Int     @map("id_pedido")
+  articuloId                 Int     @map("id_articulo")
+  cantidad                   Int
+  precioUnitarioNetoAplicado Decimal @map("precio_unitario_neto_aplicado") @db.Decimal(12, 2)
+  tipoPrecio                 String  @map("tipo_precio") @db.VarChar(30)
+
+  pedido   Pedido        @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  articulo ArticuloVenta @relation(fields: [articuloId], references: [id])
+
+  @@id([pedidoId, articuloId])
+  @@map("detalle_pedido")
+}
+
+model Pago {
+  id                   Int       @id @default(autoincrement()) @map("id_pago")
+  pedidoId             Int       @map("id_pedido")
+  idTransaccionExterna String?   @unique @map("id_transaccion_externa") @db.VarChar(100)
+  monto                Int
+  estado               String    @db.VarChar(30)
+  fechaPago            DateTime? @map("fecha_pago") @db.Timestamptz(6)
+  medioPago            String?   @map("medio_pago") @db.VarChar(50)
+
+  pedido  Pedido       @relation(fields: [pedidoId], references: [id])
+  eventos EventoPago[]
+
+  @@index([pedidoId])
+  @@map("pago")
+}
+
+model EventoPago {
+  id                  Int       @id @default(autoincrement()) @map("id_evento")
+  pagoId              Int?      @map("id_pago")
+  idEventoExterno     String    @unique @map("id_evento_externo") @db.VarChar(100)
+  tipoEvento          String    @map("tipo_evento") @db.VarChar(50)
+  fechaRecepcion      DateTime  @default(now()) @map("fecha_recepcion") @db.Timestamptz(6)
+  estadoProcesamiento String    @map("estado_procesamiento") @db.VarChar(30)
+  intentos            Int       @default(0)
+  fechaProcesamiento  DateTime? @map("fecha_procesamiento") @db.Timestamptz(6)
+  contenidoRecibido   String?   @map("contenido_recibido") @db.Text
+
+  pago Pago? @relation(fields: [pagoId], references: [id])
+
+  @@index([estadoProcesamiento])
+  @@map("evento_pago")
+}
+
+model DatosFacturacion {
+  id                Int     @id @default(autoincrement()) @map("id_datos_facturacion")
+  usuarioId         Int     @map("id_usuario")
+  comunaId          Int     @map("id_comuna")
+  rut               String  @db.VarChar(12)
+  razonSocial       String  @map("razon_social") @db.VarChar(150)
+  giro              String  @db.VarChar(150)
+  direccion         String  @db.VarChar(200)
+  correoFacturacion String? @map("correo_facturacion") @db.VarChar(254)
+  activo            Boolean @default(true)
+
+  usuario Usuario  @relation(fields: [usuarioId], references: [id])
+  comuna  Comuna   @relation(fields: [comunaId], references: [id])
+  pedidos Pedido[]
+
+  @@index([usuarioId])
+  @@map("datos_facturacion")
+}
+
+model DocumentoTributario {
+  id                  Int       @id @default(autoincrement()) @map("id_documento")
+  pedidoId            Int       @map("id_pedido")
+  /// Documento que anula a este (p. ej. una nota de crédito).
+  anuladorId          Int?      @map("id_documento_anulador")
+  tipo                String    @db.VarChar(30)
+  folio               Int?
+  fechaEmision        DateTime? @map("fecha_emision") @db.Date
+  estado              String    @db.VarChar(30)
+  montoNeto           Int       @map("monto_neto")
+  montoIva            Int       @map("monto_iva")
+  montoTotal          Int       @map("monto_total")
+  idDocumentoExterno  String?   @map("id_documento_externo") @db.VarChar(100)
+  ubicacionArchivo    String?   @map("ubicacion_archivo") @db.VarChar(500)
+  rutReceptor         String?   @map("rut_receptor") @db.VarChar(12)
+  razonSocialReceptor String?   @map("razon_social_receptor") @db.VarChar(150)
+  giroReceptor        String?   @map("giro_receptor") @db.VarChar(150)
+  direccionReceptor   String?   @map("direccion_receptor") @db.VarChar(200)
+  comunaReceptor      String?   @map("comuna_receptor") @db.VarChar(100)
+
+  pedido   Pedido                @relation(fields: [pedidoId], references: [id])
+  anulador DocumentoTributario?  @relation("Anulacion", fields: [anuladorId], references: [id])
+  anulados DocumentoTributario[] @relation("Anulacion")
+
+  @@unique([tipo, folio])
+  @@index([pedidoId])
+  @@map("documento_tributario")
+}
+
+model Envio {
+  id                Int       @id @default(autoincrement()) @map("id_envio")
+  pedidoId          Int       @unique @map("id_pedido")
+  comunaId          Int       @map("id_comuna")
+  servicioEnvio     String    @map("servicio_envio") @db.VarChar(50)
+  costoNeto         Decimal   @map("costo_neto") @db.Decimal(12, 2)
+  codigoSeguimiento String?   @map("codigo_seguimiento") @db.VarChar(100)
+  fechaEstimada     DateTime? @map("fecha_estimada") @db.Date
+  estadoEnvio       String    @map("estado_envio") @db.VarChar(30)
+  destinatario      String    @db.VarChar(150)
+  telefonoContacto  String?   @map("telefono_contacto") @db.VarChar(20)
+  calle             String    @db.VarChar(150)
+  numero            String    @db.VarChar(20)
+  referencia        String?   @db.VarChar(255)
+
+  pedido Pedido @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  comuna Comuna @relation(fields: [comunaId], references: [id])
+
+  @@map("envio")
+}
+
+model HistorialEstadoPedido {
+  pedidoId    Int      @map("id_pedido")
+  correlativo Int
+  usuarioId   Int?     @map("id_usuario")
+  fechaHora   DateTime @default(now()) @map("fecha_hora") @db.Timestamptz(6)
+  estado      String   @db.VarChar(30)
+  comentario  String?  @db.Text
+
+  pedido  Pedido   @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  usuario Usuario? @relation(fields: [usuarioId], references: [id])
+
+  @@id([pedidoId, correlativo])
+  @@map("historial_estado_pedido")
+}
+
+// ──────────────────────────── Comunicaciones ────────────────────────────
+
+model Notificacion {
+  id            Int       @id @default(autoincrement()) @map("id_notificacion")
+  usuarioId     Int?      @map("id_usuario")
+  leadId        Int?      @map("id_lead")
+  pedidoId      Int?      @map("id_pedido")
+  campanaId     Int?      @map("id_campana")
+  tipo          String    @db.VarChar(30)
+  asunto        String    @db.VarChar(200)
+  fechaCreacion DateTime  @default(now()) @map("fecha_creacion") @db.Timestamptz(6)
+  estadoEnvio   String    @map("estado_envio") @db.VarChar(30)
+  intentos      Int       @default(0)
+  fechaEnvio    DateTime? @map("fecha_envio") @db.Timestamptz(6)
+  fechaApertura DateTime? @map("fecha_apertura") @db.Timestamptz(6)
+  fechaClic     DateTime? @map("fecha_clic") @db.Timestamptz(6)
+
+  usuario Usuario? @relation(fields: [usuarioId], references: [id])
+  lead    Lead?    @relation(fields: [leadId], references: [id])
+  pedido  Pedido?  @relation(fields: [pedidoId], references: [id])
+  campana Campana? @relation(fields: [campanaId], references: [id])
+
+  @@index([estadoEnvio])
+  @@index([campanaId])
+  @@map("notificacion")
+}
+
+model Lead {
+  id               Int       @id @default(autoincrement()) @map("id_lead")
+  email            String    @unique @db.VarChar(254)
+  fechaSuscripcion DateTime  @default(now()) @map("fecha_suscripcion") @db.Timestamptz(6)
+  origen           String    @db.VarChar(30)
+  activo           Boolean   @default(true)
+  fechaBaja        DateTime? @map("fecha_baja") @db.Timestamptz(6)
+
+  notificaciones Notificacion[]
+
+  @@map("lead")
+}
+
+model Campana {
+  id            Int       @id @default(autoincrement()) @map("id_campana")
+  usuarioId     Int       @map("id_usuario")
+  tipo          String    @db.VarChar(30)
+  asunto        String    @db.VarChar(200)
+  cuerpo        String    @db.Text
+  segmento      String?   @db.Text
+  fechaCreacion DateTime  @default(now()) @map("fecha_creacion") @db.Timestamptz(6)
+  fechaEncolado DateTime? @map("fecha_encolado") @db.Timestamptz(6)
+
+  usuario        Usuario        @relation(fields: [usuarioId], references: [id])
+  notificaciones Notificacion[]
+
+  @@map("campana")
+}
+
+// ────────────────────────────── Inventario ──────────────────────────────
+
+model Proveedor {
+  id             Int     @id @default(autoincrement()) @map("id_proveedor")
+  rut            String  @unique @db.VarChar(12)
+  razonSocial    String  @map("razon_social") @db.VarChar(150)
+  nombreContacto String? @map("nombre_contacto") @db.VarChar(150)
+  telefono       String? @db.VarChar(20)
+  email          String? @db.VarChar(254)
+  activo         Boolean @default(true)
+
+  entradas EntradaInventario[]
+
+  @@map("proveedor")
+}
+
+model EntradaInventario {
+  id                       Int      @id @default(autoincrement()) @map("id_entrada")
+  proveedorId              Int      @map("id_proveedor")
+  usuarioId                Int      @map("id_usuario")
+  fechaRecepcion           DateTime @map("fecha_recepcion") @db.Date
+  tipoDocumentoProveedor   String   @map("tipo_documento_proveedor") @db.VarChar(30)
+  numeroDocumentoProveedor String   @map("numero_documento_proveedor") @db.VarChar(50)
+  observacion              String?  @db.Text
+
+  proveedor   Proveedor              @relation(fields: [proveedorId], references: [id])
+  usuario     Usuario                @relation(fields: [usuarioId], references: [id])
+  detalles    DetalleEntrada[]
+  movimientos MovimientoInventario[]
+
+  @@index([proveedorId])
+  @@map("entrada_inventario")
+}
+
+model DetalleEntrada {
+  entradaId         Int     @map("id_entrada")
+  formatoId         Int     @map("id_formato")
+  cantidadRecibida  Int     @map("cantidad_recibida")
+  costoUnitarioNeto Decimal @map("costo_unitario_neto") @db.Decimal(12, 2)
+
+  entrada EntradaInventario @relation(fields: [entradaId], references: [id], onDelete: Cascade)
+  formato FormatoProducto   @relation(fields: [formatoId], references: [id])
+
+  @@id([entradaId, formatoId])
+  @@map("detalle_entrada")
+}
+
+model Bodega {
+  id                  Int     @id @default(autoincrement()) @map("id_bodega")
+  comunaId            Int     @map("id_comuna")
+  nombre              String  @db.VarChar(100)
+  direccion           String  @db.VarChar(200)
+  tipo                String  @db.VarChar(30)
+  abasteceVentaOnline Boolean @default(true) @map("abastece_venta_online")
+  activa              Boolean @default(true)
+
+  comuna      Comuna      @relation(fields: [comunaId], references: [id])
+  ubicaciones Ubicacion[]
+
+  @@map("bodega")
+}
+
+model Ubicacion {
+  id       Int     @id @default(autoincrement()) @map("id_ubicacion")
+  bodegaId Int     @map("id_bodega")
+  codigo   String  @db.VarChar(30)
+  zona     String? @db.VarChar(20)
+  pasillo  String? @db.VarChar(20)
+  estante  String? @db.VarChar(20)
+  nivel    String? @db.VarChar(20)
+  activa   Boolean @default(true)
+
+  bodega             Bodega                 @relation(fields: [bodegaId], references: [id])
+  existencias        Existencia[]
+  movimientosOrigen  MovimientoInventario[] @relation("MovimientoOrigen")
+  movimientosDestino MovimientoInventario[] @relation("MovimientoDestino")
+
+  @@unique([bodegaId, codigo])
+  @@map("ubicacion")
+}
+
+model Existencia {
+  formatoId          Int      @map("id_formato")
+  ubicacionId        Int      @map("id_ubicacion")
+  cantidad           Int      @default(0)
+  fechaActualizacion DateTime @updatedAt @map("fecha_actualizacion") @db.Timestamptz(6)
+
+  formato   FormatoProducto @relation(fields: [formatoId], references: [id])
+  ubicacion Ubicacion       @relation(fields: [ubicacionId], references: [id])
+
+  @@id([formatoId, ubicacionId])
+  @@map("existencia")
+}
+
+model MovimientoInventario {
+  id                 Int      @id @default(autoincrement()) @map("id_movimiento")
+  formatoId          Int      @map("id_formato")
+  entradaId          Int?     @map("id_entrada")
+  ubicacionOrigenId  Int?     @map("id_ubicacion_origen")
+  ubicacionDestinoId Int?     @map("id_ubicacion_destino")
+  usuarioId          Int?     @map("id_usuario")
+  pedidoId           Int?     @map("id_pedido")
+  fechaHora          DateTime @default(now()) @map("fecha_hora") @db.Timestamptz(6)
+  tipo               String   @db.VarChar(30)
+  cantidad           Int
+  observacion        String?  @db.Text
+
+  formato          FormatoProducto    @relation(fields: [formatoId], references: [id])
+  entrada          EntradaInventario? @relation(fields: [entradaId], references: [id])
+  ubicacionOrigen  Ubicacion?         @relation("MovimientoOrigen", fields: [ubicacionOrigenId], references: [id])
+  ubicacionDestino Ubicacion?         @relation("MovimientoDestino", fields: [ubicacionDestinoId], references: [id])
+  usuario          Usuario?           @relation(fields: [usuarioId], references: [id])
+  pedido           Pedido?            @relation(fields: [pedidoId], references: [id])
+
+  @@index([formatoId, fechaHora])
+  @@index([pedidoId])
+  @@map("movimiento_inventario")
+}
+
+// ────────────────────────────── Territorio ──────────────────────────────
+
+model Region {
+  id        Int    @id @default(autoincrement()) @map("id_region")
+  codigoCut String @unique @map("codigo_cut") @db.Char(2)
+  nombre    String @db.VarChar(100)
+
+  comunas Comuna[]
+
+  @@map("region")
+}
+
+model Comuna {
+  id        Int    @id @default(autoincrement()) @map("id_comuna")
+  regionId  Int    @map("id_region")
+  codigoCut String @unique @map("codigo_cut") @db.Char(5)
+  nombre    String @db.VarChar(100)
+
+  region           Region              @relation(fields: [regionId], references: [id])
+  direcciones      Direccion[]
+  perfiles         PerfilProfesional[]
+  datosFacturacion DatosFacturacion[]
+  envios           Envio[]
+  bodegas          Bodega[]
+
+  @@index([regionId])
+  @@map("comuna")
+}
