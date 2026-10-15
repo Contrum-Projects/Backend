@@ -116,6 +116,9 @@ docs/reglas-de-negocio.md      # reglas por épica y requerimientos no funcional
 - Nunca hagas push a `main`, `push --force`, ni merge de PR: eso lo hace el equipo.
 - Comandos del proyecto: `/historia SCRUM-<n>` para empezar una historia, `/pr` para abrir el PR,
   `/revisar` para revisar una rama, `/migracion <nombre>` para cambiar el esquema.
+- Los commits y PRs son del integrante que los firma: no agregues `Co-Authored-By`,
+  `Claude-Session`, «Generated with Claude Code» ni ninguna otra mención a Claude en mensajes de
+  commit ni en descripciones de PR.
 
 ## No hacer
 
