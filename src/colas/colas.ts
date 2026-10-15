@@ -23,6 +23,22 @@ export const COLAS = {
   PLAZOS: 'plazos',
 } as const;
 
+/** Nombres de los trabajos de la cola de correos. */
+export const TRABAJOS_CORREO = {
+  CONFIRMACION_CORREO: 'confirmacion-correo',
+} as const;
+
+/**
+ * Datos del trabajo de confirmación del correo (E1-H1). El enlace lleva el token
+ * en claro, por eso el trabajo se borra de Redis al terminar (bien o mal).
+ */
+export interface TrabajoConfirmacionCorreo {
+  notificacionId: number;
+  destinatario: string;
+  nombre: string;
+  enlace: string;
+}
+
 /**
  * Prioridad de los correos (RNF-16): en BullMQ, número menor = sale antes.
  */

@@ -27,6 +27,11 @@ export const esquemaEntorno = z.object({
   JWT_REFRESH_SECRET: z.string().min(32),
   JWT_REFRESH_TTL: z.string().default('30d'),
 
+  /** Base de los enlaces que van en los correos (confirmación, recuperación). */
+  URL_TIENDA: z.url().default('http://localhost:3001'),
+  /** Vigencia del enlace de confirmación del correo (E1-H1, decisión del 14 oct). */
+  CONFIRMACION_CORREO_HORAS: z.coerce.number().int().positive().default(24),
+
   IVA_PORCENTAJE: z.coerce.number().min(0).max(100).default(19),
   MINIMO_UNIDADES_PELUQUERO: z.coerce.number().int().positive().default(3),
   PLAZO_PAGO_MINUTOS: z.coerce.number().int().positive().default(15),
