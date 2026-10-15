@@ -37,6 +37,9 @@ suscribirse a ofertas. No hay compra como invitado.
   correlativo (RNF-07). Pedir el pedido de otra cuenta devuelve error.
 - Límite de peticiones (RNF-09): 5/min por IP en suscripción; 5 intentos de inicio de sesión en
   15 min; también la recuperación de contraseña. Responde 429. Contador común en Redis.
+  Registro y confirmación del correo: 5/min por IP cada uno (decisión del 14 oct, E1-H1).
+  Los límites se declaran por ruta con `LIMITES` (`src/limites/limites.ts`); si Redis no
+  responde, la petición pasa (RNF-32).
 - Cierre de sesión, desactivación de cuenta y cambio de rol rigen de inmediato, sin esperar a que
   caduque el token (RNF-28): Redis recuerda qué cuentas deben renovar su token.
 - Credenciales solo en variables de entorno (RNF-10); gitleaks corre en CI.

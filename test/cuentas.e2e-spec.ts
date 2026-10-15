@@ -12,6 +12,8 @@ import { ESTADOS_NOTIFICACION } from '../src/common/dominio/valores.js';
 import { configurarApp } from '../src/configurar-app.js';
 import { hashearTokenCorreo } from '../src/modulos/cuentas/tokens.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
+import { REDIS } from '../src/redis/redis.module.js';
+import type { Redis } from 'ioredis';
 
 // Requiere PostgreSQL y Redis levantados: `docker compose up -d db redis`.
 
@@ -30,6 +32,7 @@ describe('Cuentas · registro y confirmación (e2e)', () => {
   let app: INestApplication<App>;
   let prisma: PrismaService;
   let correos: Queue<TrabajoConfirmacionCorreo>;
+  let redis: Redis;
   const correosCreados: string[] = [];
 
   const nuevoRegistro = () => {
@@ -64,6 +67,13 @@ describe('Cuentas · registro y confirmación (e2e)', () => {
     await app.init();
     prisma = app.get(PrismaService);
     correos = app.get(getQueueToken(COLAS.CORREOS));
+    redis = app.get(REDIS);
+  });
+
+  // Todas las peticiones salen de la misma IP: cada prueba parte sin contadores
+  beforeEach(async () => {
+    const claves = await redis.keys('limite:*');
+    if (claves.length) await redis.del(...claves);
   });
 
   afterAll(async () => {
@@ -236,5 +246,36 @@ describe('Cuentas · registro y confirmación (e2e)', () => {
       .post('/api/cuentas/confirmar-correo')
       .send({ token: 'no-existe' })
       .expect(400);
+  });
+
+  it('RNF-09 · registro: la sexta petición en un minuto desde la misma IP responde 429', async () => {
+    const servidor = app.getHttpServer();
+    // Peticiones inválidas: cuentan para el límite sin crear cuentas
+    const invalido = { email: 'no-es-correo' };
+    for (let i = 0; i < 5; i++) {
+      await request(servidor)
+        .post('/api/cuentas/registro')
+        .send(invalido)
+        .expect(400);
+    }
+    const bloqueada = await request(servidor)
+      .post('/api/cuentas/registro')
+      .send(invalido)
+      .expect(429);
+    expect(Number(bloqueada.headers['retry-after'])).toBeGreaterThan(0);
+  });
+
+  it('RNF-09 · confirmación del correo: la sexta petición en un minuto responde 429', async () => {
+    const servidor = app.getHttpServer();
+    for (let i = 0; i < 5; i++) {
+      await request(servidor)
+        .post('/api/cuentas/confirmar-correo')
+        .send({ token: 'no-existe' })
+        .expect(400);
+    }
+    await request(servidor)
+      .post('/api/cuentas/confirmar-correo')
+      .send({ token: 'no-existe' })
+      .expect(429);
   });
 });
