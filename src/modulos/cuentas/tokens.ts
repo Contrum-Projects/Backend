@@ -12,3 +12,7 @@ export const generarTokenCorreo = (): { token: string; hash: string } => {
 
 export const hashearTokenCorreo = (token: string): string =>
   createHash('sha256').update(token).digest('hex');
+
+/** Token de refresco de la sesión (E1-H2): mismo formato; solo se guarda su hash. */
+export const generarTokenSesion = generarTokenCorreo;
+export const hashearTokenSesion = hashearTokenCorreo;

@@ -35,6 +35,7 @@ import { SaludController } from './salud/salud.controller.js';
               'req.body.password',
               'req.body.confirmacionContrasena',
               'req.body.token',
+              'res.headers["set-cookie"]',
             ],
           },
         };
