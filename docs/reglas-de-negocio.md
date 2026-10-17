@@ -37,6 +37,8 @@ suscribirse a ofertas. No hay compra como invitado.
   correlativo (RNF-07). Pedir el pedido de otra cuenta devuelve error.
 - Límite de peticiones (RNF-09): 5/min por IP en suscripción; 5 intentos de inicio de sesión en
   15 min; también la recuperación de contraseña. Responde 429. Contador común en Redis.
+  Inicio de sesión (decisión del 17 oct, E1-H2): cuentan solo los fallidos, 5 por correo + IP y
+  20 por IP en 15 min (`LIMITE_INICIO_SESION`); un inicio correcto reinicia el del correo.
   Registro y confirmación del correo: 5/min por IP cada uno (decisión del 14 oct, E1-H1).
   Los límites se declaran por ruta con `LIMITES` (`src/limites/limites.ts`); si Redis no
   responde, la petición pasa (RNF-32).
@@ -72,6 +74,11 @@ confirmación dura 24 h (`CONFIRMACION_CORREO_HORAS`); contraseña de 8+ caracte
 número; RUT guardado como `12345678-K`. Valores nuevos en `valores.ts`: `TIPOS_TOKEN`
 (`confirmacion_correo`), `TIPOS_NOTIFICACION` (`confirmacion_correo`) y `ESTADOS_NOTIFICACION`
 (`pendiente`, `enviada`, `fallida`).
+Decisiones del 17 oct (E1-H2): para iniciar sesión la cuenta debe tener `activo` verdadero **y**
+el correo confirmado (si no, 403, y solo se informa con la contraseña correcta); correo inexistente
+y contraseña errónea responden el mismo 401. El token de acceso (`JWT_ACCESS_TTL`, con `sub` =
+`codigoPublico` y el rol) va en la respuesta; el de refresco (`JWT_REFRESH_TTL`) va en una cookie
+httpOnly y en SESION solo su hash.
 
 **E13 Personal y acceso.** El administrador crea y desactiva cuentas del personal; la desactivada
 pierde el acceso de inmediato. Cada acción del panel exige un permiso del rol (guard en backend).
