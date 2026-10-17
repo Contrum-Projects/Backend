@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { FORMATO_DURACION } from './duracion.js';
 
 /**
  * Variables de entorno del backend. La app no arranca si falta una obligatoria
@@ -23,9 +24,10 @@ export const esquemaEntorno = z.object({
   REDIS_URL: z.url(),
 
   JWT_ACCESS_SECRET: z.string().min(32),
-  JWT_ACCESS_TTL: z.string().default('15m'),
+  /** Duraciones como 15m o 30d (ver config/duracion.ts). */
+  JWT_ACCESS_TTL: z.string().regex(FORMATO_DURACION).default('15m'),
   JWT_REFRESH_SECRET: z.string().min(32),
-  JWT_REFRESH_TTL: z.string().default('30d'),
+  JWT_REFRESH_TTL: z.string().regex(FORMATO_DURACION).default('30d'),
 
   /** Base de los enlaces que van en los correos (confirmación, recuperación). */
   URL_TIENDA: z.url().default('http://localhost:3001'),
