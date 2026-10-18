@@ -8,6 +8,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
 import { RedisModule } from './redis/redis.module.js';
 import { LimitesModule } from './limites/limites.module.js';
 import { CuentasModule } from './modulos/cuentas/cuentas.module.js';
+import { PersonalModule } from './modulos/personal/personal.module.js';
 import { SaludController } from './salud/salud.controller.js';
 
 @Module({
@@ -65,6 +66,7 @@ import { SaludController } from './salud/salud.controller.js';
     // Módulos de dominio: se agregan aquí a medida que se implementan las historias
     // (ver src/modulos/README.md).
     CuentasModule,
+    PersonalModule,
   ],
   controllers: [SaludController],
 })

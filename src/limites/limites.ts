@@ -7,6 +7,8 @@ export const LIMITES = {
   REGISTRO: { limit: 5, ttl: 60_000 },
   /** Cierre de sesión en el dispositivo (E1-H3, decisión del 18 oct 2026): 30/min. */
   CIERRE_SESION: { limit: 30, ttl: 60_000 },
+  /** Aceptar la invitación del personal (E13-H1, decisión del 18 oct 2026): 5/min, como el registro. */
+  ACEPTAR_INVITACION: { limit: 5, ttl: 60_000 },
 } as const;
 
 /**
