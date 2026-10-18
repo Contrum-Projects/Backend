@@ -9,12 +9,8 @@ import { ConfigService } from '@nestjs/config';
 import argon2 from 'argon2';
 import type { Queue } from 'bullmq';
 import { randomUUID } from 'node:crypto';
-import {
-  COLAS,
-  PRIORIDAD_CORREO,
-  TRABAJOS_CORREO,
-  type TrabajoConfirmacionCorreo,
-} from '../../colas/colas.js';
+import { COLAS, TRABAJOS_CORREO } from '../../colas/colas.js';
+import { encolarCorreoConEnlace } from '../../colas/encolar-correo.js';
 import { ROLES } from '../../common/dominio/roles.js';
 import {
   ESTADOS_NOTIFICACION,
@@ -28,8 +24,6 @@ import type { RegistrarCuentaDto } from './dto/registrar-cuenta.dto.js';
 import { generarTokenCorreo, hashearTokenCorreo } from './tokens.js';
 
 const ASUNTO_CONFIRMACION = 'Confirma tu correo en Cabello Perfecto';
-/** Si Redis no responde en este plazo, el registro sigue sin esperar la cola. */
-const ESPERA_MAXIMA_COLA_MS = 2_000;
 
 export interface Mensaje {
   mensaje: string;
@@ -122,12 +116,17 @@ export class CuentasService {
     }
 
     // Se encola después del commit, nunca dentro de la transacción
-    await this.encolarConfirmacion({
-      notificacionId,
-      destinatario: dto.email,
-      nombre: dto.nombre,
-      enlace: this.enlaceConfirmacion(token),
-    });
+    await encolarCorreoConEnlace(
+      this.correos,
+      TRABAJOS_CORREO.CONFIRMACION_CORREO,
+      {
+        notificacionId,
+        destinatario: dto.email,
+        nombre: dto.nombre,
+        enlace: this.enlaceConfirmacion(token),
+      },
+      this.logger,
+    );
 
     return {
       mensaje:
@@ -199,36 +198,5 @@ export class CuentasService {
       .get('URL_TIENDA', { infer: true })
       .replace(/\/+$/, '');
     return `${base}/confirmar-correo?token=${encodeURIComponent(token)}`;
-  }
-
-  /**
-   * Si Redis no responde, la cuenta ya quedó creada y la NOTIFICACION sigue
-   * pendiente; el registro no falla por eso (RNF-32).
-   */
-  private async encolarConfirmacion(datos: TrabajoConfirmacionCorreo) {
-    let temporizador: NodeJS.Timeout | undefined;
-    const limite = new Promise<never>((_, rechazar) => {
-      temporizador = setTimeout(
-        () => rechazar(new Error('Redis no respondió a tiempo')),
-        ESPERA_MAXIMA_COLA_MS,
-      );
-    });
-    try {
-      await Promise.race([
-        this.correos.add(TRABAJOS_CORREO.CONFIRMACION_CORREO, datos, {
-          priority: PRIORIDAD_CORREO.PEDIDO_Y_CUENTA,
-          // El enlace lleva el token en claro: no queda guardado en Redis
-          removeOnComplete: true,
-          removeOnFail: true,
-        }),
-        limite,
-      ]);
-    } catch (error) {
-      this.logger.warn(
-        `No se pudo encolar el correo de confirmación (notificación ${datos.notificacionId}): ${(error as Error).message}`,
-      );
-    } finally {
-      clearTimeout(temporizador);
-    }
   }
 }
