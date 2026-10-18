@@ -6,5 +6,7 @@ export default defineConfig({
     globals: true,
     root: './',
     include: ['**/*.e2e-spec.ts'],
+    // Comparten la base y los contadores de Redis (limpian `limite:*`): uno a la vez
+    fileParallelism: false,
   },
 });
