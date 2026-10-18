@@ -73,6 +73,8 @@ export const TIPOS_CAMPANA = {
 export const TIPOS_TOKEN = {
   /** E1-H1, decisión del 14 de octubre de 2026. */
   CONFIRMACION_CORREO: 'confirmacion_correo',
+  /** E13-H1, decisión del 18 de octubre de 2026: el personal define su contraseña. */
+  INVITACION_PERSONAL: 'invitacion_personal',
 } as const;
 
 /**
@@ -81,6 +83,8 @@ export const TIPOS_TOKEN = {
 export const TIPOS_NOTIFICACION = {
   /** E1-H1, decisión del 14 de octubre de 2026. */
   CONFIRMACION_CORREO: 'confirmacion_correo',
+  /** E13-H1, decisión del 18 de octubre de 2026. */
+  INVITACION_PERSONAL: 'invitacion_personal',
 } as const;
 
 /** NOTIFICACION.estado_envio (decisión del 14 de octubre de 2026, E1-H1). */
