@@ -26,18 +26,24 @@ export const COLAS = {
 /** Nombres de los trabajos de la cola de correos. */
 export const TRABAJOS_CORREO = {
   CONFIRMACION_CORREO: 'confirmacion-correo',
+  /** Invitación al personal para definir su contraseña (E13-H1). */
+  INVITACION_PERSONAL: 'invitacion-personal',
 } as const;
 
 /**
- * Datos del trabajo de confirmación del correo (E1-H1). El enlace lleva el token
- * en claro, por eso el trabajo se borra de Redis al terminar (bien o mal).
+ * Datos de un correo con enlace de un uso: confirmación del correo (E1-H1) e
+ * invitación al personal (E13-H1). El enlace lleva el token en claro, por eso el
+ * trabajo se borra de Redis al terminar (bien o mal).
  */
-export interface TrabajoConfirmacionCorreo {
+export interface TrabajoCorreoConEnlace {
   notificacionId: number;
   destinatario: string;
   nombre: string;
   enlace: string;
 }
+
+export type TrabajoConfirmacionCorreo = TrabajoCorreoConEnlace;
+export type TrabajoInvitacionPersonal = TrabajoCorreoConEnlace;
 
 /**
  * Prioridad de los correos (RNF-16): en BullMQ, número menor = sale antes.
