@@ -43,7 +43,9 @@ suscribirse a ofertas. No hay compra como invitado.
   Los límites se declaran por ruta con `LIMITES` (`src/limites/limites.ts`); si Redis no
   responde, la petición pasa (RNF-32).
 - Cierre de sesión, desactivación de cuenta y cambio de rol rigen de inmediato, sin esperar a que
-  caduque el token (RNF-28): Redis recuerda qué cuentas deben renovar su token.
+  caduque el token (RNF-28): el token lleva su sesión (`sid`) y `JwtAutenticacionGuard` revisa en
+  SESION que no esté revocada (decisión del 18 oct, E1-H3). Desactivar o cambiar el rol debe
+  revocar las sesiones de la cuenta.
 - Credenciales solo en variables de entorno (RNF-10); gitleaks corre en CI.
 
 ## Montos e integridad (RNF-11 a RNF-14, RNF-29)
@@ -79,6 +81,13 @@ el correo confirmado (si no, 403, y solo se informa con la contraseña correcta)
 y contraseña errónea responden el mismo 401. El token de acceso (`JWT_ACCESS_TTL`, con `sub` =
 `codigoPublico` y el rol) va en la respuesta; el de refresco (`JWT_REFRESH_TTL`) va en una cookie
 httpOnly y en SESION solo su hash.
+Decisiones del 18 oct (E1-H3): el token de acceso lleva `sid` = `SESION.codigoPublico` (UUID). El
+cierre en el dispositivo se identifica con todas las cookies `refresco` que lleguen (no pide token
+de acceso, es idempotente y tiene un límite de 30/min por IP, `LIMITES.CIERRE_SESION`); el cierre en
+todos pide token de acceso. La revocación queda en `SESION.fechaRevocacion` y
+`JwtAutenticacionGuard` la consulta en la base en cada petición (sin Redis: una marca perdida
+dejaría pasar un token revocado). Los tokens de acceso van con HS256 y audiencia `cp-acceso`.
+La futura renovación del token debe rechazar sesiones revocadas o vencidas.
 
 **E13 Personal y acceso.** El administrador crea y desactiva cuentas del personal; la desactivada
 pierde el acceso de inmediato. Cada acción del panel exige un permiso del rol (guard en backend).

@@ -1,25 +1,36 @@
 import {
   Body,
   Controller,
+  Delete,
   Headers,
   HttpCode,
   HttpStatus,
   Ip,
   Post,
   Res,
+  UseGuards,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   ApiBadRequestResponse,
+  ApiBearerAuth,
   ApiForbiddenResponse,
+  ApiNoContentResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
   ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import type { Response } from 'express';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import type { CookieOptions, Response } from 'express';
+import type { UsuarioAutenticado } from '../../autenticacion/carga-token.js';
+import {
+  JwtAutenticacionGuard,
+  UsuarioActual,
+} from '../../autenticacion/jwt-autenticacion.guard.js';
 import type { Entorno } from '../../config/entorno.js';
+import { LIMITES } from '../../limites/limites.js';
 import { IniciarSesionDto } from './dto/iniciar-sesion.dto.js';
 import {
   DemasiadosIntentosException,
@@ -30,6 +41,22 @@ import {
 /** Cookie httpOnly con el token de refresco; solo viaja a las rutas de sesión. */
 export const COOKIE_REFRESCO = 'refresco';
 const RUTA_COOKIE_REFRESCO = '/api/cuentas/sesion';
+
+/**
+ * Todos los valores de una cookie en la cabecera `Cookie` (la app no usa
+ * cookie-parser). Puede venir repetida si otro subdominio plantó una igual.
+ */
+const leerCookies = (cabecera: string | undefined, nombre: string): string[] =>
+  (cabecera?.split(';') ?? []).flatMap((par) => {
+    const [clave, ...valor] = par.trim().split('=');
+    if (clave !== nombre) return [];
+    try {
+      const decodificado = decodeURIComponent(valor.join('='));
+      return decodificado ? [decodificado] : [];
+    } catch {
+      return [];
+    }
+  });
 
 @ApiTags('cuentas')
 @Controller('cuentas/sesion')
@@ -65,10 +92,7 @@ export class SesionController {
     try {
       const resultado = await this.sesiones.iniciar(dto, { ip, dispositivo });
       respuesta.cookie(COOKIE_REFRESCO, resultado.tokenRefresco, {
-        httpOnly: true,
-        secure: this.config.get('NODE_ENV', { infer: true }) === 'production',
-        sameSite: 'strict',
-        path: RUTA_COOKIE_REFRESCO,
+        ...this.opcionesCookie(),
         expires: resultado.vencimientoRefresco,
       });
       return resultado.sesion;
@@ -78,5 +102,56 @@ export class SesionController {
       }
       throw error;
     }
+  }
+
+  @Delete()
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: LIMITES.CIERRE_SESION })
+  @ApiOperation({
+    summary: 'Cerrar sesión en este dispositivo (E1-H3)',
+    description:
+      'Revoca la sesión de la cookie de refresco y la borra; su token de acceso deja de servir de inmediato. Sin cookie o con la sesión ya cerrada responde igual.',
+  })
+  @ApiNoContentResponse({ description: 'Sesión cerrada.' })
+  @ApiTooManyRequestsResponse({
+    description: 'Más de 30 cierres por minuto desde la IP.',
+  })
+  async cerrar(
+    @Headers('cookie') cookies: string | undefined,
+    @Res({ passthrough: true }) respuesta: Response,
+  ): Promise<void> {
+    await this.sesiones.cerrar(leerCookies(cookies, COOKIE_REFRESCO));
+    respuesta.clearCookie(COOKIE_REFRESCO, this.opcionesCookie());
+  }
+
+  @Delete('todas')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(JwtAutenticacionGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Cerrar sesión en todos los dispositivos (E1-H3)',
+    description:
+      'Revoca todas las sesiones de la cuenta, incluida esta; cada dispositivo deberá iniciar sesión de nuevo.',
+  })
+  @ApiNoContentResponse({ description: 'Sesiones cerradas.' })
+  @ApiUnauthorizedResponse({
+    description: 'Sin token de acceso válido o con la sesión ya cerrada.',
+  })
+  async cerrarTodas(
+    @UsuarioActual() usuario: UsuarioAutenticado,
+    @Res({ passthrough: true }) respuesta: Response,
+  ): Promise<void> {
+    await this.sesiones.cerrarTodas(usuario.codigoPublico);
+    respuesta.clearCookie(COOKIE_REFRESCO, this.opcionesCookie());
+  }
+
+  private opcionesCookie(): CookieOptions {
+    return {
+      httpOnly: true,
+      secure: this.config.get('NODE_ENV', { infer: true }) === 'production',
+      sameSite: 'strict',
+      path: RUTA_COOKIE_REFRESCO,
+    };
   }
 }
