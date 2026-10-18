@@ -33,6 +33,8 @@ export const esquemaEntorno = z.object({
   URL_TIENDA: z.url().default('http://localhost:3001'),
   /** Vigencia del enlace de confirmación del correo (E1-H1, decisión del 14 oct). */
   CONFIRMACION_CORREO_HORAS: z.coerce.number().int().positive().default(24),
+  /** Vigencia del enlace de invitación al personal (E13-H1, decisión del 18 oct). */
+  INVITACION_PERSONAL_HORAS: z.coerce.number().int().positive().default(72),
 
   IVA_PORCENTAJE: z.coerce.number().min(0).max(100).default(19),
   MINIMO_UNIDADES_PELUQUERO: z.coerce.number().int().positive().default(3),

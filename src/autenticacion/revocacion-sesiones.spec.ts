@@ -13,23 +13,38 @@ describe('RevocacionSesiones', () => {
   });
 
   it('E1-H3 · cierre de sesión: una sesión con fecha de revocación está revocada', async () => {
-    prisma.sesion.findUnique.mockResolvedValue({ fechaRevocacion: new Date() });
+    prisma.sesion.findUnique.mockResolvedValue({
+      fechaRevocacion: new Date(),
+      usuario: { activo: true },
+    });
 
     await expect(revocacion.estaRevocada(SID)).resolves.toBe(true);
     expect(prisma.sesion.findUnique).toHaveBeenCalledWith({
       where: { codigoPublico: SID },
-      select: { fechaRevocacion: true },
+      select: { fechaRevocacion: true, usuario: { select: { activo: true } } },
     });
   });
 
   it('E1-H3 · cierre de sesión: una sesión abierta no está revocada', async () => {
-    prisma.sesion.findUnique.mockResolvedValue({ fechaRevocacion: null });
+    prisma.sesion.findUnique.mockResolvedValue({
+      fechaRevocacion: null,
+      usuario: { activo: true },
+    });
 
     await expect(revocacion.estaRevocada(SID)).resolves.toBe(false);
   });
 
   it('E1-H3 · cierre de sesión: una sesión que no existe cuenta como revocada', async () => {
     prisma.sesion.findUnique.mockResolvedValue(null);
+
+    await expect(revocacion.estaRevocada(SID)).resolves.toBe(true);
+  });
+
+  it('E13-H1 · cuenta desactivada: su sesión cuenta como revocada aunque no tenga fecha de revocación', async () => {
+    prisma.sesion.findUnique.mockResolvedValue({
+      fechaRevocacion: null,
+      usuario: { activo: false },
+    });
 
     await expect(revocacion.estaRevocada(SID)).resolves.toBe(true);
   });

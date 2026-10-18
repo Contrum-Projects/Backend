@@ -92,6 +92,17 @@ La futura renovación del token debe rechazar sesiones revocadas o vencidas.
 **E13 Personal y acceso.** El administrador crea y desactiva cuentas del personal; la desactivada
 pierde el acceso de inmediato. Cada acción del panel exige un permiso del rol (guard en backend).
 Cliente y profesional no entran al panel. PENDIENTE: matriz de permisos de vendedor y bodeguero.
+Decisiones del 18 oct (E13-H1): el administrador crea la cuenta con nombre, apellido, correo y un
+único rol (`vendedor`, `bodeguero` o `administrador`); la cuenta nace con una contraseña aleatoria
+que nadie conoce y se envía una invitación de un uso (`TIPOS_TOKEN.INVITACION_PERSONAL`, 72 h,
+`INVITACION_PERSONAL_HORAS`) a `URL_TIENDA/personal/activar?token=...`; al aceptarla la persona
+define su contraseña (mismas reglas que el registro) y queda con el correo confirmado. El
+administrador puede reenviar la invitación (invalida la anterior) mientras la cuenta esté activa y
+sin contraseña definida, y listar al personal. Desactivar pone `activo` en falso, revoca todas sus
+sesiones e invalida su invitación pendiente, en una transacción; el administrador no puede
+desactivarse a sí mismo (409) y quien crea, reinvita o desactiva debe seguir activo dentro de la
+transacción (403), así que siempre queda al menos un administrador activo. El guard JWT rechaza
+también las sesiones de cuentas desactivadas. No hay reactivación (no está en la historia).
 
 **E3 Administración del catálogo.** Producto: nombre, descripción, marca (de una lista), categoría,
 canal de venta. Formatos con SKU y código de barras únicos, contenido, peso, medidas, stock mínimo,
