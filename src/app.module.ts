@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { LoggerModule } from 'nestjs-pino';
 import { validarEntorno, type Entorno } from './config/entorno.js';
+import { AutenticacionModule } from './autenticacion/autenticacion.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { RedisModule } from './redis/redis.module.js';
 import { LimitesModule } from './limites/limites.module.js';
@@ -60,6 +61,7 @@ import { SaludController } from './salud/salud.controller.js';
     PrismaModule,
     RedisModule,
     LimitesModule,
+    AutenticacionModule,
     // Módulos de dominio: se agregan aquí a medida que se implementan las historias
     // (ver src/modulos/README.md).
     CuentasModule,

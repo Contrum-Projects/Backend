@@ -97,6 +97,8 @@ model TokenCorreo {
 
 model Sesion {
   id                Int       @id @default(autoincrement()) @map("id_sesion")
+  /// Va en el JWT de acceso (`sid`) para revocar la sesión; nunca el id (RNF-07).
+  codigoPublico     String    @unique @default(dbgenerated("(gen_random_uuid())::text")) @map("codigo_publico") @db.VarChar(36)
   usuarioId         Int       @map("id_usuario")
   tokenRefrescoHash String    @unique @map("token_refresco_hash") @db.VarChar(255)
   fechaCreacion     DateTime  @default(now()) @map("fecha_creacion") @db.Timestamptz(6)

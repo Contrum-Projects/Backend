@@ -13,7 +13,7 @@ import type { Entorno } from '../config/entorno.js';
 export const REDIS = Symbol('REDIS');
 
 /**
- * Cliente Redis para límites de peticiones, revocación de sesiones y caché.
+ * Cliente Redis para límites de peticiones y caché.
  * Redis nunca guarda datos del negocio (RNF-29) y la venta no depende de él (RNF-32):
  * todo uso debe tolerar que Redis no responda.
  */
