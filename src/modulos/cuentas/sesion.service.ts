@@ -10,13 +10,18 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import argon2 from 'argon2';
 import { randomBytes } from 'node:crypto';
+import {
+  ALGORITMO_TOKEN_ACCESO,
+  AUDIENCIA_TOKEN_ACCESO,
+  type CargaTokenAcceso,
+} from '../../autenticacion/carga-token.js';
 import type { Rol } from '../../common/dominio/roles.js';
 import { duracionAMs } from '../../config/duracion.js';
 import type { Entorno } from '../../config/entorno.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { IniciarSesionDto } from './dto/iniciar-sesion.dto.js';
 import { IntentosSesion } from './intentos-sesion.js';
-import { generarTokenSesion } from './tokens.js';
+import { generarTokenSesion, hashearTokenSesion } from './tokens.js';
 
 const LARGO_MAXIMO_DISPOSITIVO = 255;
 
@@ -29,12 +34,6 @@ export class DemasiadosIntentosException extends HttpException {
       HttpStatus.TOO_MANY_REQUESTS,
     );
   }
-}
-
-/** Lo que el JWT de acceso lleva: la cuenta (nunca el id) y su rol. */
-export interface CargaTokenAcceso {
-  sub: string;
-  rol: Rol;
 }
 
 export interface SesionIniciada {
@@ -132,7 +131,8 @@ export class SesionService implements OnModuleInit {
       Date.now() +
         duracionAMs(this.config.get('JWT_REFRESH_TTL', { infer: true })),
     );
-    await this.prisma.sesion.create({
+    const { codigoPublico: sid } = await this.prisma.sesion.create({
+      select: { codigoPublico: true },
       data: {
         usuarioId: usuario.id,
         tokenRefrescoHash: hash,
@@ -144,9 +144,11 @@ export class SesionService implements OnModuleInit {
     const rol = usuario.rol as Rol;
     const expiraEn =
       duracionAMs(this.config.get('JWT_ACCESS_TTL', { infer: true })) / 1000;
-    const carga: CargaTokenAcceso = { sub: usuario.codigoPublico, rol };
+    const carga: CargaTokenAcceso = { sub: usuario.codigoPublico, sid, rol };
     const tokenAcceso = await this.jwt.signAsync(carga, {
       expiresIn: expiraEn,
+      algorithm: ALGORITMO_TOKEN_ACCESO,
+      audience: AUDIENCIA_TOKEN_ACCESO,
     });
 
     await this.intentos.confirmarExito(dto.email, contexto.ip);
@@ -165,5 +167,34 @@ export class SesionService implements OnModuleInit {
       tokenRefresco,
       vencimientoRefresco,
     };
+  }
+
+  /**
+   * E1-H3 · Cierra la sesión del dispositivo dueño del token de refresco. Recibe
+   * todos los que llegaron en cookies `refresco` (una plantada desde otro
+   * subdominio no deja abierta la real). Es idempotente: sin token, con uno
+   * desconocido o ya revocado no hace nada. Desde ese momento el guard rechaza
+   * el token de acceso de la sesión.
+   */
+  async cerrar(tokensRefresco: string[]): Promise<void> {
+    if (tokensRefresco.length === 0) return;
+    await this.prisma.sesion.updateMany({
+      where: {
+        tokenRefrescoHash: { in: tokensRefresco.map(hashearTokenSesion) },
+        fechaRevocacion: null,
+      },
+      data: { fechaRevocacion: new Date() },
+    });
+  }
+
+  /** E1-H3 · Cierra todas las sesiones abiertas de la cuenta, en todos sus dispositivos. */
+  async cerrarTodas(codigoPublicoUsuario: string): Promise<void> {
+    await this.prisma.sesion.updateMany({
+      where: {
+        usuario: { codigoPublico: codigoPublicoUsuario },
+        fechaRevocacion: null,
+      },
+      data: { fechaRevocacion: new Date() },
+    });
   }
 }

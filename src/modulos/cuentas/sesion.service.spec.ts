@@ -2,12 +2,15 @@ import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import argon2 from 'argon2';
+import {
+  AUDIENCIA_TOKEN_ACCESO,
+  type CargaTokenAcceso,
+} from '../../autenticacion/carga-token.js';
 import { ROLES } from '../../common/dominio/roles.js';
 import type { Entorno } from '../../config/entorno.js';
 import type { PrismaService } from '../../prisma/prisma.service.js';
 import type { IntentosSesion } from './intentos-sesion.js';
 import {
-  type CargaTokenAcceso,
   DemasiadosIntentosException,
   SesionService,
 } from './sesion.service.js';
@@ -18,6 +21,7 @@ const entorno: Partial<Entorno> = {
   JWT_ACCESS_TTL: '15m',
   JWT_REFRESH_TTL: '30d',
 };
+const SID = '5d2f9a1c-7b3e-4f60-8a91-c4e2d7f3b8a0';
 const contexto = { ip: '1.2.3.4', dispositivo: 'Mozilla/5.0' };
 const credenciales = () => ({
   email: 'camila@correo.cl',
@@ -28,7 +32,10 @@ describe('SesionService', () => {
   let hashContrasena: string;
   let prisma: {
     usuario: { findUnique: ReturnType<typeof vi.fn> };
-    sesion: { create: ReturnType<typeof vi.fn> };
+    sesion: {
+      create: ReturnType<typeof vi.fn>;
+      updateMany: ReturnType<typeof vi.fn>;
+    };
   };
   let intentos: {
     reservar: ReturnType<typeof vi.fn>;
@@ -57,7 +64,10 @@ describe('SesionService', () => {
   beforeEach(async () => {
     prisma = {
       usuario: { findUnique: vi.fn().mockResolvedValue(usuario()) },
-      sesion: { create: vi.fn().mockResolvedValue({ id: 1 }) },
+      sesion: {
+        create: vi.fn().mockResolvedValue({ codigoPublico: SID }),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
     };
     intentos = {
       reservar: vi.fn().mockResolvedValue(0),
@@ -90,10 +100,12 @@ describe('SesionService', () => {
       });
       const carga = await jwt.verifyAsync<
         CargaTokenAcceso & { exp: number; iat: number }
-      >(sesion.tokenAcceso);
+      >(sesion.tokenAcceso, { audience: AUDIENCIA_TOKEN_ACCESO });
       expect(carga).toMatchObject({
         sub: '0b5c7f6e-3a0e-4c55-9d43-2f0f8e2b1a11',
+        sid: SID,
         rol: ROLES.PROFESIONAL,
+        aud: AUDIENCIA_TOKEN_ACCESO,
       });
       expect(carga.exp - carga.iat).toBe(900);
       // Nunca el id correlativo ni datos sensibles en el token (RNF-07)
@@ -241,6 +253,54 @@ describe('SesionService', () => {
       expect(new DemasiadosIntentosException(20).message).toMatch(
         /Espera 1 minuto e/,
       );
+    });
+  });
+
+  describe('cierre en el dispositivo en uso', () => {
+    it('E1-H3 · cierre en el dispositivo en uso: revoca solo la sesión del token de refresco', async () => {
+      await servicio.cerrar(['token-de-refresco']);
+
+      const consulta = prisma.sesion.updateMany.mock.calls[0][0];
+      expect(consulta.where).toEqual({
+        tokenRefrescoHash: { in: [hashearTokenSesion('token-de-refresco')] },
+        fechaRevocacion: null,
+      });
+      expect(consulta.data.fechaRevocacion).toBeInstanceOf(Date);
+    });
+
+    it('E1-H3 · cierre en el dispositivo en uso: con varias cookies de refresco revoca todas', async () => {
+      await servicio.cerrar(['plantada', 'real']);
+
+      expect(
+        prisma.sesion.updateMany.mock.calls[0][0].where.tokenRefrescoHash,
+      ).toEqual({
+        in: [hashearTokenSesion('plantada'), hashearTokenSesion('real')],
+      });
+    });
+
+    it('E1-H3 · cierre en el dispositivo en uso: sin token de refresco no toca la base', async () => {
+      await servicio.cerrar([]);
+
+      expect(prisma.sesion.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('E1-H3 · cierre en el dispositivo en uso: una sesión ya cerrada o desconocida no falla', async () => {
+      prisma.sesion.updateMany.mockResolvedValue({ count: 0 });
+
+      await expect(servicio.cerrar(['token-viejo'])).resolves.toBeUndefined();
+    });
+  });
+
+  describe('cierre en todos los dispositivos', () => {
+    it('E1-H3 · cierre en todos los dispositivos: revoca todas las sesiones abiertas de la cuenta', async () => {
+      await servicio.cerrarTodas('0b5c7f6e-3a0e-4c55-9d43-2f0f8e2b1a11');
+
+      const consulta = prisma.sesion.updateMany.mock.calls[0][0];
+      expect(consulta.where).toEqual({
+        usuario: { codigoPublico: '0b5c7f6e-3a0e-4c55-9d43-2f0f8e2b1a11' },
+        fechaRevocacion: null,
+      });
+      expect(consulta.data.fechaRevocacion).toBeInstanceOf(Date);
     });
   });
 });
