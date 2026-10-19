@@ -8,6 +8,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
 import { RedisModule } from './redis/redis.module.js';
 import { LimitesModule } from './limites/limites.module.js';
 import { CuentasModule } from './modulos/cuentas/cuentas.module.js';
+import { InventarioModule } from './modulos/inventario/inventario.module.js';
 import { PersonalModule } from './modulos/personal/personal.module.js';
 import { SaludController } from './salud/salud.controller.js';
 
@@ -67,6 +68,7 @@ import { SaludController } from './salud/salud.controller.js';
     // (ver src/modulos/README.md).
     CuentasModule,
     PersonalModule,
+    InventarioModule,
   ],
   controllers: [SaludController],
 })
