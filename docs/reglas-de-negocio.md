@@ -16,9 +16,9 @@ Cinco roles fijos en el código (`src/common/dominio/roles.ts`); una cuenta tien
 | --- | --- | --- |
 | `cliente` | Consumidor final con cuenta | Compra a precio minorista |
 | `profesional` | Peluquero con la verificación aprobada | Compra a precio mayorista desde 3 unidades por formato; ve los productos exclusivos |
-| `vendedor` | Personal de tienda | PENDIENTE: permisos por definir |
-| `bodeguero` | Personal de tienda | Recibe el aviso de stock bajo; resto PENDIENTE |
-| `administrador` | La dueña | Reportes, cuentas del personal, aviso de stock bajo, oferta de cumpleaños |
+| `vendedor` | Personal de tienda | Catálogo, consultar stock y pedidos (matriz de E13-H2) |
+| `bodeguero` | Personal de tienda | Recibe el aviso de stock bajo; proveedores, inventario y pedidos (matriz de E13-H2) |
+| `administrador` | La dueña | Todos los permisos del panel; aviso de stock bajo, oferta de cumpleaños |
 
 El visitante (sin sesión) ve el catálogo con precio minorista, sin productos exclusivos, y puede
 suscribirse a ofertas. No hay compra como invitado.
@@ -91,7 +91,24 @@ La futura renovación del token debe rechazar sesiones revocadas o vencidas.
 
 **E13 Personal y acceso.** El administrador crea y desactiva cuentas del personal; la desactivada
 pierde el acceso de inmediato. Cada acción del panel exige un permiso del rol (guard en backend).
-Cliente y profesional no entran al panel. PENDIENTE: matriz de permisos de vendedor y bodeguero.
+Cliente y profesional no entran al panel.
+Decisiones del 19 oct (E13-H2): los permisos son fijos en el código
+(`src/common/dominio/permisos.ts`), uno por área del panel, y cada ruta exige uno con
+`@RequierePermiso(...)` y `PermisosGuard` (sin decorador, 403). Cliente y profesional no tienen
+ninguno. El administrador tiene todos, también los que se agreguen.
+
+| Permiso | Cubre | Administrador | Vendedor | Bodeguero |
+| --- | --- | :-: | :-: | :-: |
+| `personal.gestionar` | Cuentas del personal (E13) | ✅ | | |
+| `proveedores.gestionar` | Proveedores (E11-H1) | ✅ | | ✅ |
+| `inventario.registrar` | Entradas, salidas, ajustes y transferencias (E11-H2 a H4) | ✅ | | ✅ |
+| `inventario.consultar` | Stock por formato y ubicación (E11-H5) | ✅ | ✅ | ✅ |
+| `catalogo.gestionar` | Productos, formatos, imágenes, marcas, categorías y packs (E3, E4) | ✅ | ✅ | |
+| `precios.gestionar` | Precio minorista y mayorista (E3-H5) | ✅ | | |
+| `pedidos.gestionar` | Ver pedidos y cambiar su estado en el panel (E8-H2) | ✅ | ✅ | ✅ |
+| `verificacion.gestionar` | Revisión manual de profesionales (E10-H3) | ✅ | | |
+| `campanas.gestionar` | Campañas de correo (E12-H3) | ✅ | | |
+| `reportes.ver` | Indicadores y reportes (E14) | ✅ | | |
 Decisiones del 18 oct (E13-H1): el administrador crea la cuenta con nombre, apellido, correo y un
 único rol (`vendedor`, `bodeguero` o `administrador`); la cuenta nace con una contraseña aleatoria
 que nadie conoce y se envía una invitación de un uso (`TIPOS_TOKEN.INVITACION_PERSONAL`, 72 h,
