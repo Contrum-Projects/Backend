@@ -5,12 +5,13 @@ import type { Entorno } from '../config/entorno.js';
 import { ALGORITMO_TOKEN_ACCESO } from './carga-token.js';
 import { JwtAutenticacionGuard } from './jwt-autenticacion.guard.js';
 import { RevocacionSesiones } from './revocacion-sesiones.js';
-import { RolesGuard } from './roles.guard.js';
+import { PermisosGuard } from './permisos.guard.js';
 
 /**
  * Tokens de acceso y su verificación, para todos los módulos: protege una ruta con
  * `@UseGuards(JwtAutenticacionGuard)` y lee la cuenta con `@UsuarioActual()`; para
- * exigir un rol, `@UseGuards(JwtAutenticacionGuard, RolesGuard)` con `@Roles(...)`.
+ * exigir un permiso del panel, `@UseGuards(JwtAutenticacionGuard, PermisosGuard)` con
+ * `@RequierePermiso(...)`.
  */
 @Global()
 @Module({
@@ -24,7 +25,12 @@ import { RolesGuard } from './roles.guard.js';
       }),
     }),
   ],
-  providers: [RevocacionSesiones, JwtAutenticacionGuard, RolesGuard],
-  exports: [JwtModule, RevocacionSesiones, JwtAutenticacionGuard, RolesGuard],
+  providers: [RevocacionSesiones, JwtAutenticacionGuard, PermisosGuard],
+  exports: [
+    JwtModule,
+    RevocacionSesiones,
+    JwtAutenticacionGuard,
+    PermisosGuard,
+  ],
 })
 export class AutenticacionModule {}

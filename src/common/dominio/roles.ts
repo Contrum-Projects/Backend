@@ -1,8 +1,7 @@
 /**
  * Roles fijos, definidos en el código (RF-13.02, decisión del equipo del 8 de octubre).
  * Cada cuenta tiene un solo rol. Los roles no se editan desde el panel.
- *
- * PENDIENTE (Épica 13): permisos de vendedor y bodeguero.
+ * Los permisos de cada rol están en `permisos.ts` (E13-H2).
  */
 export const ROLES = {
   CLIENTE: 'cliente',

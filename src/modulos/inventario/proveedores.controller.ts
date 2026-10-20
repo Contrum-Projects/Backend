@@ -21,18 +21,23 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { JwtAutenticacionGuard } from '../../autenticacion/jwt-autenticacion.guard.js';
-import { Roles, RolesGuard } from '../../autenticacion/roles.guard.js';
-import { ROLES_PERSONAL } from '../../common/dominio/roles.js';
+import {
+  PermisosGuard,
+  RequierePermiso,
+} from '../../autenticacion/permisos.guard.js';
+import { PERMISOS } from '../../common/dominio/permisos.js';
 import { CrearProveedorDto } from './dto/crear-proveedor.dto.js';
 import { ProveedoresService } from './proveedores.service.js';
 
 @ApiTags('inventario')
 @ApiBearerAuth()
 @Controller('inventario/proveedores')
-@UseGuards(JwtAutenticacionGuard, RolesGuard)
-@Roles(...ROLES_PERSONAL)
+@UseGuards(JwtAutenticacionGuard, PermisosGuard)
+@RequierePermiso(PERMISOS.PROVEEDORES_GESTIONAR)
 @ApiUnauthorizedResponse({ description: 'Falta iniciar sesión.' })
-@ApiForbiddenResponse({ description: 'El rol no tiene acceso al panel.' })
+@ApiForbiddenResponse({
+  description: 'El rol no tiene el permiso de proveedores.',
+})
 export class ProveedoresController {
   constructor(private readonly proveedores: ProveedoresService) {}
 

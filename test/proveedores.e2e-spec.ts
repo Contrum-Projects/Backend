@@ -79,8 +79,8 @@ describe('Inventario · proveedores (e2e)', () => {
     await app.close();
   });
 
-  it('E11-H1 · RUT nuevo: el personal registra el proveedor y queda disponible en la lista', async () => {
-    const token = await tokenDe(ROLES.VENDEDOR);
+  it('E11-H1 · RUT nuevo: el bodeguero registra el proveedor y queda disponible en la lista', async () => {
+    const token = await tokenDe(ROLES.BODEGUERO);
 
     const respuesta = await registrar(token, {
       rut: RUT_CON_PUNTOS,
@@ -132,7 +132,7 @@ describe('Inventario · proveedores (e2e)', () => {
   });
 
   it('rechaza un RUT inválido y una razón social vacía con 400', async () => {
-    const token = await tokenDe(ROLES.VENDEDOR);
+    const token = await tokenDe(ROLES.BODEGUERO);
 
     await registrar(token, { rut: '76.086.428-9', razonSocial: 'X' }).expect(
       400,
