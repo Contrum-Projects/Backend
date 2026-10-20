@@ -23,7 +23,7 @@ const recortarOVaciar = ({ value }: { value: unknown }) => {
 const COMUNA = /^\d{5}$/;
 const COMUNA_INVALIDA = 'La comuna no es válida.';
 
-/** Nueva dirección de la cuenta (E1-H5, RF-01.08). */
+/** Nueva dirección de la cuenta (E1-H5, RF-01.07). */
 export class CrearDireccionDto {
   @ApiProperty({ example: 'Av. Providencia', maxLength: 150 })
   @Transform(recortar)
@@ -60,7 +60,7 @@ export class CrearDireccionDto {
 }
 
 /**
- * Edición de una dirección (E1-H5): solo cambia lo que viene. La principal se cambia con su
+ * Edición de una dirección (E1-H5, RF-01.09): solo cambia lo que viene. La principal se cambia con su
  * propia ruta.
  */
 export class ActualizarDireccionDto {

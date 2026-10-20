@@ -36,7 +36,7 @@ class RutValido implements ValidatorConstraintInterface {
 }
 
 /**
- * Edición de los datos personales (E1-H5, RF-01.07). Solo cambia lo que viene; en los datos
+ * Edición de los datos personales (E1-H5, RF-01.09). Solo cambia lo que viene; en los datos
  * opcionales, `null` o un texto vacío los borra. El correo no se edita aquí (decisión del 20 oct).
  */
 export class ActualizarDatosDto {
