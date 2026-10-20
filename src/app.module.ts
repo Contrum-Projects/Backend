@@ -7,6 +7,7 @@ import { AutenticacionModule } from './autenticacion/autenticacion.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { RedisModule } from './redis/redis.module.js';
 import { LimitesModule } from './limites/limites.module.js';
+import { CatalogoModule } from './modulos/catalogo/catalogo.module.js';
 import { CuentasModule } from './modulos/cuentas/cuentas.module.js';
 import { InventarioModule } from './modulos/inventario/inventario.module.js';
 import { PersonalModule } from './modulos/personal/personal.module.js';
@@ -69,6 +70,7 @@ import { SaludController } from './salud/salud.controller.js';
     CuentasModule,
     PersonalModule,
     InventarioModule,
+    CatalogoModule,
   ],
   controllers: [SaludController],
 })
