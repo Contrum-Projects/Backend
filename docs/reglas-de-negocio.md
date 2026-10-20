@@ -88,6 +88,18 @@ todos pide token de acceso. La revocación queda en `SESION.fechaRevocacion` y
 `JwtAutenticacionGuard` la consulta en la base en cada petición (sin Redis: una marca perdida
 dejaría pasar un token revocado). Los tokens de acceso van con HS256 y audiencia `cp-acceso`.
 La futura renovación del token debe rechazar sesiones revocadas o vencidas.
+Decisiones del 20 oct (E1-H5): «mi cuenta» (`/api/cuentas/yo` y `/api/cuentas/yo/direcciones`)
+es solo para cliente y profesional (`CompradorGuard`; el personal recibe 403). El correo no se
+edita en esta historia. El RUT no se cambia ni se borra (403) si la cuenta es profesional o tiene
+una solicitud de verificación `pendiente` o `revision_manual`; el RUT de otra cuenta responde 409.
+El cambio se lee y guarda con la fila de la cuenta bloqueada (`bloquearCuenta`): **la aprobación
+de E10 debe tomar el mismo bloqueo antes de leer el RUT**. Editar los datos tiene un límite de
+10/hora por cuenta (`LIMITES.EDITAR_DATOS`, `LimitePorCuentaGuard`), que frena probar RUT en serie;
+la caché no guarda datos de cuentas, solo el contador. Las direcciones se identifican por su id dentro de la cuenta del token (la de
+otra cuenta responde 404), sin `codigoPublico` ni cambio al MER; la comuna se indica por su código
+CUT. La primera dirección queda como principal; al borrar la principal pasa a serlo la más
+reciente de las que quedan. Una sola principal se garantiza con la misma transacción con
+`bloquearCuenta` (`SELECT ... FOR UPDATE`), sin índice parcial.
 
 **E13 Personal y acceso.** El administrador crea y desactiva cuentas del personal; la desactivada
 pierde el acceso de inmediato. Cada acción del panel exige un permiso del rol (guard en backend).

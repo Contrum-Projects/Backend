@@ -9,6 +9,12 @@ export const LIMITES = {
   CIERRE_SESION: { limit: 30, ttl: 60_000 },
   /** Aceptar la invitación del personal (E13-H1, decisión del 18 oct 2026): 5/min, como el registro. */
   ACEPTAR_INVITACION: { limit: 5, ttl: 60_000 },
+  /**
+   * Editar los datos personales (E1-H5, decisión del 20 oct 2026): 10/hora por cuenta, con
+   * `LimitePorCuentaGuard`. Alcanza para corregir datos y frena probar RUT en serie (el 409
+   * indica si un RUT ya tiene cuenta).
+   */
+  EDITAR_DATOS: { limit: 10, ttl: 60 * 60_000 },
 } as const;
 
 /**
