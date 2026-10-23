@@ -46,6 +46,15 @@ export const ORIGENES_DESCRIPCION = {
   IA_EDITADA: 'ia_editada',
 } as const;
 
+/**
+ * PRODUCTO.canal_venta (E3-H1, decisión del equipo del 22 de octubre de 2026): marca si el
+ * producto es de venta general o para un perfil profesional.
+ */
+export const CANALES_VENTA = {
+  GENERAL: 'general',
+  PROFESIONAL: 'profesional',
+} as const;
+
 /** DETALLE_PEDIDO.tipo_precio y HISTORIAL_PRECIO.tipo_precio. */
 export const TIPOS_PRECIO = {
   MINORISTA: 'minorista',
