@@ -12,11 +12,15 @@ import { MarcasService } from './marcas.service.js';
 
 const POR_PAGINA = 20;
 
-/** Un formato se puede vender en la tienda si su artículo está activo, tiene precio minorista e imagen. */
+/**
+ * Un formato se puede vender en la tienda si su artículo está activo, tiene sus dos precios e
+ * imagen. El formato nace sin precios (E3-H2) y no se muestra hasta que E3-H5 los fija.
+ */
 const FORMATO_VENDIBLE = {
   articulo: {
     activo: true,
     precioMinoristaNeto: { not: null },
+    precioMayoristaNeto: { not: null },
     imagenes: { some: {} },
   },
 } satisfies Prisma.FormatoProductoWhereInput;

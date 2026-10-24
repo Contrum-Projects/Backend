@@ -133,8 +133,29 @@ describe('TiendaService', () => {
     it('E2-H1 · nunca lee el precio mayorista (RNF-04)', async () => {
       await servicio.listarProductos({});
 
+      // Los filtros exigen que exista (E3-H2: el formato sin precios no se vende), pero
+      // ningún `select` lo pide, así que nunca sale de la base
       const consulta = JSON.stringify(prisma.producto.findMany.mock.calls[0]);
-      expect(consulta).not.toContain('Mayorista');
+      expect(consulta).not.toContain('"precioMayoristaNeto":true');
+    });
+
+    it('E3-H2 · un formato sin los dos precios no se vende en la tienda', async () => {
+      await servicio.listarProductos({});
+
+      expect(prisma.producto.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            formatos: {
+              some: {
+                articulo: expect.objectContaining({
+                  precioMinoristaNeto: { not: null },
+                  precioMayoristaNeto: { not: null },
+                }) as object,
+              },
+            },
+          }) as object,
+        }),
+      );
     });
 
     it('E2-H1 · precio del formato predeterminado; si no hay, el del más barato', async () => {

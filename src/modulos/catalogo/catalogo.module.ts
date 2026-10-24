@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { CacheCatalogo } from './cache-catalogo.js';
 import { CategoriasController } from './categorias.controller.js';
 import { CategoriasService } from './categorias.service.js';
+import { FormatosController } from './formatos.controller.js';
+import { FormatosService } from './formatos.service.js';
 import { MarcasController } from './marcas.controller.js';
 import { MarcasService } from './marcas.service.js';
 import { ProductosController } from './productos.controller.js';
@@ -15,6 +17,7 @@ import { TiendaService } from './tienda.service.js';
     MarcasController,
     CategoriasController,
     ProductosController,
+    FormatosController,
     TiendaController,
   ],
   providers: [
@@ -22,6 +25,7 @@ import { TiendaService } from './tienda.service.js';
     MarcasService,
     CategoriasService,
     ProductosService,
+    FormatosService,
     TiendaService,
   ],
   exports: [MarcasService, CategoriasService],

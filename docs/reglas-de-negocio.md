@@ -140,6 +140,17 @@ para vender ni avisar). Cada artículo tiene al menos una imagen y una sola prin
 sin ciclos. Cada cambio de precio queda en HISTORIAL_PRECIO con vigencia, quién y motivo. Producto
 exclusivo: solo precio mayorista. Un pack solo tiene formatos como componentes, no tiene stock
 propio y puede tener vigencia.
+Decisiones del 24 oct (E3-H2): el formato nace activo y **sin precios**
+(`articulo_venta.precio_mayorista_neto` pasa a aceptar NULL, cambio al MER); los fija E3-H5 y,
+mientras falten, la tienda no lo muestra. Rutas: `POST` y `GET /api/catalogo/productos/:id/formatos`
+y `PATCH /api/catalogo/formatos/:id`, con `catalogo.gestionar`. SKU obligatorio, sin espacios,
+hasta 50, único entre todos los artículos (formatos y packs). Código de barras opcional: 8, 12, 13
+o 14 dígitos, sin revisar el dígito verificador, único entre los formatos. El SKU o el código de
+barras repetido responde 409 indicando cuál. Contenido y unidad (`UNIDADES_MEDIDA`: `ml`, `g`,
+`unidades`) van juntos o no van. El primer formato del producto queda predeterminado; marcar
+otro desmarca el anterior en la misma transacción con la fila del producto bloqueada (`FOR
+UPDATE`, sin índice parcial); el predeterminado no se desmarca (400): se marca otro. La fecha de
+vencimiento solo sale en las respuestas del panel. Desactivar formatos queda fuera de la historia.
 
 **E2 Catálogo público.** Precio según rol calculado en el backend. Disponibilidad desde el stock
 vendible (solo bodegas con `abasteceVentaOnline`); la de un pack es la de su componente más escaso.

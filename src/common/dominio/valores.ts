@@ -55,6 +55,16 @@ export const CANALES_VENTA = {
   PROFESIONAL: 'profesional',
 } as const;
 
+/**
+ * FORMATO_PRODUCTO.unidad_medida (E3-H2, decisión del equipo del 24 de octubre de 2026): unidad
+ * del contenido del formato.
+ */
+export const UNIDADES_MEDIDA = {
+  ML: 'ml',
+  G: 'g',
+  UNIDADES: 'unidades',
+} as const;
+
 /** DETALLE_PEDIDO.tipo_precio y HISTORIAL_PRECIO.tipo_precio. */
 export const TIPOS_PRECIO = {
   MINORISTA: 'minorista',
