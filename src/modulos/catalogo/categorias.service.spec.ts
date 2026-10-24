@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { PrismaService } from '../../prisma/prisma.service.js';
+import type { CacheCatalogo } from './cache-catalogo.js';
 import { CategoriasService } from './categorias.service.js';
 
 /** Categorías de prueba como `[id, padreId]`: 1 > 2 > 3 y 4 es otra raíz. */
@@ -44,11 +45,16 @@ const crearPrisma = () => {
 
 describe('CategoriasService', () => {
   let prisma: ReturnType<typeof crearPrisma>;
+  let cache: { invalidar: ReturnType<typeof vi.fn> };
   let servicio: CategoriasService;
 
   beforeEach(() => {
     prisma = crearPrisma();
-    servicio = new CategoriasService(prisma as unknown as PrismaService);
+    cache = { invalidar: vi.fn().mockResolvedValue(undefined) };
+    servicio = new CategoriasService(
+      prisma as unknown as PrismaService,
+      cache as unknown as CacheCatalogo,
+    );
   });
 
   describe('crear', () => {
@@ -78,6 +84,15 @@ describe('CategoriasService', () => {
       ).rejects.toBeInstanceOf(NotFoundException);
       expect(prisma.categoria.create).not.toHaveBeenCalled();
     });
+
+    it('E2-H1 · categoría creada: invalida el árbol de la tienda después de guardarla', async () => {
+      await servicio.crear({ nombre: 'Tratamientos' });
+
+      expect(cache.invalidar).toHaveBeenCalledWith('cache:tienda:categorias');
+      expect(prisma.categoria.create.mock.invocationCallOrder[0]).toBeLessThan(
+        cache.invalidar.mock.invocationCallOrder[0]!,
+      );
+    });
   });
 
   describe('actualizar', () => {
@@ -91,6 +106,16 @@ describe('CategoriasService', () => {
         servicio.actualizar(1, { padreId: 2 }),
       ).rejects.toBeInstanceOf(ConflictException);
       expect(prisma.tx.categoria.update).not.toHaveBeenCalled();
+      expect(cache.invalidar).not.toHaveBeenCalled();
+    });
+
+    it('E2-H1 · categoría editada: invalida el árbol de la tienda después del commit', async () => {
+      await servicio.actualizar(2, { padreId: 4 });
+
+      expect(cache.invalidar).toHaveBeenCalledWith('cache:tienda:categorias');
+      expect(prisma.$transaction.mock.invocationCallOrder[0]).toBeLessThan(
+        cache.invalidar.mock.invocationCallOrder[0]!,
+      );
     });
 
     it('rechaza mover una categoría dentro de sí misma', async () => {

@@ -1,0 +1,232 @@
+import { NotFoundException } from '@nestjs/common';
+import type { ConfigService } from '@nestjs/config';
+import type { Entorno } from '../../config/entorno.js';
+import type { PrismaService } from '../../prisma/prisma.service.js';
+import type { CacheCatalogo } from './cache-catalogo.js';
+import type { CategoriasService } from './categorias.service.js';
+import type { MarcasService } from './marcas.service.js';
+import { TiendaService } from './tienda.service.js';
+
+/** Categorías de prueba como `[id, padreId]`: 1 > 2 > 3 y 4 es otra raíz. */
+const CATEGORIAS = [
+  { id: 1, padreId: null },
+  { id: 2, padreId: 1 },
+  { id: 3, padreId: 2 },
+  { id: 4, padreId: null },
+];
+
+const formato = (neto: string, extra: object = {}, imagen = 'img/a.jpg') => ({
+  esPredeterminado: false,
+  articulo: {
+    precioMinoristaNeto: neto,
+    imagenes: [{ ubicacionArchivo: imagen }],
+  },
+  ...extra,
+});
+
+const fila = (extra: object = {}) => ({
+  id: 5,
+  nombre: 'Shampoo reparador',
+  marca: { id: 2, nombre: 'Kerastase' },
+  categoria: { id: 3, nombre: 'Reparación' },
+  formatos: [formato('10000')],
+  ...extra,
+});
+
+const crearPrisma = () => ({
+  producto: {
+    findMany: vi.fn().mockResolvedValue([fila()]),
+    count: vi.fn().mockResolvedValue(1),
+  },
+  categoria: { findMany: vi.fn().mockResolvedValue(CATEGORIAS) },
+  marca: { findUnique: vi.fn().mockResolvedValue({ activa: true }) },
+  $transaction: vi.fn((consultas: Promise<unknown>[]) =>
+    Promise.all(consultas),
+  ),
+});
+
+const config = {
+  get: vi.fn().mockReturnValue(19),
+} as unknown as ConfigService<Entorno, true>;
+
+/** Filtro `where` con que se consultaron los productos. */
+const whereDe = (prisma: ReturnType<typeof crearPrisma>) =>
+  (prisma.producto.findMany.mock.calls[0][0] as { where: object }).where;
+
+describe('TiendaService', () => {
+  let prisma: ReturnType<typeof crearPrisma>;
+  let cache: { obtener: ReturnType<typeof vi.fn> };
+  let categorias: { listarArbol: ReturnType<typeof vi.fn> };
+  let marcas: { listar: ReturnType<typeof vi.fn> };
+  let servicio: TiendaService;
+
+  beforeEach(() => {
+    prisma = crearPrisma();
+    cache = {
+      obtener: vi.fn((_clave: string, cargar: () => Promise<unknown>) =>
+        cargar(),
+      ),
+    };
+    categorias = { listarArbol: vi.fn().mockResolvedValue([]) };
+    marcas = {
+      listar: vi
+        .fn()
+        .mockResolvedValue([{ id: 2, nombre: 'Kerastase', activa: true }]),
+    };
+    servicio = new TiendaService(
+      prisma as unknown as PrismaService,
+      config,
+      cache as unknown as CacheCatalogo,
+      categorias as unknown as CategoriasService,
+      marcas as unknown as MarcasService,
+    );
+  });
+
+  describe('listarProductos', () => {
+    it('E2-H1 · categoría con productos: busca en ella y en todas sus subcategorías', async () => {
+      await servicio.listarProductos({ categoriaId: 1 });
+
+      expect(whereDe(prisma)).toMatchObject({
+        categoriaId: { in: [1, 2, 3] },
+      });
+    });
+
+    it('E2-H1 · categoría con productos: devuelve imagen, nombre y precio minorista con IVA', async () => {
+      const resultado = await servicio.listarProductos({ categoriaId: 3 });
+
+      expect(resultado).toEqual({
+        items: [
+          {
+            id: 5,
+            nombre: 'Shampoo reparador',
+            marca: { id: 2, nombre: 'Kerastase' },
+            categoria: { id: 3, nombre: 'Reparación' },
+            precio: 11900,
+            imagen: 'img/a.jpg',
+          },
+        ],
+        total: 1,
+        pagina: 1,
+        limite: 20,
+      });
+    });
+
+    it('E2-H1 · solo productos activos, de venta general, con marca activa y un formato vendible', async () => {
+      await servicio.listarProductos({ categoriaId: 3 });
+
+      expect(whereDe(prisma)).toMatchObject({
+        activo: true,
+        canalVenta: 'general',
+        OR: [{ marcaId: null }, { marca: { is: { activa: true } } }],
+        formatos: {
+          some: {
+            articulo: {
+              activo: true,
+              precioMinoristaNeto: { not: null },
+              imagenes: { some: {} },
+            },
+          },
+        },
+      });
+    });
+
+    it('E2-H1 · nunca lee el precio mayorista (RNF-04)', async () => {
+      await servicio.listarProductos({});
+
+      const consulta = JSON.stringify(prisma.producto.findMany.mock.calls[0]);
+      expect(consulta).not.toContain('Mayorista');
+    });
+
+    it('E2-H1 · precio del formato predeterminado; si no hay, el del más barato', async () => {
+      prisma.producto.findMany.mockResolvedValue([
+        fila({
+          formatos: [
+            formato('5000', {}, 'img/chico.jpg'),
+            formato('20000', { esPredeterminado: true }, 'img/grande.jpg'),
+          ],
+        }),
+        fila({
+          id: 6,
+          formatos: [
+            formato('8000.40', {}, 'img/b.jpg'),
+            formato('3000', {}, 'img/c.jpg'),
+          ],
+        }),
+      ]);
+
+      const { items } = await servicio.listarProductos({});
+
+      expect(items[0]).toMatchObject({
+        precio: 23800,
+        imagen: 'img/grande.jpg',
+      });
+      expect(items[1]).toMatchObject({ precio: 3570, imagen: 'img/c.jpg' });
+    });
+
+    it('E2-H1 · categoría sin productos: devuelve una lista vacía', async () => {
+      prisma.producto.findMany.mockResolvedValue([]);
+      prisma.producto.count.mockResolvedValue(0);
+
+      const resultado = await servicio.listarProductos({ categoriaId: 4 });
+
+      expect(resultado).toEqual({ items: [], total: 0, pagina: 1, limite: 20 });
+    });
+
+    it('E2-H1 · categoría inexistente: responde 404', async () => {
+      await expect(
+        servicio.listarProductos({ categoriaId: 99 }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(prisma.producto.findMany).not.toHaveBeenCalled();
+    });
+
+    it('E2-H1 · navegación por marca: filtra solo los productos de esa marca', async () => {
+      await servicio.listarProductos({ marcaId: 2 });
+
+      expect(whereDe(prisma)).toMatchObject({ marcaId: 2 });
+    });
+
+    it('E2-H1 · marca inexistente o desactivada: responde 404', async () => {
+      prisma.marca.findUnique.mockResolvedValueOnce(null);
+      await expect(
+        servicio.listarProductos({ marcaId: 99 }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+
+      prisma.marca.findUnique.mockResolvedValueOnce({ activa: false });
+      await expect(
+        servicio.listarProductos({ marcaId: 2 }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(prisma.producto.findMany).not.toHaveBeenCalled();
+    });
+
+    it('E2-H1 · pagina según lo pedido', async () => {
+      await servicio.listarProductos({ pagina: 3, limite: 10 });
+
+      expect(prisma.producto.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ skip: 20, take: 10 }),
+      );
+    });
+  });
+
+  describe('categorías y marcas', () => {
+    it('E2-H1 · árbol de categorías: se lee a través de la caché', async () => {
+      await servicio.listarCategorias();
+
+      expect(cache.obtener).toHaveBeenCalledWith(
+        'cache:tienda:categorias',
+        expect.any(Function),
+      );
+      expect(categorias.listarArbol).toHaveBeenCalled();
+    });
+
+    it('E2-H1 · marcas: solo las activas, con id y nombre, a través de la caché', async () => {
+      const resultado = await servicio.listarMarcas();
+
+      expect(marcas.listar).toHaveBeenCalledWith();
+      expect(resultado).toEqual([{ id: 2, nombre: 'Kerastase' }]);
+      expect(cache.obtener).toHaveBeenCalledWith(
+        'cache:tienda:marcas',
+        expect.any(Function),
+      );
+    });
+  });
+});

@@ -1,10 +1,14 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { CacheCatalogo, CLAVES_CACHE } from './cache-catalogo.js';
 import type { CrearMarcaDto } from './dto/crear-marca.dto.js';
 
 @Injectable()
 export class MarcasService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cache: CacheCatalogo,
+  ) {}
 
   /**
    * Crea una marca (E3-H4, RF-03.05). Una marca ya existe si hay otra con el mismo
@@ -12,10 +16,12 @@ export class MarcasService {
    * sí distinguen).
    * La restricción UNIQUE de la base solo distingue mayúsculas, así que la
    * comprobación se hace bajo un bloqueo de transacción: dos peticiones simultáneas
-   * con el mismo nombre no pueden crear las dos.
+   * con el mismo nombre no pueden crear las dos. Después del commit invalida las marcas de
+   * la tienda (E2-H1); cualquier cambio futuro de marcas (desactivar, renombrar) debe
+   * hacer lo mismo.
    */
-  crear(dto: CrearMarcaDto) {
-    return this.prisma.$transaction(async (tx) => {
+  async crear(dto: CrearMarcaDto) {
+    const marca = await this.prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(3401)`;
       const repetida = await tx.marca.findFirst({
         where: { nombre: { equals: dto.nombre, mode: 'insensitive' } },
@@ -26,6 +32,8 @@ export class MarcasService {
       }
       return tx.marca.create({ data: { nombre: dto.nombre } });
     });
+    await this.cache.invalidar(CLAVES_CACHE.MARCAS);
+    return marca;
   }
 
   /** Marcas para elegir al crear un producto (E3-H1), ordenadas por nombre. */
