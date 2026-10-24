@@ -17,9 +17,9 @@ export class TiendaController {
 
   @Get('productos')
   @ApiOperation({
-    summary: 'Explorar productos por categoría y marca (E2-H1)',
+    summary: 'Explorar, buscar y filtrar productos (E2-H1 y E2-H2)',
     description:
-      'Productos activos y a la venta, ordenados por nombre y paginados, con imagen, nombre y precio minorista con IVA. Con `categoriaId` incluye los de sus subcategorías; los filtros se combinan.',
+      'Productos activos y a la venta, ordenados por nombre y paginados, con imagen, nombre y precio minorista con IVA. Con `categoriaId` incluye los de sus subcategorías. Con `buscar`, cada palabra debe estar en el nombre, la marca o la categoría (propia o superior), sin distinguir mayúsculas. Búsqueda y filtros se combinan; sin coincidencias devuelve una lista vacía.',
   })
   @ApiOkResponse({ description: 'Página de productos con el total.' })
   @ApiBadRequestResponse({ description: 'Filtros inválidos.' })
