@@ -1,5 +1,6 @@
 import { ConflictException } from '@nestjs/common';
 import type { PrismaService } from '../../prisma/prisma.service.js';
+import type { CacheCatalogo } from './cache-catalogo.js';
 import { MarcasService } from './marcas.service.js';
 
 const crearPrisma = () => {
@@ -23,11 +24,16 @@ const crearPrisma = () => {
 
 describe('MarcasService', () => {
   let prisma: ReturnType<typeof crearPrisma>;
+  let cache: { invalidar: ReturnType<typeof vi.fn> };
   let servicio: MarcasService;
 
   beforeEach(() => {
     prisma = crearPrisma();
-    servicio = new MarcasService(prisma as unknown as PrismaService);
+    cache = { invalidar: vi.fn().mockResolvedValue(undefined) };
+    servicio = new MarcasService(
+      prisma as unknown as PrismaService,
+      cache as unknown as CacheCatalogo,
+    );
   });
 
   describe('crear', () => {
@@ -51,6 +57,16 @@ describe('MarcasService', () => {
         servicio.crear({ nombre: 'KERASTASE' }),
       ).rejects.toBeInstanceOf(ConflictException);
       expect(prisma.tx.marca.create).not.toHaveBeenCalled();
+      expect(cache.invalidar).not.toHaveBeenCalled();
+    });
+
+    it('E2-H1 · marca creada: invalida las marcas de la tienda después del commit', async () => {
+      await servicio.crear({ nombre: 'Kerastase' });
+
+      expect(cache.invalidar).toHaveBeenCalledWith('cache:tienda:marcas');
+      expect(prisma.$transaction.mock.invocationCallOrder[0]).toBeLessThan(
+        cache.invalidar.mock.invocationCallOrder[0]!,
+      );
     });
 
     it('busca el nombre sin distinguir mayúsculas y bajo el bloqueo de la transacción', async () => {
