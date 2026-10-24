@@ -162,6 +162,21 @@ imágenes en su nuevo orden y la principal. El orden queda 1..n sin huecos. La �
 elimina (409); si se elimina la principal, la siguiente pasa a serlo. Los cambios bloquean la fila
 del artículo. El archivo se sube antes de la transacción (y se borra si la base falla) y se borra
 del almacén después del commit. Un formato puede existir sin imágenes: la tienda no lo muestra.
+Decisiones del 24 oct (E3-H5): `PUT` y `GET /api/catalogo/articulos/:id/precios` (id del formato o
+del pack), con `precios.gestionar` (solo administrador). `PUT` recibe `precioMinoristaNeto`,
+`precioMayoristaNeto` (al menos uno; el que no llega no cambia) y `motivo`, **obligatorio siempre**
+(1 a 500 caracteres). Netos positivos con hasta dos decimales y hasta 9.999.999.999,99; no se
+compara el mayorista con el minorista. Cada precio que cambia cierra la fila vigente de
+HISTORIAL_PRECIO (`fecha_fin_vigencia`) y crea otra con el mismo instante como inicio, quién y el
+motivo, en una transacción con la fila del artículo bloqueada. Un precio igual al vigente no se
+registra; si ninguno cambia, no se escribe nada. Un artículo exclusivo (canal `profesional` del
+producto o del pack) rechaza el precio minorista con 400. La vigencia rige desde el momento del
+cambio (sin precios programados). `GET` devuelve los netos vigentes, `exclusivo` y el historial,
+del más reciente al más antiguo, con nombre y apellido de quien fijó cada precio. Se bloquean la
+fila del artículo y la de su producto o pack, así el canal no cambia mientras se fijan precios.
+**PENDIENTE:** si un producto con precio minorista pasa a exclusivo (`PATCH` de E3-H1), ¿se borra o
+cierra ese minorista? Hoy queda guardado. Y la historia de E2 que muestre exclusivos al profesional
+debe dejar de exigir el minorista en `FORMATO_VENDIBLE` para ese canal.
 
 **E2 Catálogo público.** Precio según rol calculado en el backend. Disponibilidad desde el stock
 vendible (solo bodegas con `abasteceVentaOnline`); la de un pack es la de su componente más escaso.

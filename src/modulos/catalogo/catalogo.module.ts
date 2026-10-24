@@ -9,6 +9,8 @@ import { ImagenesController } from './imagenes.controller.js';
 import { ImagenesService } from './imagenes.service.js';
 import { MarcasController } from './marcas.controller.js';
 import { MarcasService } from './marcas.service.js';
+import { PreciosController } from './precios.controller.js';
+import { PreciosService } from './precios.service.js';
 import { ProductosController } from './productos.controller.js';
 import { ProductosService } from './productos.service.js';
 import { TiendaController } from './tienda.controller.js';
@@ -23,6 +25,7 @@ import { TiendaService } from './tienda.service.js';
     ProductosController,
     FormatosController,
     ImagenesController,
+    PreciosController,
     TiendaController,
   ],
   providers: [
@@ -32,6 +35,7 @@ import { TiendaService } from './tienda.service.js';
     ProductosService,
     FormatosService,
     ImagenesService,
+    PreciosService,
     TiendaService,
   ],
   exports: [MarcasService, CategoriasService],

@@ -114,6 +114,17 @@ describe('TiendaService', () => {
       });
     });
 
+    it('E3-H5 · precio guardado en neto: la tienda lo devuelve con el IVA incluido, calculado a partir del neto', async () => {
+      // 8403,36 neto → se redondea a 8403 pesos, IVA 19 % = 1597, total 10000
+      prisma.producto.findMany.mockResolvedValue([
+        fila({ formatos: [formato('8403.36')] }),
+      ]);
+
+      const { items } = await servicio.listarProductos({});
+
+      expect(items[0].precio).toBe(10000);
+    });
+
     it('E3-H3 · la imagen sale con la URL pública del almacén', async () => {
       variables.R2_URL_PUBLICA = 'https://imagenes.cabelloperfecto.cl';
       try {
