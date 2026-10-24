@@ -41,7 +41,9 @@ suscribirse a ofertas. No hay compra como invitado.
   20 por IP en 15 min (`LIMITE_INICIO_SESION`); un inicio correcto reinicia el del correo.
   Registro y confirmación del correo: 5/min por IP cada uno (decisión del 14 oct, E1-H1).
   Los límites se declaran por ruta con `LIMITES` (`src/limites/limites.ts`); si Redis no
-  responde, la petición pasa (RNF-32).
+  responde, la petición pasa (RNF-32). La IP se toma de la conexión; detrás de proxies propios
+  (Cloudflare, Nginx, balanceador) hay que indicar cuántos en `PROXIES_CONFIABLES`, o todos los
+  usuarios compartirían el mismo contador.
 - Cierre de sesión, desactivación de cuenta y cambio de rol rigen de inmediato, sin esperar a que
   caduque el token (RNF-28): el token lleva su sesión (`sid`) y `JwtAutenticacionGuard` revisa en
   SESION que no esté revocada (decisión del 18 oct, E1-H3). Desactivar o cambiar el rol debe
