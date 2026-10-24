@@ -30,8 +30,7 @@ import { PERMISOS } from '../../common/dominio/permisos.js';
 import { ActualizarFormatoDto } from './dto/actualizar-formato.dto.js';
 import { CrearFormatoDto } from './dto/crear-formato.dto.js';
 import { FormatosService } from './formatos.service.js';
-import { IdFormatoPipe } from './id-formato.pipe.js';
-import { IdProductoPipe } from './id-producto.pipe.js';
+import { ID_FORMATO, ID_PRODUCTO } from './ids-ruta.js';
 
 @ApiTags('catalogo')
 @ApiBearerAuth()
@@ -61,7 +60,7 @@ export class FormatosController {
     description: 'El SKU o el código de barras ya pertenece a otro artículo.',
   })
   crear(
-    @Param('id', IdProductoPipe) productoId: number,
+    @Param('id', ID_PRODUCTO) productoId: number,
     @Body() dto: CrearFormatoDto,
   ) {
     return this.formatos.crear(productoId, dto);
@@ -75,7 +74,7 @@ export class FormatosController {
   })
   @ApiOkResponse({ description: 'Formatos del producto.' })
   @ApiNotFoundResponse({ description: 'El producto no existe.' })
-  listar(@Param('id', IdProductoPipe) productoId: number) {
+  listar(@Param('id', ID_PRODUCTO) productoId: number) {
     return this.formatos.listar(productoId);
   }
 
@@ -95,7 +94,7 @@ export class FormatosController {
     description: 'El SKU o el código de barras ya pertenece a otro artículo.',
   })
   actualizar(
-    @Param('id', IdFormatoPipe) id: number,
+    @Param('id', ID_FORMATO) id: number,
     @Body() dto: ActualizarFormatoDto,
   ) {
     return this.formatos.actualizar(id, dto);

@@ -1,39 +1,21 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
-import {
-  IsEmail,
-  IsIn,
-  IsNotEmpty,
-  IsString,
-  MaxLength,
-} from 'class-validator';
+import { IsIn } from 'class-validator';
 import { ROLES_PERSONAL, type Rol } from '../../../common/dominio/roles.js';
-
-const recortar = ({ value }: { value: unknown }) =>
-  typeof value === 'string' ? value.trim() : value;
+import { Correo } from '../../../common/validacion/correo.js';
+import { TextoObligatorio } from '../../../common/validacion/texto-obligatorio.js';
 
 /** Entrada de la creación de una cuenta del personal (E13-H1, RF-13.01). */
 export class CrearPersonalDto {
   @ApiProperty({ example: 'Javiera', maxLength: 100 })
-  @Transform(recortar)
-  @IsString()
-  @IsNotEmpty({ message: 'El nombre es obligatorio.' })
-  @MaxLength(100)
+  @TextoObligatorio({ etiqueta: 'El nombre', maximo: 100 })
   nombre: string;
 
   @ApiProperty({ example: 'Muñoz', maxLength: 100 })
-  @Transform(recortar)
-  @IsString()
-  @IsNotEmpty({ message: 'El apellido es obligatorio.' })
-  @MaxLength(100)
+  @TextoObligatorio({ etiqueta: 'El apellido', maximo: 100 })
   apellido: string;
 
   @ApiProperty({ example: 'javiera@cabelloperfecto.cl', maxLength: 254 })
-  @Transform(({ value }: { value: unknown }) =>
-    typeof value === 'string' ? value.trim().toLowerCase() : value,
-  )
-  @IsEmail({}, { message: 'El correo no es válido.' })
-  @MaxLength(254)
+  @Correo()
   email: string;
 
   @ApiProperty({ enum: ROLES_PERSONAL, example: 'vendedor' })

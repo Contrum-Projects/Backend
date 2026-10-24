@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
-import { bloquearCuenta } from './bloquear-cuenta.js';
+import { bloquearCuenta } from '../../prisma/bloqueos.js';
 import type {
   ActualizarDireccionDto,
   CrearDireccionDto,

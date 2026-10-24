@@ -1,39 +1,8 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
-import {
-  IsISO8601,
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-  Matches,
-  MaxLength,
-  Validate,
-  ValidateIf,
-  ValidatorConstraint,
-  type ValidatorConstraintInterface,
-} from 'class-validator';
-import { normalizarRut } from '../../../common/dominio/rut.js';
-
-const recortar = ({ value }: { value: unknown }) =>
-  typeof value === 'string' ? value.trim() : value;
-
-/** Para los datos opcionales: un texto vacío borra el dato, igual que `null`. */
-const recortarOVaciar = ({ value }: { value: unknown }) => {
-  if (typeof value !== 'string') return value;
-  const recortado = value.trim();
-  return recortado === '' ? null : recortado;
-};
-
-@ValidatorConstraint({ name: 'rutValido' })
-class RutValido implements ValidatorConstraintInterface {
-  validate(valor: unknown) {
-    return typeof valor === 'string' && normalizarRut(valor) === valor;
-  }
-
-  defaultMessage() {
-    return 'El RUT no es válido.';
-  }
-}
+import { FechaSinHora } from '../../../common/validacion/fecha-sin-hora.js';
+import { Rut } from '../../../common/validacion/rut.js';
+import { TextoObligatorio } from '../../../common/validacion/texto-obligatorio.js';
+import { TextoOpcional } from '../../../common/validacion/texto-opcional.js';
 
 /**
  * Edición de los datos personales (E1-H5, RF-01.09). Solo cambia lo que viene; en los datos
@@ -41,19 +10,15 @@ class RutValido implements ValidatorConstraintInterface {
  */
 export class ActualizarDatosDto {
   @ApiPropertyOptional({ example: 'Camila', maxLength: 100 })
-  @ValidateIf((_, valor) => valor !== undefined)
-  @Transform(recortar)
-  @IsString()
-  @IsNotEmpty({ message: 'El nombre es obligatorio.' })
-  @MaxLength(100)
+  @TextoObligatorio({ etiqueta: 'El nombre', maximo: 100, puedeFaltar: true })
   nombre?: string;
 
   @ApiPropertyOptional({ example: 'Rojas', maxLength: 100 })
-  @ValidateIf((_, valor) => valor !== undefined)
-  @Transform(recortar)
-  @IsString()
-  @IsNotEmpty({ message: 'El apellido es obligatorio.' })
-  @MaxLength(100)
+  @TextoObligatorio({
+    etiqueta: 'El apellido',
+    maximo: 100,
+    puedeFaltar: true,
+  })
   apellido?: string;
 
   @ApiPropertyOptional({
@@ -61,10 +26,7 @@ export class ActualizarDatosDto {
     maxLength: 20,
     nullable: true,
   })
-  @IsOptional()
-  @Transform(recortarOVaciar)
-  @IsString()
-  @MaxLength(20)
+  @TextoOpcional({ etiqueta: 'El teléfono', maximo: 20 })
   telefono?: string | null;
 
   @ApiPropertyOptional({
@@ -73,12 +35,7 @@ export class ActualizarDatosDto {
       'Se guarda como 12345678-5. El profesional no puede cambiarlo ni borrarlo.',
     nullable: true,
   })
-  @IsOptional()
-  @Transform(({ value }: { value: unknown }) => {
-    const valor = recortarOVaciar({ value });
-    return typeof valor === 'string' ? (normalizarRut(valor) ?? valor) : valor;
-  })
-  @Validate(RutValido)
+  @Rut({ presencia: 'borrable' })
   rut?: string | null;
 
   @ApiPropertyOptional({
@@ -86,21 +43,10 @@ export class ActualizarDatosDto {
     format: 'date',
     nullable: true,
   })
-  @IsOptional()
-  @Transform(recortarOVaciar)
-  @IsISO8601(
-    { strict: true, strictSeparator: true },
-    { message: 'La fecha de nacimiento no es válida.' },
-  )
-  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
-    message: 'La fecha de nacimiento debe tener el formato AAAA-MM-DD.',
-  })
+  @FechaSinHora({ etiqueta: 'La fecha de nacimiento' })
   fechaNacimiento?: string | null;
 
   @ApiPropertyOptional({ maxLength: 30, nullable: true })
-  @IsOptional()
-  @Transform(recortarOVaciar)
-  @IsString()
-  @MaxLength(30)
+  @TextoOpcional({ etiqueta: 'El género', maximo: 30 })
   genero?: string | null;
 }

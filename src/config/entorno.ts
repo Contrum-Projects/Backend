@@ -24,6 +24,12 @@ export const esquemaEntorno = z.object({
         .filter(Boolean),
     ),
 
+  /**
+   * Cuántos proxies (balanceador, Cloudflare, Nginx) hay delante del backend. Con 0 la IP es la
+   * de la conexión; detrás de un proxy hay que indicarlo, o todos los límites por IP (RNF-09)
+   * contarían a la vez a todos los usuarios. Nunca más de los que hay: la IP sería falsificable.
+   */
+  PROXIES_CONFIABLES: z.coerce.number().int().min(0).max(5).default(0),
   DATABASE_URL: z.url(),
   REDIS_URL: z.url(),
 

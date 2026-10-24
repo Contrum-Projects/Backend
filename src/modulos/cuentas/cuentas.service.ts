@@ -174,7 +174,7 @@ export class CuentasService {
     return { mensaje: 'Tu correo quedó confirmado. Ya puedes comprar.' };
   }
 
-  private async verificarDatosLibres(email: string, rut?: string) {
+  private async verificarDatosLibres(email: string, rut?: string | null) {
     const existentes = await this.prisma.usuario.findMany({
       where: { OR: [{ email }, ...(rut ? [{ rut }] : [])] },
       select: { email: true, rut: true },

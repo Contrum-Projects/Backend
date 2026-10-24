@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { Prisma } from '../../generated/prisma/client.js';
+import { CANDADOS, tomarCandado } from '../../prisma/bloqueos.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { CacheCatalogo, CLAVES_CACHE } from './cache-catalogo.js';
 import type { ActualizarCategoriaDto } from './dto/actualizar-categoria.dto.js';
@@ -68,7 +69,7 @@ export class CategoriasService {
       throw new BadRequestException('Indica al menos un campo para cambiar.');
     }
     const actualizada = await this.prisma.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(3402)`;
+      await tomarCandado(tx, CANDADOS.CATEGORIAS);
       const categoria = await tx.categoria.findUnique({
         where: { id },
         select: { id: true },

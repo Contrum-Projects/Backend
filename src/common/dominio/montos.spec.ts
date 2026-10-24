@@ -1,4 +1,13 @@
-import { calcularMontos } from './montos.js';
+import { calcularMontos, precioConIva } from './montos.js';
+
+describe('precioConIva', () => {
+  it('E3-H5 · precio guardado en neto: redondea el neto al peso y le suma el IVA', () => {
+    expect(precioConIva(8_403.36, 19)).toBe(10_000);
+    expect(precioConIva(10_000, 19)).toBe(11_900);
+    // 999,5 se redondea a 1.000 antes del IVA
+    expect(precioConIva(999.5, 19)).toBe(1_190);
+  });
+});
 
 describe('calcularMontos', () => {
   it('suma neto e IVA en el total (RNF-11)', () => {

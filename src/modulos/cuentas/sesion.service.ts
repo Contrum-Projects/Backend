@@ -36,6 +36,13 @@ export class DemasiadosIntentosException extends HttpException {
   }
 }
 
+/** 401 de la renovación: sin sesión vigente que renovar, hay que iniciar sesión de nuevo. */
+export class SesionNoRenovableException extends UnauthorizedException {
+  constructor() {
+    super('Tu sesión no es válida o caducó. Inicia sesión de nuevo.');
+  }
+}
+
 export interface SesionIniciada {
   tokenAcceso: string;
   /** Segundos de vigencia del token de acceso. */
@@ -141,6 +148,79 @@ export class SesionService implements OnModuleInit {
       },
     });
 
+    const sesion = await this.firmarAcceso(usuario, sid);
+    await this.intentos.confirmarExito(dto.email, contexto.ip);
+
+    return { sesion, tokenRefresco, vencimientoRefresco };
+  }
+
+  /**
+   * Renueva la sesión del dispositivo con su token de refresco: entrega un token de acceso nuevo
+   * y cambia el de refresco por otro, así cada token de refresco sirve una sola vez. La sesión
+   * debe seguir abierta y vigente, y la cuenta activa con el correo confirmado (RNF-28). El rol
+   * se lee de la base, no del token anterior. La vigencia de la sesión no se alarga: vence en la
+   * fecha que fijó el inicio de sesión. Si llegan cookies de varias sesiones vigentes (una
+   * plantada desde otro subdominio), no se adivina cuál es la real: responde 401.
+   */
+  async renovar(tokensRefresco: string[]): Promise<ResultadoInicioSesion> {
+    const ahora = new Date();
+    const vigentes =
+      tokensRefresco.length === 0
+        ? []
+        : await this.prisma.sesion.findMany({
+            where: {
+              tokenRefrescoHash: { in: tokensRefresco.map(hashearTokenSesion) },
+              fechaRevocacion: null,
+              fechaExpiracion: { gt: ahora },
+              usuario: { activo: true, fechaVerificacionCorreo: { not: null } },
+            },
+            select: {
+              id: true,
+              codigoPublico: true,
+              tokenRefrescoHash: true,
+              fechaExpiracion: true,
+              usuario: {
+                select: {
+                  codigoPublico: true,
+                  nombre: true,
+                  apellido: true,
+                  rol: true,
+                },
+              },
+            },
+          });
+    if (vigentes.length !== 1) throw new SesionNoRenovableException();
+    const [vigente] = vigentes;
+
+    // Cambio atómico: dos renovaciones simultáneas con el mismo token no dan dos tokens válidos
+    const { token: tokenRefresco, hash } = generarTokenSesion();
+    const { count } = await this.prisma.sesion.updateMany({
+      where: {
+        id: vigente.id,
+        tokenRefrescoHash: vigente.tokenRefrescoHash,
+        fechaRevocacion: null,
+      },
+      data: { tokenRefrescoHash: hash },
+    });
+    if (count === 0) throw new SesionNoRenovableException();
+
+    return {
+      sesion: await this.firmarAcceso(vigente.usuario, vigente.codigoPublico),
+      tokenRefresco,
+      vencimientoRefresco: vigente.fechaExpiracion,
+    };
+  }
+
+  /** Firma el token de acceso de la sesión `sid` con el rol de la cuenta (E1-H2, E1-H3). */
+  private async firmarAcceso(
+    usuario: {
+      codigoPublico: string;
+      nombre: string;
+      apellido: string;
+      rol: string;
+    },
+    sid: string,
+  ): Promise<SesionIniciada> {
     const rol = usuario.rol as Rol;
     const expiraEn =
       duracionAMs(this.config.get('JWT_ACCESS_TTL', { infer: true })) / 1000;
@@ -150,22 +230,15 @@ export class SesionService implements OnModuleInit {
       algorithm: ALGORITMO_TOKEN_ACCESO,
       audience: AUDIENCIA_TOKEN_ACCESO,
     });
-
-    await this.intentos.confirmarExito(dto.email, contexto.ip);
-
     return {
-      sesion: {
-        tokenAcceso,
-        expiraEn,
-        usuario: {
-          codigoPublico: usuario.codigoPublico,
-          nombre: usuario.nombre,
-          apellido: usuario.apellido,
-          rol,
-        },
+      tokenAcceso,
+      expiraEn,
+      usuario: {
+        codigoPublico: usuario.codigoPublico,
+        nombre: usuario.nombre,
+        apellido: usuario.apellido,
+        rol,
       },
-      tokenRefresco,
-      vencimientoRefresco,
     };
   }
 

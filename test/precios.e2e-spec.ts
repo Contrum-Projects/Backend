@@ -351,4 +351,50 @@ describe('Catálogo · precios minorista y mayorista (e2e)', () => {
     await fijar('abc', cuerpo).expect(404);
     await ver(2_147_483_000).expect(404);
   });
+
+  it('E3-H5 · artículo exclusivo para profesionales: al pasar a exclusivo el minorista queda guardado y vuelve a regir si deja de serlo (decisión del 24 oct)', async () => {
+    const { productoId, articuloId } = await nuevoFormato();
+    await fijar(articuloId, {
+      precioMinoristaNeto: 10000,
+      precioMayoristaNeto: 8000,
+      motivo: 'Precios iniciales',
+    }).expect(200);
+    const cambiarCanal = (canalVenta: string) =>
+      request(app.getHttpServer())
+        .patch(`/api/catalogo/productos/${productoId}`)
+        .auth(token, { type: 'bearer' })
+        .send({ canalVenta })
+        .expect(200);
+    const enTienda = async () => {
+      const tienda = await request(app.getHttpServer())
+        .get('/api/tienda/productos')
+        .query({ categoriaId })
+        .expect(200);
+      return (
+        tienda.body as { items: { id: number; precio: number }[] }
+      ).items.find((item) => item.id === productoId);
+    };
+
+    await cambiarCanal(CANALES_VENTA.PROFESIONAL);
+
+    const exclusivo = (await ver(articuloId).expect(200))
+      .body as PreciosRespuesta;
+    expect(exclusivo).toMatchObject({
+      exclusivo: true,
+      precioMinoristaNeto: 10000,
+      precioMayoristaNeto: 8000,
+    });
+    // Mientras es exclusivo no se cambia su minorista ni se muestra a todo público
+    await fijar(articuloId, {
+      precioMinoristaNeto: 11000,
+      motivo: 'Alza',
+    }).expect(400);
+    expect(await enTienda()).toBeUndefined();
+
+    await cambiarCanal(CANALES_VENTA.GENERAL);
+
+    expect((await enTienda())?.precio).toBe(
+      calcularMontos(10000, porcentajeIva).total,
+    );
+  });
 });
