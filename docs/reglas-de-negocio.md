@@ -145,6 +145,13 @@ propio y puede tener vigencia.
 vendible (solo bodegas con `abasteceVentaOnline`); la de un pack es la de su componente más escaso.
 Búsqueda por nombre, marca, categoría o subcategoría; filtros combinables. Caché permitida solo
 para el árbol de categorías y marcas (RNF-30).
+Decisiones del 24 oct (E2-H2): la búsqueda es el parámetro `buscar` de `GET /api/tienda/productos`
+(no un endpoint aparte) y se combina con `categoriaId`, `marcaId` y la paginación. Se separa en
+palabras y **cada** palabra debe estar en el nombre del producto, en el de su marca o en el de su
+categoría o una superior (una categoría alcanza a sus subcategorías). Ignora mayúsculas pero no
+tildes (sin `unaccent`). Vacío o solo espacios no filtra; más de 100 caracteres responde 400.
+`%`, `_` y `\` se buscan como texto: Prisma no escapa los comodines de ILIKE en `contains`, hay
+que escaparlos antes. Sin coincidencias responde 200 con la lista vacía; sin caché.
 
 **E11 Inventario.** Sin lotes. Stock por formato y ubicación (EXISTENCIA). El stock nunca queda bajo
 cero ni cambia sin un MOVIMIENTO que lo explique. Entrada: proveedor, documento y detalle (un

@@ -77,17 +77,33 @@ export class TiendaService {
   ) {}
 
   /**
-   * Productos de la tienda (E2-H1, RF-02.01 y RF-02.02), ordenados por nombre. Solo los
-   * activos, de venta general (los exclusivos llegan con E2-H4), sin marca o con la marca
-   * activa, y con al menos un formato vendible. Con `categoriaId` incluye sus subcategorías.
+   * Productos de la tienda (E2-H1 y E2-H2, RF-02.01, RF-02.02, RF-02.07 y RF-02.08), ordenados
+   * por nombre. Solo los activos, de venta general (los exclusivos llegan con E2-H4), sin marca
+   * o con la marca activa, y con al menos un formato vendible. Con `categoriaId` incluye sus
+   * subcategorías. Con `buscar`, cada palabra debe estar en el nombre, la marca o la categoría
+   * (propia o superior). Búsqueda y filtros se exigen a la vez.
    */
   async listarProductos(filtros: ListarTiendaDto) {
     const pagina = filtros.pagina ?? 1;
     const limite = filtros.limite ?? POR_PAGINA;
-    const categorias =
-      filtros.categoriaId === undefined
-        ? undefined
-        : await this.categoriaYDescendientes(filtros.categoriaId);
+    // Una palabra repetida no cambia el resultado: se busca una vez
+    const palabras = [
+      ...new Set(
+        filtros.buscar?.toLocaleLowerCase('es').split(/\s+/).filter(Boolean) ??
+          [],
+      ),
+    ];
+    const filasCategorias =
+      filtros.categoriaId !== undefined || palabras.length > 0
+        ? await this.leerCategorias()
+        : [];
+    let categorias: number[] | undefined;
+    if (filtros.categoriaId !== undefined) {
+      if (!filasCategorias.some((fila) => fila.id === filtros.categoriaId)) {
+        throw new NotFoundException('La categoría no existe.');
+      }
+      categorias = conDescendientes(filasCategorias, [filtros.categoriaId]);
+    }
     if (filtros.marcaId !== undefined) {
       await this.exigirMarcaActiva(filtros.marcaId);
     }
@@ -98,6 +114,12 @@ export class TiendaService {
       formatos: { some: FORMATO_VENDIBLE },
       categoriaId: categorias ? { in: categorias } : undefined,
       marcaId: filtros.marcaId,
+      AND:
+        palabras.length > 0
+          ? palabras.map((palabra) =>
+              condicionPalabra(palabra, filasCategorias),
+            )
+          : undefined,
     };
     const [filas, total] = await this.prisma.$transaction([
       this.prisma.producto.findMany({
@@ -132,25 +154,13 @@ export class TiendaService {
   }
 
   /**
-   * Ids de la categoría y de todas sus subcategorías. Se lee de la base y no de la caché:
-   * el filtro de productos no debe depender de una copia que puede estar vieja.
+   * Todas las categorías, para resolver subcategorías y búsquedas. Se lee de la base y no de
+   * la caché: el filtro de productos no debe depender de una copia que puede estar vieja.
    */
-  private async categoriaYDescendientes(categoriaId: number) {
-    const filas = await this.prisma.categoria.findMany({
-      select: { id: true, padreId: true },
+  private leerCategorias(): Promise<FilaCategoria[]> {
+    return this.prisma.categoria.findMany({
+      select: { id: true, padreId: true, nombre: true },
     });
-    if (!filas.some((fila) => fila.id === categoriaId)) {
-      throw new NotFoundException('La categoría no existe.');
-    }
-    const ids = [categoriaId];
-    for (let i = 0; i < ids.length; i++) {
-      for (const fila of filas) {
-        if (fila.padreId === ids[i] && !ids.includes(fila.id)) {
-          ids.push(fila.id);
-        }
-      }
-    }
-    return ids;
   }
 
   private async exigirMarcaActiva(marcaId: number) {
@@ -163,6 +173,51 @@ export class TiendaService {
     }
   }
 }
+
+interface FilaCategoria {
+  id: number;
+  padreId: number | null;
+  nombre: string;
+}
+
+/** Las categorías indicadas más todas sus subcategorías, a cualquier profundidad. */
+const conDescendientes = (filas: FilaCategoria[], raices: number[]) => {
+  const ids = [...raices];
+  for (let i = 0; i < ids.length; i++) {
+    for (const fila of filas) {
+      if (fila.padreId === ids[i] && !ids.includes(fila.id)) {
+        ids.push(fila.id);
+      }
+    }
+  }
+  return ids;
+};
+
+/**
+ * Una palabra de la búsqueda coincide si está en el nombre del producto, en el de su marca o
+ * en el de su categoría o una superior (la categoría alcanza a sus subcategorías).
+ */
+const condicionPalabra = (
+  palabra: string,
+  categorias: FilaCategoria[],
+): Prisma.ProductoWhereInput => {
+  const buscada = palabra.toLocaleLowerCase('es');
+  const coincidentes = categorias
+    .filter((fila) => fila.nombre.toLocaleLowerCase('es').includes(buscada))
+    .map((fila) => fila.id);
+  // Prisma no escapa los comodines de ILIKE: sin esto, «%» o «_» coincidirían con cualquier texto
+  const literal = palabra.replace(/[\\%_]/g, '\\$&');
+  const contiene = { contains: literal, mode: 'insensitive' } as const;
+  return {
+    OR: [
+      { nombre: contiene },
+      { marca: { is: { nombre: contiene } } },
+      ...(coincidentes.length > 0
+        ? [{ categoriaId: { in: conDescendientes(categorias, coincidentes) } }]
+        : []),
+    ],
+  };
+};
 
 /**
  * Elige el formato que representa al producto: el predeterminado si se puede vender; si no,

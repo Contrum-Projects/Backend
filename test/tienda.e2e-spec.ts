@@ -59,22 +59,27 @@ describe('Tienda · explorar el catálogo (e2e)', () => {
   const nombreUnico = (base: string) =>
     `${PREFIJO} ${base} ${randomUUID().slice(0, 8)}`;
 
-  const nuevaCategoria = async (padreId?: number) =>
+  const nuevaCategoria = async (padreId?: number, nombre = 'Cat') =>
     (
       await prisma.categoria.create({
-        data: { nombre: nombreUnico('Cat'), padreId },
+        data: { nombre: nombreUnico(nombre), padreId },
       })
     ).id;
 
-  const nuevaMarca = async (activa = true) =>
+  const nuevaMarca = async (activa = true, nombre = 'Marca') =>
     (
       await prisma.marca.create({
-        data: { nombre: nombreUnico('Marca'), activa },
+        data: { nombre: nombreUnico(nombre), activa },
       })
     ).id;
+
+  /** Palabra que no aparece en ningún otro dato de la base, para buscarla. */
+  const palabraUnica = () => `zq${randomUUID().slice(0, 8)}`;
 
   interface OpcionesProducto {
     categoriaId: number;
+    /** Parte del nombre; el nombre completo lleva además el prefijo y un sufijo único. */
+    nombre?: string;
     marcaId?: number | null;
     activo?: boolean;
     canalVenta?: string;
@@ -90,6 +95,7 @@ describe('Tienda · explorar el catálogo (e2e)', () => {
   /** Crea un producto con sus formatos, artículos e imágenes directamente en la base. */
   const nuevoProducto = async ({
     categoriaId,
+    nombre = 'Producto',
     marcaId: marca = marcaId,
     activo = true,
     canalVenta = CANALES_VENTA.GENERAL,
@@ -97,7 +103,7 @@ describe('Tienda · explorar el catálogo (e2e)', () => {
   }: OpcionesProducto) => {
     const producto = await prisma.producto.create({
       data: {
-        nombre: nombreUnico('Producto'),
+        nombre: nombreUnico(nombre),
         descripcion: 'Producto de prueba.',
         origenDescripcion: ORIGENES_DESCRIPCION.MANUAL,
         canalVenta,
@@ -366,6 +372,205 @@ describe('Tienda · explorar el catálogo (e2e)', () => {
       await listar({ categoriaId: 'abc' }).expect(400);
       await listar({ limite: 500 }).expect(400);
       await listar({ incluirInactivos: 'true' }).expect(400);
+    });
+  });
+
+  describe('GET /tienda/productos?buscar=', () => {
+    const ids = (respuesta: { body: unknown }) =>
+      (respuesta.body as ListadoRespuesta).items
+        .map((p) => p.id)
+        .sort((a, b) => a - b);
+
+    it('E2-H2 · búsqueda con resultados: coincide por nombre, marca, categoría o subcategoría, sin distinguir mayúsculas', async () => {
+      const palabra = palabraUnica();
+      const raiz = await nuevaCategoria();
+      const porNombre = await nuevoProducto({
+        categoriaId: raiz,
+        nombre: `Shampoo ${palabra}`,
+      });
+      const porMarca = await nuevoProducto({
+        categoriaId: raiz,
+        marcaId: await nuevaMarca(true, `Marca ${palabra}`),
+      });
+      const categoria = await nuevaCategoria(undefined, `Cat ${palabra}`);
+      const subcategoria = await nuevaCategoria(categoria);
+      const porCategoria = await nuevoProducto({ categoriaId: categoria });
+      const enSubcategoria = await nuevoProducto({ categoriaId: subcategoria });
+      const otraSub = await nuevaCategoria(raiz, `Sub ${palabra}`);
+      const porSubcategoria = await nuevoProducto({ categoriaId: otraSub });
+      await nuevoProducto({ categoriaId: raiz });
+
+      const respuesta = await listar({
+        buscar: `  ${palabra.toUpperCase()} `,
+      }).expect(200);
+
+      expect(ids(respuesta)).toEqual(
+        [
+          porNombre.id,
+          porMarca.id,
+          porCategoria.id,
+          enSubcategoria.id,
+          porSubcategoria.id,
+        ].sort((a, b) => a - b),
+      );
+      expect((respuesta.body as ListadoRespuesta).total).toBe(5);
+      expect(JSON.stringify(respuesta.body)).not.toContain('7777');
+    });
+
+    it('E2-H2 · búsqueda con resultados: cada palabra debe coincidir en algún campo', async () => {
+      const deProducto = palabraUnica();
+      const deMarca = palabraUnica();
+      const categoria = await nuevaCategoria();
+      const marca = await nuevaMarca(true, `Marca ${deMarca}`);
+      const ambas = await nuevoProducto({
+        categoriaId: categoria,
+        nombre: `Shampoo ${deProducto}`,
+        marcaId: marca,
+      });
+      await nuevoProducto({
+        categoriaId: categoria,
+        nombre: `Shampoo ${deProducto}`,
+      });
+      await nuevoProducto({ categoriaId: categoria, marcaId: marca });
+
+      const respuesta = await listar({
+        buscar: `${deProducto} ${deMarca}`,
+      }).expect(200);
+
+      expect(ids(respuesta)).toEqual([ambas.id]);
+    });
+
+    it('E2-H2 · búsqueda sin resultados: devuelve una lista vacía', async () => {
+      await nuevoProducto({ categoriaId: await nuevaCategoria() });
+
+      const respuesta = await listar({ buscar: palabraUnica() }).expect(200);
+
+      expect(respuesta.body).toEqual({
+        items: [],
+        total: 0,
+        pagina: 1,
+        limite: 20,
+      });
+    });
+
+    it('E2-H2 · búsqueda sin resultados: no cuenta inactivos, exclusivos ni de marca desactivada', async () => {
+      const palabra = palabraUnica();
+      const categoria = await nuevaCategoria();
+      const nombre = `Shampoo ${palabra}`;
+      await nuevoProducto({ categoriaId: categoria, nombre, activo: false });
+      await nuevoProducto({
+        categoriaId: categoria,
+        nombre,
+        canalVenta: CANALES_VENTA.PROFESIONAL,
+      });
+      await nuevoProducto({
+        categoriaId: categoria,
+        nombre,
+        marcaId: await nuevaMarca(false),
+      });
+
+      const respuesta = await listar({ buscar: palabra }).expect(200);
+
+      expect((respuesta.body as ListadoRespuesta).total).toBe(0);
+    });
+
+    it('E2-H2 · búsqueda sin resultados: %, _ y la barra invertida se buscan como texto', async () => {
+      const palabra = palabraUnica();
+      await nuevoProducto({
+        categoriaId: await nuevaCategoria(),
+        nombre: `${palabra}abc`,
+      });
+      const literal = await nuevoProducto({
+        categoriaId: await nuevaCategoria(),
+        nombre: `${palabra} 50% _a\\b`,
+      });
+
+      await listar({ buscar: `${palabra}%c` })
+        .expect(200)
+        .expect(({ body }) => expect(body).toMatchObject({ total: 0 }));
+      await listar({ buscar: `${palabra}_bc` })
+        .expect(200)
+        .expect(({ body }) => expect(body).toMatchObject({ total: 0 }));
+      // El escape no debe quedar doble: el texto literal sí se encuentra
+      for (const buscar of ['50%', '_a', '\\b']) {
+        expect(
+          ids(await listar({ buscar: `${palabra} ${buscar}` }).expect(200)),
+        ).toEqual([literal.id]);
+      }
+    });
+
+    it('E2-H2 · búsqueda con caracteres de control o repetida como arreglo: 400', async () => {
+      await listar({ buscar: 'abc\u0000' }).expect(400);
+      await request(app.getHttpServer())
+        .get(`${RUTA}/productos?buscar=a&buscar=b`)
+        .expect(400);
+    });
+
+    it('E2-H2 · búsqueda sin resultados: no ignora las tildes', async () => {
+      const palabra = palabraUnica();
+      await nuevoProducto({
+        categoriaId: await nuevaCategoria(),
+        nombre: `Coloración ${palabra}`,
+      });
+
+      const respuesta = await listar({
+        buscar: `coloracion ${palabra}`,
+      }).expect(200);
+
+      expect((respuesta.body as ListadoRespuesta).total).toBe(0);
+    });
+
+    it('E2-H2 · filtros combinados: búsqueda, marca y subcategoría a la vez', async () => {
+      const palabra = palabraUnica();
+      const nombre = `Shampoo ${palabra}`;
+      const categoria = await nuevaCategoria();
+      const subcategoria = await nuevaCategoria(categoria);
+      const otraMarca = await nuevaMarca();
+      const cumpleTodo = await nuevoProducto({
+        categoriaId: subcategoria,
+        nombre,
+      });
+      await nuevoProducto({ categoriaId: subcategoria });
+      await nuevoProducto({
+        categoriaId: subcategoria,
+        nombre,
+        marcaId: otraMarca,
+      });
+      await nuevoProducto({ categoriaId: await nuevaCategoria(), nombre });
+
+      const porSubcategoria = await listar({
+        buscar: palabra,
+        marcaId,
+        categoriaId: subcategoria,
+      }).expect(200);
+      const porCategoria = await listar({
+        buscar: palabra,
+        marcaId,
+        categoriaId: categoria,
+      }).expect(200);
+
+      expect(ids(porSubcategoria)).toEqual([cumpleTodo.id]);
+      expect(ids(porCategoria)).toEqual([cumpleTodo.id]);
+    });
+
+    it('E2-H2 · búsqueda vacía: no filtra por texto', async () => {
+      const categoria = await nuevaCategoria();
+      const producto = await nuevoProducto({ categoriaId: categoria });
+
+      const respuesta = await listar({
+        buscar: '   ',
+        categoriaId: categoria,
+      }).expect(200);
+
+      expect(ids(respuesta)).toEqual([producto.id]);
+    });
+
+    it('E2-H2 · búsqueda de más de 100 caracteres: 400', async () => {
+      const respuesta = await listar({ buscar: 'a'.repeat(101) }).expect(400);
+
+      expect(JSON.stringify(respuesta.body)).toContain(
+        'La búsqueda no puede superar los 100 caracteres.',
+      );
     });
   });
 

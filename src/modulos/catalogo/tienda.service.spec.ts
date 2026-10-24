@@ -7,12 +7,12 @@ import type { CategoriasService } from './categorias.service.js';
 import type { MarcasService } from './marcas.service.js';
 import { TiendaService } from './tienda.service.js';
 
-/** Categorías de prueba como `[id, padreId]`: 1 > 2 > 3 y 4 es otra raíz. */
+/** Categorías de prueba: Cuidado (1) > Shampoo (2) > Sin sulfato (3), y Coloración (4) es otra raíz. */
 const CATEGORIAS = [
-  { id: 1, padreId: null },
-  { id: 2, padreId: 1 },
-  { id: 3, padreId: 2 },
-  { id: 4, padreId: null },
+  { id: 1, padreId: null, nombre: 'Cuidado' },
+  { id: 2, padreId: 1, nombre: 'Shampoo' },
+  { id: 3, padreId: 2, nombre: 'Sin sulfato' },
+  { id: 4, padreId: null, nombre: 'Coloración' },
 ];
 
 const formato = (neto: string, extra: object = {}, imagen = 'img/a.jpg') => ({
@@ -204,6 +204,100 @@ describe('TiendaService', () => {
       expect(prisma.producto.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ skip: 20, take: 10 }),
       );
+    });
+  });
+
+  describe('búsqueda', () => {
+    /** Condición que se pide a cada palabra buscada. */
+    const condicion = (palabra: string, categorias?: number[]) => ({
+      OR: [
+        { nombre: { contains: palabra, mode: 'insensitive' } },
+        {
+          marca: {
+            is: { nombre: { contains: palabra, mode: 'insensitive' } },
+          },
+        },
+        ...(categorias ? [{ categoriaId: { in: categorias } }] : []),
+      ],
+    });
+
+    it('E2-H2 · búsqueda con resultados: compara el nombre y la marca sin distinguir mayúsculas', async () => {
+      const resultado = await servicio.listarProductos({ buscar: 'Kera' });
+
+      expect(whereDe(prisma)).toMatchObject({ AND: [condicion('kera')] });
+      expect(resultado.items).toHaveLength(1);
+    });
+
+    it('E2-H2 · búsqueda con resultados: una categoría coincide con sus productos y los de sus subcategorías', async () => {
+      await servicio.listarProductos({ buscar: 'SHAMPOO' });
+
+      expect(whereDe(prisma)).toMatchObject({
+        AND: [condicion('shampoo', [2, 3])],
+      });
+    });
+
+    it('E2-H2 · búsqueda con resultados: una subcategoría coincide con sus productos', async () => {
+      await servicio.listarProductos({ buscar: 'sulfato' });
+
+      expect(whereDe(prisma)).toMatchObject({
+        AND: [condicion('sulfato', [3])],
+      });
+    });
+
+    it('E2-H2 · búsqueda con resultados: cada palabra debe coincidir en algún campo', async () => {
+      await servicio.listarProductos({ buscar: 'shampoo   Kerastase SHAMPOO' });
+
+      expect(whereDe(prisma)).toMatchObject({
+        AND: [condicion('shampoo', [2, 3]), condicion('kerastase')],
+      });
+    });
+
+    it('E2-H2 · búsqueda: %, _ y la barra invertida se escapan para buscarse como texto', async () => {
+      await servicio.listarProductos({ buscar: '50%_a\\b' });
+
+      expect(whereDe(prisma)).toMatchObject({
+        AND: [
+          {
+            OR: [
+              { nombre: { contains: '50\\%\\_a\\\\b', mode: 'insensitive' } },
+              expect.anything(),
+            ],
+          },
+        ],
+      });
+    });
+
+    it('E2-H2 · búsqueda sin resultados: devuelve una lista vacía', async () => {
+      prisma.producto.findMany.mockResolvedValue([]);
+      prisma.producto.count.mockResolvedValue(0);
+
+      const resultado = await servicio.listarProductos({
+        buscar: 'inexistente',
+      });
+
+      expect(resultado).toEqual({ items: [], total: 0, pagina: 1, limite: 20 });
+    });
+
+    it('E2-H2 · filtros combinados: búsqueda, categoría y marca se exigen a la vez', async () => {
+      await servicio.listarProductos({
+        buscar: 'reparador',
+        categoriaId: 2,
+        marcaId: 2,
+      });
+
+      expect(whereDe(prisma)).toMatchObject({
+        categoriaId: { in: [2, 3] },
+        marcaId: 2,
+        AND: [condicion('reparador')],
+      });
+      expect(prisma.categoria.findMany).toHaveBeenCalledTimes(1);
+    });
+
+    it('E2-H2 · búsqueda vacía: lista sin filtrar por texto', async () => {
+      await servicio.listarProductos({ buscar: '' });
+
+      expect(whereDe(prisma)).toMatchObject({ AND: undefined });
+      expect(prisma.categoria.findMany).not.toHaveBeenCalled();
     });
   });
 
