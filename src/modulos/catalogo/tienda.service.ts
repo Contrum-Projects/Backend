@@ -1,0 +1,199 @@
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { calcularMontos } from '../../common/dominio/montos.js';
+import { CANALES_VENTA } from '../../common/dominio/valores.js';
+import type { Entorno } from '../../config/entorno.js';
+import type { Prisma } from '../../generated/prisma/client.js';
+import { PrismaService } from '../../prisma/prisma.service.js';
+import { CacheCatalogo, CLAVES_CACHE } from './cache-catalogo.js';
+import { CategoriasService, type NodoCategoria } from './categorias.service.js';
+import type { ListarTiendaDto } from './dto/listar-tienda.dto.js';
+import { MarcasService } from './marcas.service.js';
+
+const POR_PAGINA = 20;
+
+/** Un formato se puede vender en la tienda si su artículo está activo, tiene precio minorista e imagen. */
+const FORMATO_VENDIBLE = {
+  articulo: {
+    activo: true,
+    precioMinoristaNeto: { not: null },
+    imagenes: { some: {} },
+  },
+} satisfies Prisma.FormatoProductoWhereInput;
+
+/**
+ * Lo que la tienda muestra de un producto. El `select` es explícito: el precio mayorista
+ * nunca se lee para el listado público (RNF-04).
+ */
+const SELECCION = {
+  id: true,
+  nombre: true,
+  marca: { select: { id: true, nombre: true } },
+  categoria: { select: { id: true, nombre: true } },
+  formatos: {
+    where: FORMATO_VENDIBLE,
+    select: {
+      esPredeterminado: true,
+      articulo: {
+        select: {
+          precioMinoristaNeto: true,
+          imagenes: {
+            select: { ubicacionArchivo: true },
+            orderBy: [{ esPrincipal: 'desc' }, { orden: 'asc' }, { id: 'asc' }],
+            take: 1,
+          },
+        },
+      },
+    },
+  },
+} satisfies Prisma.ProductoSelect;
+
+type FilaProducto = Prisma.ProductoGetPayload<{ select: typeof SELECCION }>;
+
+export interface ProductoTienda {
+  id: number;
+  nombre: string;
+  marca: { id: number; nombre: string } | null;
+  categoria: { id: number; nombre: string };
+  /** Precio minorista con IVA incluido, en pesos enteros. */
+  precio: number;
+  /** Ubicación de la imagen principal del formato mostrado. */
+  imagen: string;
+}
+
+export interface MarcaTienda {
+  id: number;
+  nombre: string;
+}
+
+@Injectable()
+export class TiendaService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly config: ConfigService<Entorno, true>,
+    private readonly cache: CacheCatalogo,
+    private readonly categorias: CategoriasService,
+    private readonly marcas: MarcasService,
+  ) {}
+
+  /**
+   * Productos de la tienda (E2-H1, RF-02.01 y RF-02.02), ordenados por nombre. Solo los
+   * activos, de venta general (los exclusivos llegan con E2-H4), sin marca o con la marca
+   * activa, y con al menos un formato vendible. Con `categoriaId` incluye sus subcategorías.
+   */
+  async listarProductos(filtros: ListarTiendaDto) {
+    const pagina = filtros.pagina ?? 1;
+    const limite = filtros.limite ?? POR_PAGINA;
+    const categorias =
+      filtros.categoriaId === undefined
+        ? undefined
+        : await this.categoriaYDescendientes(filtros.categoriaId);
+    if (filtros.marcaId !== undefined) {
+      await this.exigirMarcaActiva(filtros.marcaId);
+    }
+    const where: Prisma.ProductoWhereInput = {
+      activo: true,
+      canalVenta: CANALES_VENTA.GENERAL,
+      OR: [{ marcaId: null }, { marca: { is: { activa: true } } }],
+      formatos: { some: FORMATO_VENDIBLE },
+      categoriaId: categorias ? { in: categorias } : undefined,
+      marcaId: filtros.marcaId,
+    };
+    const [filas, total] = await this.prisma.$transaction([
+      this.prisma.producto.findMany({
+        where,
+        select: SELECCION,
+        orderBy: [{ nombre: 'asc' }, { id: 'asc' }],
+        skip: (pagina - 1) * limite,
+        take: limite,
+      }),
+      this.prisma.producto.count({ where }),
+    ]);
+    const porcentajeIva = this.config.get('IVA_PORCENTAJE', { infer: true });
+    const items = filas
+      .map((fila) => aProductoTienda(fila, porcentajeIva))
+      .filter((item): item is ProductoTienda => item !== null);
+    return { items, total, pagina, limite };
+  }
+
+  /** Árbol de categorías para navegar la tienda, desde la caché si está (RNF-30). */
+  listarCategorias(): Promise<NodoCategoria[]> {
+    return this.cache.obtener(CLAVES_CACHE.CATEGORIAS, () =>
+      this.categorias.listarArbol(),
+    );
+  }
+
+  /** Marcas activas para navegar la tienda, desde la caché si está (RNF-30). */
+  listarMarcas(): Promise<MarcaTienda[]> {
+    return this.cache.obtener(CLAVES_CACHE.MARCAS, async () => {
+      const marcas = await this.marcas.listar();
+      return marcas.map(({ id, nombre }) => ({ id, nombre }));
+    });
+  }
+
+  /**
+   * Ids de la categoría y de todas sus subcategorías. Se lee de la base y no de la caché:
+   * el filtro de productos no debe depender de una copia que puede estar vieja.
+   */
+  private async categoriaYDescendientes(categoriaId: number) {
+    const filas = await this.prisma.categoria.findMany({
+      select: { id: true, padreId: true },
+    });
+    if (!filas.some((fila) => fila.id === categoriaId)) {
+      throw new NotFoundException('La categoría no existe.');
+    }
+    const ids = [categoriaId];
+    for (let i = 0; i < ids.length; i++) {
+      for (const fila of filas) {
+        if (fila.padreId === ids[i] && !ids.includes(fila.id)) {
+          ids.push(fila.id);
+        }
+      }
+    }
+    return ids;
+  }
+
+  private async exigirMarcaActiva(marcaId: number) {
+    const marca = await this.prisma.marca.findUnique({
+      where: { id: marcaId },
+      select: { activa: true },
+    });
+    if (!marca?.activa) {
+      throw new NotFoundException('La marca no existe.');
+    }
+  }
+}
+
+/**
+ * Elige el formato que representa al producto: el predeterminado si se puede vender; si no,
+ * el más barato. El precio va con IVA, en pesos enteros, igual que lo cobrará el pedido.
+ */
+const aProductoTienda = (
+  fila: FilaProducto,
+  porcentajeIva: number,
+): ProductoTienda | null => {
+  const formatos = fila.formatos
+    .map((formato) => ({
+      esPredeterminado: formato.esPredeterminado,
+      neto: Number(formato.articulo.precioMinoristaNeto),
+      imagen: formato.articulo.imagenes[0]?.ubicacionArchivo,
+    }))
+    .filter((formato) => formato.imagen !== undefined)
+    .sort(
+      (a, b) =>
+        Number(b.esPredeterminado) - Number(a.esPredeterminado) ||
+        a.neto - b.neto,
+    );
+  const elegido = formatos[0];
+  if (!elegido?.imagen) {
+    return null;
+  }
+  return {
+    id: fila.id,
+    nombre: fila.nombre,
+    marca: fila.marca,
+    categoria: fila.categoria,
+    precio: calcularMontos(Math.round(elegido.neto), porcentajeIva).total,
+    imagen: elegido.imagen,
+  };
+};

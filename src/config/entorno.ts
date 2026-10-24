@@ -39,6 +39,8 @@ export const esquemaEntorno = z.object({
   IVA_PORCENTAJE: z.coerce.number().min(0).max(100).default(19),
   MINIMO_UNIDADES_PELUQUERO: z.coerce.number().int().positive().default(3),
   PLAZO_PAGO_MINUTOS: z.coerce.number().int().positive().default(15),
+  /** Vigencia en Redis del árbol de categorías y de las marcas de la tienda (E2-H1, RNF-30). */
+  CACHE_CATALOGO_SEGUNDOS: z.coerce.number().int().positive().default(300),
 
   MERCADOPAGO_ACCESS_TOKEN: z.string().optional(),
   MERCADOPAGO_WEBHOOK_SECRET: z.string().optional(),

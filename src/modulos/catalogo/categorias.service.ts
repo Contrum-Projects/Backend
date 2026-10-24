@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import type { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { CacheCatalogo, CLAVES_CACHE } from './cache-catalogo.js';
 import type { ActualizarCategoriaDto } from './dto/actualizar-categoria.dto.js';
 import type { CrearCategoriaDto } from './dto/crear-categoria.dto.js';
 
@@ -19,11 +20,15 @@ export interface NodoCategoria {
 
 @Injectable()
 export class CategoriasService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cache: CacheCatalogo,
+  ) {}
 
   /**
    * Crea una categoría o, si llega `padreId`, una subcategoría dentro de ella
    * (E3-H4, RF-03.06). Una categoría nueva no tiene hijos, así que no puede formar un ciclo.
+   * Después de guardarla invalida el árbol de la tienda (E2-H1).
    */
   async crear(dto: CrearCategoriaDto) {
     if (dto.padreId !== undefined) {
@@ -35,13 +40,15 @@ export class CategoriasService {
         throw new NotFoundException('La categoría padre no existe.');
       }
     }
-    return this.prisma.categoria.create({
+    const categoria = await this.prisma.categoria.create({
       data: {
         nombre: dto.nombre,
         descripcion: dto.descripcion,
         padreId: dto.padreId,
       },
     });
+    await this.cache.invalidar(CLAVES_CACHE.CATEGORIAS);
+    return categoria;
   }
 
   /**
@@ -49,7 +56,8 @@ export class CategoriasService {
    * Mover una categoría dentro de ella misma o de una de sus subcategorías formaría un
    * ciclo («Categorías sin ciclos»): se rechaza. Todos los cambios de estructura toman
    * el mismo bloqueo de transacción, de modo que dos movimientos simultáneos no pueden
-   * crear juntos un ciclo que cada uno, por separado, no formaría.
+   * crear juntos un ciclo que cada uno, por separado, no formaría. Después del commit
+   * invalida el árbol de la tienda (E2-H1).
    */
   async actualizar(id: number, dto: ActualizarCategoriaDto) {
     if (
@@ -59,7 +67,7 @@ export class CategoriasService {
     ) {
       throw new BadRequestException('Indica al menos un campo para cambiar.');
     }
-    return this.prisma.$transaction(async (tx) => {
+    const actualizada = await this.prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(3402)`;
       const categoria = await tx.categoria.findUnique({
         where: { id },
@@ -80,6 +88,8 @@ export class CategoriasService {
         },
       });
     });
+    await this.cache.invalidar(CLAVES_CACHE.CATEGORIAS);
+    return actualizada;
   }
 
   /** Árbol de categorías con sus subcategorías anidadas, ordenadas por nombre. */
