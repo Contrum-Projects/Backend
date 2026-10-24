@@ -4,15 +4,23 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { TIPOS_ARTICULO } from '../../common/dominio/valores.js';
 import { Prisma } from '../../generated/prisma/client.js';
+import type { Entorno } from '../../config/entorno.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { ActualizarFormatoDto } from './dto/actualizar-formato.dto.js';
 import type { CrearFormatoDto } from './dto/crear-formato.dto.js';
+import {
+  aImagenPanel,
+  type ImagenPanel,
+  ORDEN_IMAGENES,
+  SELECCION_IMAGEN,
+} from './imagenes.service.js';
 
 /**
  * Lo que el panel ve de un formato. Incluye la fecha de vencimiento, que la tienda nunca
- * muestra (E3-H2). Los precios no van aquí: son de E3-H5.
+ * muestra (E3-H2), y las imágenes de su artículo (E3-H3). Los precios no van aquí: son de E3-H5.
  */
 const SELECCION = {
   id: true,
@@ -28,7 +36,13 @@ const SELECCION = {
   anchoCm: true,
   largoCm: true,
   esPredeterminado: true,
-  articulo: { select: { sku: true, activo: true } },
+  articulo: {
+    select: {
+      sku: true,
+      activo: true,
+      imagenes: { select: SELECCION_IMAGEN, orderBy: ORDEN_IMAGENES },
+    },
+  },
 } satisfies Prisma.FormatoProductoSelect;
 
 type FilaFormato = Prisma.FormatoProductoGetPayload<{
@@ -52,9 +66,14 @@ export interface FormatoPanel {
   largoCm: number;
   esPredeterminado: boolean;
   activo: boolean;
+  /** Imágenes del artículo en su orden (E3-H3); el formato puede no tener todavía. */
+  imagenes: ImagenPanel[];
 }
 
-const aRespuesta = (fila: FilaFormato): FormatoPanel => ({
+const aRespuesta = (
+  fila: FilaFormato,
+  urlBaseImagenes: string | undefined,
+): FormatoPanel => ({
   id: fila.id,
   productoId: fila.productoId,
   sku: fila.articulo.sku,
@@ -70,6 +89,9 @@ const aRespuesta = (fila: FilaFormato): FormatoPanel => ({
   largoCm: Number(fila.largoCm),
   esPredeterminado: fila.esPredeterminado,
   activo: fila.articulo.activo,
+  imagenes: fila.articulo.imagenes.map((imagen) =>
+    aImagenPanel(imagen, urlBaseImagenes),
+  ),
 });
 
 /** La fecha llega validada como AAAA-MM-DD; `null` la borra y `undefined` no la cambia. */
@@ -92,7 +114,10 @@ type Cliente = Prisma.TransactionClient | PrismaService;
 
 @Injectable()
 export class FormatosService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly config: ConfigService<Entorno, true>,
+  ) {}
 
   /** Formatos de un producto para el panel, con el predeterminado primero. */
   async listar(productoId: number): Promise<FormatoPanel[]> {
@@ -108,7 +133,7 @@ export class FormatosService {
       select: SELECCION,
       orderBy: [{ esPredeterminado: 'desc' }, { id: 'asc' }],
     });
-    return filas.map(aRespuesta);
+    return filas.map((fila) => this.aRespuesta(fila));
   }
 
   /**
@@ -155,7 +180,7 @@ export class FormatosService {
           select: SELECCION,
         });
       });
-      return aRespuesta(fila);
+      return this.aRespuesta(fila);
     } catch (error) {
       await this.explicarChoque(error, dto.sku, dto.codigoBarras);
       throw error;
@@ -230,11 +255,15 @@ export class FormatosService {
           select: SELECCION,
         });
       });
-      return aRespuesta(fila);
+      return this.aRespuesta(fila);
     } catch (error) {
       await this.explicarChoque(error, dto.sku, dto.codigoBarras, id);
       throw error;
     }
+  }
+
+  private aRespuesta(fila: FilaFormato) {
+    return aRespuesta(fila, this.config.get('R2_URL_PUBLICA', { infer: true }));
   }
 
   /** Bloquea la fila del producto hasta el fin de la transacción (RNF-12). */

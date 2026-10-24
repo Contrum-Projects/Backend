@@ -13,27 +13,32 @@ interface Opciones {
   invalido: string;
   /** El campo puede no venir (en una edición, o un filtro). Si viene, debe ser válido. */
   opcional?: boolean;
+  /** Valida cada elemento de una lista de ids. */
+  each?: boolean;
 }
 
 /**
  * Id de otra tabla: entero positivo que cabe en la columna (int4). Da un solo mensaje en
  * español, así el panel puede señalar el campo sin textos en inglés.
  */
-export function IdEntero({ faltante, invalido, opcional }: Opciones) {
+export function IdEntero({ faltante, invalido, opcional, each }: Opciones) {
   const decoradores = [
-    ValidateBy({
-      name: 'idEntero',
-      validator: {
-        validate: (valor: unknown) =>
-          Number.isInteger(valor) &&
-          (valor as number) >= 1 &&
-          (valor as number) <= MAXIMO_INT4,
-        defaultMessage: (argumentos?: ValidationArguments) =>
-          argumentos?.value === undefined || argumentos.value === null
-            ? faltante
-            : invalido,
+    ValidateBy(
+      {
+        name: 'idEntero',
+        validator: {
+          validate: (valor: unknown) =>
+            Number.isInteger(valor) &&
+            (valor as number) >= 1 &&
+            (valor as number) <= MAXIMO_INT4,
+          defaultMessage: (argumentos?: ValidationArguments) =>
+            argumentos?.value === undefined || argumentos.value === null
+              ? faltante
+              : invalido,
+        },
       },
-    }),
+      { each },
+    ),
   ];
   if (opcional) {
     decoradores.unshift(ValidateIf((_objeto, valor) => valor !== undefined));

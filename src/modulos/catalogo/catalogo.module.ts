@@ -1,9 +1,12 @@
 import { Module } from '@nestjs/common';
+import { AlmacenModule } from '../../almacen/almacen.module.js';
 import { CacheCatalogo } from './cache-catalogo.js';
 import { CategoriasController } from './categorias.controller.js';
 import { CategoriasService } from './categorias.service.js';
 import { FormatosController } from './formatos.controller.js';
 import { FormatosService } from './formatos.service.js';
+import { ImagenesController } from './imagenes.controller.js';
+import { ImagenesService } from './imagenes.service.js';
 import { MarcasController } from './marcas.controller.js';
 import { MarcasService } from './marcas.service.js';
 import { ProductosController } from './productos.controller.js';
@@ -13,11 +16,13 @@ import { TiendaService } from './tienda.service.js';
 
 /** Épicas 2 y 3: catálogo público y administración del catálogo (ver src/modulos/README.md). */
 @Module({
+  imports: [AlmacenModule],
   controllers: [
     MarcasController,
     CategoriasController,
     ProductosController,
     FormatosController,
+    ImagenesController,
     TiendaController,
   ],
   providers: [
@@ -26,6 +31,7 @@ import { TiendaService } from './tienda.service.js';
     CategoriasService,
     ProductosService,
     FormatosService,
+    ImagenesService,
     TiendaService,
   ],
   exports: [MarcasService, CategoriasService],

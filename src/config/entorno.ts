@@ -1,6 +1,10 @@
 import { z } from 'zod';
 import { FORMATO_DURACION } from './duracion.js';
 
+/** Variable opcional: vacía (`R2_BUCKET=` en el .env) cuenta como ausente. */
+const opcional = <T extends z.ZodType>(esquema: T) =>
+  z.preprocess((v) => (v === '' ? undefined : v), esquema.optional());
+
 /**
  * Variables de entorno del backend. La app no arranca si falta una obligatoria
  * o tiene un valor inválido (RNF-10: las credenciales viven solo en el entorno).
@@ -41,6 +45,19 @@ export const esquemaEntorno = z.object({
   PLAZO_PAGO_MINUTOS: z.coerce.number().int().positive().default(15),
   /** Vigencia en Redis del árbol de categorías y de las marcas de la tienda (E2-H1, RNF-30). */
   CACHE_CATALOGO_SEGUNDOS: z.coerce.number().int().positive().default(300),
+
+  /**
+   * Cloudflare R2 (API S3) para las imágenes del catálogo (E3-H3, decisión del 24 oct). Van
+   * las cinco o ninguna: sin ellas la app arranca, pero subir imágenes responde 503.
+   */
+  R2_ACCOUNT_ID: opcional(z.string()),
+  R2_ACCESS_KEY_ID: opcional(z.string()),
+  R2_SECRET_ACCESS_KEY: opcional(z.string()),
+  R2_BUCKET: opcional(z.string()),
+  /** Dominio público del bucket, base de las URL de las imágenes (se le quita el `/` final). */
+  R2_URL_PUBLICA: opcional(
+    z.url({ protocol: /^https$/ }).transform((v) => v.replace(/\/+$/, '')),
+  ),
 
   MERCADOPAGO_ACCESS_TOKEN: z.string().optional(),
   MERCADOPAGO_WEBHOOK_SECRET: z.string().optional(),

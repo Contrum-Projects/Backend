@@ -38,6 +38,7 @@ interface FormatoRespuesta {
   largoCm: number;
   esPredeterminado: boolean;
   activo: boolean;
+  imagenes: unknown[];
 }
 
 describe('Catálogo · formatos de venta (e2e)', () => {
@@ -211,6 +212,7 @@ describe('Catálogo · formatos de venta (e2e)', () => {
         largoCm: 4.25,
         esPredeterminado: true,
         activo: true,
+        imagenes: [],
       });
       const articulo = await prisma.articuloVenta.findUniqueOrThrow({
         where: { id: creado.id },

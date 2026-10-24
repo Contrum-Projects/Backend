@@ -45,8 +45,11 @@ const crearPrisma = () => ({
   ),
 });
 
+const variables: Partial<Record<keyof Entorno, unknown>> = {
+  IVA_PORCENTAJE: 19,
+};
 const config = {
-  get: vi.fn().mockReturnValue(19),
+  get: vi.fn((nombre: keyof Entorno) => variables[nombre]),
 } as unknown as ConfigService<Entorno, true>;
 
 /** Filtro `where` con que se consultaron los productos. */
@@ -109,6 +112,19 @@ describe('TiendaService', () => {
         pagina: 1,
         limite: 20,
       });
+    });
+
+    it('E3-H3 · la imagen sale con la URL pública del almacén', async () => {
+      variables.R2_URL_PUBLICA = 'https://imagenes.cabelloperfecto.cl';
+      try {
+        const { items } = await servicio.listarProductos({ categoriaId: 3 });
+
+        expect(items[0].imagen).toBe(
+          'https://imagenes.cabelloperfecto.cl/img/a.jpg',
+        );
+      } finally {
+        delete variables.R2_URL_PUBLICA;
+      }
     });
 
     it('E2-H1 · solo productos activos, de venta general, con marca activa y un formato vendible', async () => {
