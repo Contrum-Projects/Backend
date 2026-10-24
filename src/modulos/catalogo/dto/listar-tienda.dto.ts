@@ -15,7 +15,7 @@ import { IdEntero } from '../../../common/validacion/id-entero.js';
 export class ListarTiendaDto {
   @ApiPropertyOptional({
     description:
-      'Texto a buscar, sin distinguir mayúsculas. Cada palabra debe estar en el nombre del producto, en su marca o en su categoría o subcategoría. Vacío no filtra.',
+      'Texto a buscar, sin distinguir mayúsculas. Cada palabra debe estar en el nombre del producto, en su marca o en su categoría o subcategoría. Hasta 5 palabras. Vacío no filtra.',
     maxLength: 100,
   })
   @IsOptional()
@@ -30,6 +30,10 @@ export class ListarTiendaDto {
   })
   @MaxLength(100, {
     message: 'La búsqueda no puede superar los 100 caracteres.',
+  })
+  // Cada palabra suma condiciones a la consulta: el tope acota su costo
+  @Matches(/^\S*(\s+\S+){0,4}$/, {
+    message: 'La búsqueda admite hasta 5 palabras.',
   })
   buscar?: string;
 

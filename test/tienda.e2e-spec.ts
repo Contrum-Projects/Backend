@@ -572,6 +572,15 @@ describe('Tienda · explorar el catálogo (e2e)', () => {
         'La búsqueda no puede superar los 100 caracteres.',
       );
     });
+
+    it('E2-H2 · búsqueda de más de 5 palabras: 400; con 5 se acepta', async () => {
+      const respuesta = await listar({ buscar: 'a b c d e f' }).expect(400);
+
+      expect(JSON.stringify(respuesta.body)).toContain(
+        'La búsqueda admite hasta 5 palabras.',
+      );
+      await listar({ buscar: '  a  b c d e ' }).expect(200);
+    });
   });
 
   describe('GET /tienda/categorias y /tienda/marcas', () => {
