@@ -232,12 +232,13 @@ model Producto {
 
 /// Supertipo de FormatoProducto y Pack: lo que se vende es un formato o un pack.
 /// `tipo` es el discriminador ("formato" | "pack").
+/// Los precios pueden faltar: el formato nace sin ellos (E3-H2) y se fijan en E3-H5.
 model ArticuloVenta {
   id                  Int      @id @default(autoincrement()) @map("id_articulo")
   sku                 String   @unique @db.VarChar(50)
   tipo                String   @db.VarChar(30)
   precioMinoristaNeto Decimal? @map("precio_minorista_neto") @db.Decimal(12, 2)
-  precioMayoristaNeto Decimal  @map("precio_mayorista_neto") @db.Decimal(12, 2)
+  precioMayoristaNeto Decimal? @map("precio_mayorista_neto") @db.Decimal(12, 2)
   activo              Boolean  @default(true)
 
   formato         FormatoProducto?
