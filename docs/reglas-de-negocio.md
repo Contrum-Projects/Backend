@@ -151,6 +151,17 @@ barras repetido responde 409 indicando cuál. Contenido y unidad (`UNIDADES_MEDI
 otro desmarca el anterior en la misma transacción con la fila del producto bloqueada (`FOR
 UPDATE`, sin índice parcial); el predeterminado no se desmarca (400): se marca otro. La fecha de
 vencimiento solo sale en las respuestas del panel. Desactivar formatos queda fuera de la historia.
+Decisiones del 24 oct (E3-H3): las imágenes se guardan en **Cloudflare R2** (API S3, variables
+`R2_*`; sin ellas subir responde 503) y `imagen_articulo.ubicacion_archivo` guarda la clave del
+objeto (`articulos/<id>/<uuid>.<ext>`); la URL se arma con `R2_URL_PUBLICA` al responder. JPEG, PNG
+o WebP reconocidos por su contenido, hasta 5 MB (413), hasta 10 por artículo (409). Rutas, con
+`catalogo.gestionar`: `POST` (multipart, campo `imagen`), `GET` y `PUT`
+`/api/catalogo/articulos/:id/imagenes` y `DELETE /api/catalogo/articulos/:id/imagenes/:imagenId`
+(el id del artículo es el del formato). La primera imagen queda principal; `PUT` recibe todas las
+imágenes en su nuevo orden y la principal. El orden queda 1..n sin huecos. La única imagen no se
+elimina (409); si se elimina la principal, la siguiente pasa a serlo. Los cambios bloquean la fila
+del artículo. El archivo se sube antes de la transacción (y se borra si la base falla) y se borra
+del almacén después del commit. Un formato puede existir sin imágenes: la tienda no lo muestra.
 
 **E2 Catálogo público.** Precio según rol calculado en el backend. Disponibilidad desde el stock
 vendible (solo bodegas con `abasteceVentaOnline`); la de un pack es la de su componente más escaso.

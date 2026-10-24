@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { urlPublicaArchivo } from '../../almacen/almacen-archivos.js';
 import { calcularMontos } from '../../common/dominio/montos.js';
 import { CANALES_VENTA } from '../../common/dominio/valores.js';
 import type { Entorno } from '../../config/entorno.js';
@@ -61,7 +62,7 @@ export interface ProductoTienda {
   categoria: { id: number; nombre: string };
   /** Precio minorista con IVA incluido, en pesos enteros. */
   precio: number;
-  /** Ubicación de la imagen principal del formato mostrado. */
+  /** URL pública de la imagen principal del formato mostrado. */
   imagen: string;
 }
 
@@ -136,8 +137,9 @@ export class TiendaService {
       this.prisma.producto.count({ where }),
     ]);
     const porcentajeIva = this.config.get('IVA_PORCENTAJE', { infer: true });
+    const urlBaseImagenes = this.config.get('R2_URL_PUBLICA', { infer: true });
     const items = filas
-      .map((fila) => aProductoTienda(fila, porcentajeIva))
+      .map((fila) => aProductoTienda(fila, porcentajeIva, urlBaseImagenes))
       .filter((item): item is ProductoTienda => item !== null);
     return { items, total, pagina, limite };
   }
@@ -230,6 +232,7 @@ const condicionPalabra = (
 const aProductoTienda = (
   fila: FilaProducto,
   porcentajeIva: number,
+  urlBaseImagenes: string | undefined,
 ): ProductoTienda | null => {
   const formatos = fila.formatos
     .map((formato) => ({
@@ -253,6 +256,6 @@ const aProductoTienda = (
     marca: fila.marca,
     categoria: fila.categoria,
     precio: calcularMontos(Math.round(elegido.neto), porcentajeIva).total,
-    imagen: elegido.imagen,
+    imagen: urlPublicaArchivo(urlBaseImagenes, elegido.imagen),
   };
 };

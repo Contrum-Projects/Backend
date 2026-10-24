@@ -4,6 +4,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client.js';
+import type { ConfigService } from '@nestjs/config';
+import type { Entorno } from '../../config/entorno.js';
 import type { PrismaService } from '../../prisma/prisma.service.js';
 import type { CrearFormatoDto } from './dto/crear-formato.dto.js';
 import { FormatosService } from './formatos.service.js';
@@ -22,9 +24,13 @@ const fila = (extra: object = {}) => ({
   anchoCm: new Prisma.Decimal(6),
   largoCm: new Prisma.Decimal(4),
   esPredeterminado: true,
-  articulo: { sku: 'SHA-REP-300', activo: true },
+  articulo: { sku: 'SHA-REP-300', activo: true, imagenes: [] },
   ...extra,
 });
+
+const config = {
+  get: vi.fn().mockReturnValue('https://imagenes.cabelloperfecto.cl'),
+} as unknown as ConfigService<Entorno, true>;
 
 const crearPrisma = () => {
   const prisma = {
@@ -81,7 +87,7 @@ describe('FormatosService', () => {
 
   beforeEach(() => {
     prisma = crearPrisma();
-    servicio = new FormatosService(prisma as unknown as PrismaService);
+    servicio = new FormatosService(prisma as unknown as PrismaService, config);
   });
 
   describe('crear', () => {
@@ -128,6 +134,7 @@ describe('FormatosService', () => {
         largoCm: 4,
         esPredeterminado: true,
         activo: true,
+        imagenes: [],
       });
     });
 
@@ -413,6 +420,36 @@ describe('FormatosService', () => {
         }),
       );
       expect(formatos[0].fechaVencimiento).toBe('2027-12-31');
+    });
+
+    it('E3-H3 · imagen agregada: la ficha del formato incluye las imágenes de su artículo, con su URL pública', async () => {
+      prisma.formatoProducto.findMany.mockResolvedValue([
+        fila({
+          articulo: {
+            sku: 'SHA-REP-300',
+            activo: true,
+            imagenes: [
+              {
+                id: 3,
+                ubicacionArchivo: 'articulos/11/a.webp',
+                orden: 1,
+                esPrincipal: true,
+              },
+            ],
+          },
+        }),
+      ]);
+
+      const [formato] = await servicio.listar(5);
+
+      expect(formato.imagenes).toEqual([
+        {
+          id: 3,
+          url: 'https://imagenes.cabelloperfecto.cl/articulos/11/a.webp',
+          orden: 1,
+          esPrincipal: true,
+        },
+      ]);
     });
 
     it('E3-H2 · producto inexistente: responde 404', async () => {
