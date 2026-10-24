@@ -3,12 +3,9 @@ import { Transform } from 'class-transformer';
 import { IsBoolean, IsIn, IsOptional, ValidateIf } from 'class-validator';
 import { UNIDADES_MEDIDA } from '../../../common/dominio/valores.js';
 import { TextoObligatorio } from '../../../common/validacion/texto-obligatorio.js';
-import {
-  CodigoBarras,
-  FechaSinHora,
-  NumeroPositivo,
-  Sku,
-} from './formato.validadores.js';
+import { FechaSinHora } from '../../../common/validacion/fecha-sin-hora.js';
+import { NumeroPositivo } from '../../../common/validacion/numero-positivo.js';
+import { CodigoBarras, Sku } from './formato.validadores.js';
 
 const UNIDADES = Object.values(UNIDADES_MEDIDA);
 

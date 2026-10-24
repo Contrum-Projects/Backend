@@ -1,8 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { urlPublicaArchivo } from '../../almacen/almacen-archivos.js';
-import { calcularMontos } from '../../common/dominio/montos.js';
+import { precioConIva } from '../../common/dominio/montos.js';
 import { CANALES_VENTA } from '../../common/dominio/valores.js';
+import { POR_PAGINA } from '../../common/validacion/paginacion.js';
+import { escaparComodines } from '../../common/validacion/texto-busqueda.js';
 import type { Entorno } from '../../config/entorno.js';
 import type { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
@@ -10,9 +12,6 @@ import { CacheCatalogo, CLAVES_CACHE } from './cache-catalogo.js';
 import { CategoriasService, type NodoCategoria } from './categorias.service.js';
 import type { ListarTiendaDto } from './dto/listar-tienda.dto.js';
 import { MarcasService } from './marcas.service.js';
-
-const POR_PAGINA = 20;
-
 /**
  * Un formato se puede vender en la tienda si su artículo está activo, tiene sus dos precios e
  * imagen. El formato nace sin precios (E3-H2) y no se muestra hasta que E3-H5 los fija.
@@ -211,9 +210,10 @@ const condicionPalabra = (
   const coincidentes = categorias
     .filter((fila) => fila.nombre.toLocaleLowerCase('es').includes(buscada))
     .map((fila) => fila.id);
-  // Prisma no escapa los comodines de ILIKE: sin esto, «%» o «_» coincidirían con cualquier texto
-  const literal = palabra.replace(/[\\%_]/g, '\\$&');
-  const contiene = { contains: literal, mode: 'insensitive' } as const;
+  const contiene = {
+    contains: escaparComodines(palabra),
+    mode: 'insensitive',
+  } as const;
   return {
     OR: [
       { nombre: contiene },
@@ -255,7 +255,7 @@ const aProductoTienda = (
     nombre: fila.nombre,
     marca: fila.marca,
     categoria: fila.categoria,
-    precio: calcularMontos(Math.round(elegido.neto), porcentajeIva).total,
+    precio: precioConIva(elegido.neto, porcentajeIva),
     imagen: urlPublicaArchivo(urlBaseImagenes, elegido.imagen),
   };
 };

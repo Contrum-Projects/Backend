@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { TextoObligatorio } from '../../../common/validacion/texto-obligatorio.js';
-import { NumeroPositivo } from './formato.validadores.js';
+import { NumeroPositivo } from '../../../common/validacion/numero-positivo.js';
 
 /** Máximo de la columna `Decimal(12, 2)` de los precios netos. */
 export const MAXIMO_PRECIO_NETO = 9_999_999_999.99;

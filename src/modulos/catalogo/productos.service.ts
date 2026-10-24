@@ -5,12 +5,12 @@ import {
 } from '@nestjs/common';
 import { ORIGENES_DESCRIPCION } from '../../common/dominio/valores.js';
 import type { Prisma } from '../../generated/prisma/client.js';
+import { escaparComodines } from '../../common/validacion/texto-busqueda.js';
+import { POR_PAGINA } from '../../common/validacion/paginacion.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { ActualizarProductoDto } from './dto/actualizar-producto.dto.js';
 import type { CrearProductoDto } from './dto/crear-producto.dto.js';
 import type { ListarProductosDto } from './dto/listar-productos.dto.js';
-
-const POR_PAGINA = 20;
 
 /** Lo que el panel necesita ver de un producto: sus datos y el nombre de su marca y categoría. */
 const INCLUIR = {
@@ -133,7 +133,7 @@ export class ProductosService {
       categoriaId: filtros.categoriaId,
       marcaId: filtros.marcaId,
       nombre: filtros.buscar
-        ? { contains: filtros.buscar, mode: 'insensitive' }
+        ? { contains: escaparComodines(filtros.buscar), mode: 'insensitive' }
         : undefined,
     };
     const [items, total] = await this.prisma.$transaction([

@@ -1,40 +1,17 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform, Type } from 'class-transformer';
-import {
-  IsInt,
-  IsOptional,
-  IsString,
-  Matches,
-  Max,
-  MaxLength,
-  Min,
-} from 'class-validator';
+import { Type } from 'class-transformer';
 import { IdEntero } from '../../../common/validacion/id-entero.js';
+import { Paginacion } from '../../../common/validacion/paginacion.js';
+import { TextoBusqueda } from '../../../common/validacion/texto-busqueda.js';
 
 /** Búsqueda, filtros y paginación del listado público de productos (E2-H1 y E2-H2). */
-export class ListarTiendaDto {
+export class ListarTiendaDto extends Paginacion {
   @ApiPropertyOptional({
     description:
       'Texto a buscar, sin distinguir mayúsculas. Cada palabra debe estar en el nombre del producto, en su marca o en su categoría o subcategoría. Hasta 5 palabras. Vacío no filtra.',
     maxLength: 100,
   })
-  @IsOptional()
-  @Transform(({ value }: { value: unknown }) =>
-    typeof value === 'string' ? value.trim() : value,
-  )
-  @IsString({ message: 'La búsqueda no es válida.' })
-  // PostgreSQL rechaza el byte nulo en un texto: sin esto respondería 500
-  // oxlint-disable-next-line no-control-regex
-  @Matches(/^[^\u0000-\u001f\u007f]*$/, {
-    message: 'La búsqueda no es válida.',
-  })
-  @MaxLength(100, {
-    message: 'La búsqueda no puede superar los 100 caracteres.',
-  })
-  // Cada palabra suma condiciones a la consulta: el tope acota su costo
-  @Matches(/^\S*(\s+\S+){0,4}$/, {
-    message: 'La búsqueda admite hasta 5 palabras.',
-  })
+  @TextoBusqueda({ maximo: 100, maximoPalabras: 5 })
   buscar?: string;
 
   @ApiPropertyOptional({
@@ -57,19 +34,4 @@ export class ListarTiendaDto {
     opcional: true,
   })
   marcaId?: number;
-
-  @ApiPropertyOptional({ default: 1, minimum: 1 })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  pagina?: number;
-
-  @ApiPropertyOptional({ default: 20, minimum: 1, maximum: 100 })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(100)
-  limite?: number;
 }

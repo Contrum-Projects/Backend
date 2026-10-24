@@ -1,4 +1,5 @@
 import { type INestApplication, ValidationPipe } from '@nestjs/common';
+import { errorValidacion } from './common/validacion/mensajes-validacion.js';
 
 /**
  * Configuración común a main.ts y a los tests e2e, para que prueben la API
@@ -11,6 +12,7 @@ export function configurarApp(app: INestApplication): INestApplication {
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
+      exceptionFactory: errorValidacion,
     }),
   );
   return app;

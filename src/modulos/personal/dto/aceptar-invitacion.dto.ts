@@ -1,11 +1,10 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
-  IsNotEmpty,
-  IsString,
-  Matches,
-  MaxLength,
-  MinLength,
-} from 'class-validator';
+  ContrasenaIngresada,
+  ContrasenaNueva,
+} from '../../../common/validacion/contrasena.js';
+import { TextoObligatorio } from '../../../common/validacion/texto-obligatorio.js';
+import { MAXIMO_TOKEN_ENLACE } from '../../cuentas/dto/confirmar-correo.dto.js';
 
 /**
  * Entrada de la aceptación de la invitación (E13-H1): el personal define su
@@ -13,9 +12,10 @@ import {
  */
 export class AceptarInvitacionDto {
   @ApiProperty({ description: 'Token recibido en el enlace de la invitación.' })
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(128)
+  @TextoObligatorio({
+    etiqueta: 'El token del enlace',
+    maximo: MAXIMO_TOKEN_ENLACE,
+  })
   token: string;
 
   @ApiProperty({
@@ -23,16 +23,10 @@ export class AceptarInvitacionDto {
     minLength: 8,
     maxLength: 128,
   })
-  @IsString()
-  @MinLength(8, { message: 'La contraseña debe tener al menos 8 caracteres.' })
-  @MaxLength(128)
-  @Matches(/\p{L}/u, {
-    message: 'La contraseña debe tener al menos una letra.',
-  })
-  @Matches(/\d/, { message: 'La contraseña debe tener al menos un número.' })
+  @ContrasenaNueva()
   contrasena: string;
 
   @ApiProperty({ description: 'Debe ser igual a la contraseña.' })
-  @IsString()
+  @ContrasenaIngresada({ etiqueta: 'La confirmación de la contraseña' })
   confirmacionContrasena: string;
 }

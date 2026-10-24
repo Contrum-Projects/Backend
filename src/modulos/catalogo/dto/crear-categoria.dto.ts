@@ -1,16 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
-import {
-  IsInt,
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-  MaxLength,
-  Min,
-} from 'class-validator';
-
-const recortar = ({ value }: { value: unknown }) =>
-  typeof value === 'string' ? value.trim() : value;
+import { IdEntero } from '../../../common/validacion/id-entero.js';
+import { TextoObligatorio } from '../../../common/validacion/texto-obligatorio.js';
+import { TextoOpcional } from '../../../common/validacion/texto-opcional.js';
 
 /**
  * Entrada para crear una categoría o una subcategoría (E3-H4, RF-03.06).
@@ -18,29 +9,25 @@ const recortar = ({ value }: { value: unknown }) =>
  */
 export class CrearCategoriaDto {
   @ApiProperty({ example: 'Shampoos', maxLength: 100 })
-  @Transform(recortar)
-  @IsString()
-  @IsNotEmpty({ message: 'El nombre de la categoría es obligatorio.' })
-  @MaxLength(100)
+  @TextoObligatorio({ etiqueta: 'El nombre de la categoría', maximo: 100 })
   nombre: string;
 
   @ApiPropertyOptional({
     example: 'Limpieza y cuidado del cuero cabelludo',
     maxLength: 255,
   })
-  @IsOptional()
-  @Transform(recortar)
-  @IsString()
-  @MaxLength(255)
-  descripcion?: string;
+  @TextoOpcional({ etiqueta: 'La descripción', maximo: 255 })
+  descripcion?: string | null;
 
   @ApiPropertyOptional({
     example: 1,
     description:
       'Id de la categoría que la contiene. Sin él, queda como categoría raíz.',
   })
-  @IsOptional()
-  @IsInt()
-  @Min(1)
+  @IdEntero({
+    faltante: 'La categoría padre no es válida.',
+    invalido: 'La categoría padre no es válida.',
+    opcional: true,
+  })
   padreId?: number;
 }

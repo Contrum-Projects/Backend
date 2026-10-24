@@ -13,6 +13,8 @@ interface Opciones {
   invalido: string;
   /** El campo puede no venir (en una edición, o un filtro). Si viene, debe ser válido. */
   opcional?: boolean;
+  /** Además puede ser `null` (por ejemplo, quitar la categoría padre). */
+  anulable?: boolean;
   /** Valida cada elemento de una lista de ids. */
   each?: boolean;
 }
@@ -21,7 +23,13 @@ interface Opciones {
  * Id de otra tabla: entero positivo que cabe en la columna (int4). Da un solo mensaje en
  * español, así el panel puede señalar el campo sin textos en inglés.
  */
-export function IdEntero({ faltante, invalido, opcional, each }: Opciones) {
+export function IdEntero({
+  faltante,
+  invalido,
+  opcional,
+  anulable,
+  each,
+}: Opciones) {
   const decoradores = [
     ValidateBy(
       {
@@ -40,8 +48,13 @@ export function IdEntero({ faltante, invalido, opcional, each }: Opciones) {
       { each },
     ),
   ];
-  if (opcional) {
-    decoradores.unshift(ValidateIf((_objeto, valor) => valor !== undefined));
+  if (opcional || anulable) {
+    decoradores.unshift(
+      ValidateIf(
+        (_objeto, valor) =>
+          valor !== undefined && !(anulable && valor === null),
+      ),
+    );
   }
   return applyDecorators(...decoradores);
 }

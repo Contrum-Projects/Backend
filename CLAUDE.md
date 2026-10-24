@@ -24,10 +24,10 @@ equipo Contrum-Projects (3 integrantes), con Scrumban y sprints quincenales en J
 | NestJS 12 | Módulos, controladores, servicios, guards |
 | Prisma 7 + PostgreSQL 17 | `prisma/schema.prisma`; cliente generado en `src/generated/prisma` (no se versiona) |
 | Redis 8 + BullMQ (`@nestjs/bullmq`) | Colas, plazos, límites, revocación, caché. Nunca datos del negocio |
-| class-validator / class-transformer | DTOs de entrada; `ValidationPipe` global con `whitelist` y `forbidNonWhitelisted` |
+| class-validator / class-transformer | DTOs de entrada con los validadores de `src/common/validacion` (mensajes en español); `ValidationPipe` global con `whitelist` y `forbidNonWhitelisted` |
 | zod | Solo para validar el entorno (`src/config/entorno.ts`) |
 | @nestjs/jwt + argon2 | Tokens de acceso y hash de contraseñas y tokens |
-| @nestjs/throttler | Límites de RNF-09 (el almacenamiento en Redis está por hacer) |
+| @nestjs/throttler | Límites de RNF-09, con el contador en Redis (`src/limites/almacen-limites-redis.ts`) |
 | @nestjs/swagger | Documentación en `/api/docs` (fuera de producción) |
 | nestjs-pino | Logs; nunca registres contraseñas, tokens ni cuerpos con datos personales |
 | Vitest + Supertest | Pruebas unitarias (`*.spec.ts`) y e2e (`test/*.e2e-spec.ts`) |
