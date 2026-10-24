@@ -15,6 +15,7 @@ import {
 } from '../../almacen/almacen-archivos.js';
 import type { Entorno } from '../../config/entorno.js';
 import type { Prisma } from '../../generated/prisma/client.js';
+import { bloquearArticulo } from '../../prisma/bloqueos.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { OrdenarImagenesDto } from './dto/ordenar-imagenes.dto.js';
 import { detectarTipoImagen } from './tipo-imagen.js';
@@ -142,7 +143,7 @@ export class ImagenesService {
     }
     try {
       await this.prisma.$transaction(async (tx) => {
-        await this.bloquearArticulo(tx, articuloId);
+        await bloquearArticulo(tx, articuloId);
         const cantidad = await tx.imagenArticulo.count({
           where: { articuloId },
         });
@@ -172,7 +173,7 @@ export class ImagenesService {
     dto: OrdenarImagenesDto,
   ): Promise<ImagenPanel[]> {
     return this.prisma.$transaction(async (tx) => {
-      await this.bloquearArticulo(tx, articuloId);
+      await bloquearArticulo(tx, articuloId);
       const actuales = await tx.imagenArticulo.findMany({
         where: { articuloId },
         select: SELECCION_IMAGEN,
@@ -211,7 +212,7 @@ export class ImagenesService {
   async eliminar(articuloId: number, imagenId: number): Promise<ImagenPanel[]> {
     const { eliminada, restantes } = await this.prisma.$transaction(
       async (tx) => {
-        await this.bloquearArticulo(tx, articuloId);
+        await bloquearArticulo(tx, articuloId);
         const actuales = await tx.imagenArticulo.findMany({
           where: { articuloId },
           select: SELECCION_IMAGEN,
@@ -269,17 +270,6 @@ export class ImagenesService {
       fila,
       this.config.get('R2_URL_PUBLICA', { infer: true }),
     );
-  }
-
-  /** Bloquea la fila del artículo hasta el fin de la transacción (RNF-12). */
-  private async bloquearArticulo(tx: Prisma.TransactionClient, id: number) {
-    const [articulo] = await tx.$queryRaw<{ id: number }[]>`
-      SELECT id_articulo AS id FROM articulo_venta
-      WHERE id_articulo = ${id}
-      FOR UPDATE`;
-    if (!articulo) {
-      throw new NotFoundException('El artículo no existe.');
-    }
   }
 
   /** Un archivo que no se pudo borrar solo ocupa espacio: no hace fallar la operación. */

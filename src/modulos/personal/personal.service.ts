@@ -22,6 +22,7 @@ import {
 } from '../../common/dominio/valores.js';
 import type { Entorno } from '../../config/entorno.js';
 import { Prisma } from '../../generated/prisma/client.js';
+import { bloquearCuenta } from '../../prisma/bloqueos.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { Mensaje } from '../cuentas/cuentas.service.js';
 import { generarTokenCorreo, hashearTokenCorreo } from '../cuentas/tokens.js';
@@ -31,6 +32,7 @@ import type { CrearPersonalDto } from './dto/crear-personal.dto.js';
 const ASUNTO_INVITACION = 'Te invitamos al panel de Cabello Perfecto';
 const ENLACE_INVALIDO = 'El enlace de invitación no es válido o ya venció.';
 const SIN_ACCESO = 'Tu cuenta ya no tiene acceso al panel.';
+const NO_EXISTE_PERSONAL = 'No existe esa cuenta del personal.';
 
 type Tx = Prisma.TransactionClient;
 
@@ -157,10 +159,7 @@ export class PersonalService {
     const [cuenta, invitacion] = await this.prisma.$transaction(async (tx) => {
       await this.exigirAdministradorActivo(tx, administrador);
       // Bloquea la cuenta: no se cruza con una aceptación o desactivación en curso
-      await tx.$queryRaw`
-        SELECT id_usuario FROM usuario
-        WHERE codigo_publico = ${codigoPublico}
-        FOR UPDATE`;
+      await bloquearCuenta(tx, codigoPublico, NO_EXISTE_PERSONAL);
       const usuario = await this.buscarPersonal(tx, codigoPublico);
       if (!usuario.activo) {
         throw new ConflictException('La cuenta está desactivada.');
@@ -295,7 +294,7 @@ export class PersonalService {
       select: { id: true, ...SELECCION_CUENTA },
     });
     if (!usuario) {
-      throw new NotFoundException('No existe esa cuenta del personal.');
+      throw new NotFoundException(NO_EXISTE_PERSONAL);
     }
     return usuario;
   }

@@ -10,6 +10,11 @@ import {
   type Valor,
 } from '../../common/dominio/valores.js';
 import type { Prisma } from '../../generated/prisma/client.js';
+import {
+  bloquearArticulo,
+  bloquearPack,
+  bloquearProducto,
+} from '../../prisma/bloqueos.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { FijarPreciosDto } from './dto/fijar-precios.dto.js';
 
@@ -104,13 +109,9 @@ export class PreciosService {
       // El canal se lee con su fila bloqueada: un cambio simultáneo a exclusivo no deja pasar
       // un precio minorista
       if (formato) {
-        await tx.$queryRaw`
-          SELECT id_producto FROM producto
-          WHERE id_producto = ${formato.productoId}
-          FOR UPDATE`;
+        await bloquearProducto(tx, formato.productoId);
       } else {
-        await tx.$queryRaw`
-          SELECT id_pack FROM pack WHERE id_pack = ${articuloId} FOR UPDATE`;
+        await bloquearPack(tx, articuloId);
       }
       const articulo = await tx.articuloVenta.findUniqueOrThrow({
         where: { id: articuloId },
@@ -228,14 +229,3 @@ const esExclusivo = (articulo: FilaArticulo) =>
 
 const aNumero = (valor: Prisma.Decimal | null) =>
   valor === null ? null : Number(valor);
-
-/** Bloquea la fila del artículo hasta el fin de la transacción (RNF-12). */
-const bloquearArticulo = async (tx: Prisma.TransactionClient, id: number) => {
-  const [articulo] = await tx.$queryRaw<{ id: number }[]>`
-    SELECT id_articulo AS id FROM articulo_venta
-    WHERE id_articulo = ${id}
-    FOR UPDATE`;
-  if (!articulo) {
-    throw new NotFoundException('El artículo no existe.');
-  }
-};

@@ -8,6 +8,10 @@ import { ConfigService } from '@nestjs/config';
 import { TIPOS_ARTICULO } from '../../common/dominio/valores.js';
 import { Prisma } from '../../generated/prisma/client.js';
 import type { Entorno } from '../../config/entorno.js';
+import {
+  bloquearProducto,
+  bloquearProductoDelFormato,
+} from '../../prisma/bloqueos.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { ActualizarFormatoDto } from './dto/actualizar-formato.dto.js';
 import type { CrearFormatoDto } from './dto/crear-formato.dto.js';
@@ -147,7 +151,7 @@ export class FormatosService {
     exigirContenidoConUnidad(dto.contenido, dto.unidadMedida);
     try {
       const fila = await this.prisma.$transaction(async (tx) => {
-        await this.bloquearProducto(tx, productoId);
+        await bloquearProducto(tx, productoId);
         await this.exigirDatosLibres(tx, dto.sku, dto.codigoBarras);
         const otros = await tx.formatoProducto.count({ where: { productoId } });
         const esPredeterminado = otros === 0 || dto.esPredeterminado === true;
@@ -209,7 +213,7 @@ export class FormatosService {
     }
     try {
       const fila = await this.prisma.$transaction(async (tx) => {
-        const productoId = await this.bloquearProductoDelFormato(tx, id);
+        const productoId = await bloquearProductoDelFormato(tx, id);
         const actual = await tx.formatoProducto.findUnique({
           where: { id },
           select: { esPredeterminado: true },
@@ -264,37 +268,6 @@ export class FormatosService {
 
   private aRespuesta(fila: FilaFormato) {
     return aRespuesta(fila, this.config.get('R2_URL_PUBLICA', { infer: true }));
-  }
-
-  /** Bloquea la fila del producto hasta el fin de la transacción (RNF-12). */
-  private async bloquearProducto(tx: Prisma.TransactionClient, id: number) {
-    const [producto] = await tx.$queryRaw<{ id: number }[]>`
-      SELECT id_producto AS id FROM producto
-      WHERE id_producto = ${id}
-      FOR UPDATE`;
-    if (!producto) {
-      throw new NotFoundException('El producto no existe.');
-    }
-  }
-
-  /**
-   * Bloquea el producto del formato y devuelve su id. Los datos del formato se leen después,
-   * con el bloqueo tomado, para ver lo último que guardó otra transacción.
-   */
-  private async bloquearProductoDelFormato(
-    tx: Prisma.TransactionClient,
-    formatoId: number,
-  ) {
-    const [producto] = await tx.$queryRaw<{ productoId: number }[]>`
-      SELECT p.id_producto AS "productoId"
-      FROM formato_producto f
-      JOIN producto p ON p.id_producto = f.id_producto
-      WHERE f.id_formato = ${formatoId}
-      FOR UPDATE OF p`;
-    if (!producto) {
-      throw new NotFoundException('El formato no existe.');
-    }
-    return producto.productoId;
   }
 
   /**

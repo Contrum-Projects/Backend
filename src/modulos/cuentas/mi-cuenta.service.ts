@@ -9,7 +9,7 @@ import { ROLES } from '../../common/dominio/roles.js';
 import { ESTADOS_SOLICITUD } from '../../common/dominio/valores.js';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
-import { bloquearCuenta } from './bloquear-cuenta.js';
+import { bloquearCuenta } from '../../prisma/bloqueos.js';
 import type { ActualizarDatosDto } from './dto/actualizar-datos.dto.js';
 
 const RUT_EN_USO = 'Ese RUT ya está en uso en otra cuenta.';

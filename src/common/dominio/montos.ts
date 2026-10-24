@@ -21,3 +21,14 @@ export function calcularMontos(neto: number, porcentajeIva: number): Montos {
   const iva = Math.round((neto * porcentajeIva) / 100);
   return { neto, iva, total: neto + iva };
 }
+
+/**
+ * Precio unitario con IVA que ve y paga el comprador, en pesos enteros. El precio neto guardado
+ * puede tener centavos (`Decimal(12, 2)`): se redondea al peso y luego se le suma el IVA con
+ * `calcularMontos`. La tienda (E2) y el pedido (E5) usan esta misma función, así el precio que
+ * se muestra es el que se cobra.
+ */
+export const precioConIva = (
+  netoGuardado: number,
+  porcentajeIva: number,
+): number => calcularMontos(Math.round(netoGuardado), porcentajeIva).total;

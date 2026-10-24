@@ -1,4 +1,5 @@
 import { ConflictException, Injectable } from '@nestjs/common';
+import { CANDADOS, tomarCandado } from '../../prisma/bloqueos.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { CacheCatalogo, CLAVES_CACHE } from './cache-catalogo.js';
 import type { CrearMarcaDto } from './dto/crear-marca.dto.js';
@@ -22,7 +23,7 @@ export class MarcasService {
    */
   async crear(dto: CrearMarcaDto) {
     const marca = await this.prisma.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(3401)`;
+      await tomarCandado(tx, CANDADOS.MARCAS);
       const repetida = await tx.marca.findFirst({
         where: { nombre: { equals: dto.nombre, mode: 'insensitive' } },
         select: { id: true },
