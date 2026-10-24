@@ -5,7 +5,6 @@ import {
   HttpCode,
   HttpStatus,
   Param,
-  ParseIntPipe,
   Patch,
   Post,
   UseGuards,
@@ -31,6 +30,7 @@ import { PERMISOS } from '../../common/dominio/permisos.js';
 import { CategoriasService } from './categorias.service.js';
 import { ActualizarCategoriaDto } from './dto/actualizar-categoria.dto.js';
 import { CrearCategoriaDto } from './dto/crear-categoria.dto.js';
+import { ID_CATEGORIA } from './ids-ruta.js';
 
 @ApiTags('catalogo')
 @ApiBearerAuth()
@@ -82,7 +82,7 @@ export class CategoriasController {
   })
   @ApiConflictResponse({ description: 'El movimiento formaría un ciclo.' })
   actualizar(
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id', ID_CATEGORIA) id: number,
     @Body() dto: ActualizarCategoriaDto,
   ) {
     return this.categorias.actualizar(id, dto);

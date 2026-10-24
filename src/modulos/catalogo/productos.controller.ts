@@ -30,7 +30,7 @@ import { PERMISOS } from '../../common/dominio/permisos.js';
 import { ActualizarProductoDto } from './dto/actualizar-producto.dto.js';
 import { CrearProductoDto } from './dto/crear-producto.dto.js';
 import { ListarProductosDto } from './dto/listar-productos.dto.js';
-import { IdProductoPipe } from './id-producto.pipe.js';
+import { ID_PRODUCTO } from './ids-ruta.js';
 import { ProductosService } from './productos.service.js';
 
 @ApiTags('catalogo')
@@ -77,7 +77,7 @@ export class ProductosController {
   @ApiOperation({ summary: 'Ver un producto' })
   @ApiOkResponse({ description: 'Producto con su marca y categoría.' })
   @ApiNotFoundResponse({ description: 'El producto no existe.' })
-  obtener(@Param('id', IdProductoPipe) id: number) {
+  obtener(@Param('id', ID_PRODUCTO) id: number) {
     return this.productos.obtener(id);
   }
 
@@ -95,7 +95,7 @@ export class ProductosController {
     description: 'El producto, la categoría o la marca no existe.',
   })
   actualizar(
-    @Param('id', IdProductoPipe) id: number,
+    @Param('id', ID_PRODUCTO) id: number,
     @Body() dto: ActualizarProductoDto,
   ) {
     return this.productos.actualizar(id, dto);
@@ -109,7 +109,7 @@ export class ProductosController {
   })
   @ApiOkResponse({ description: 'Producto desactivado.' })
   @ApiNotFoundResponse({ description: 'El producto no existe.' })
-  desactivar(@Param('id', IdProductoPipe) id: number) {
+  desactivar(@Param('id', ID_PRODUCTO) id: number) {
     return this.productos.desactivar(id);
   }
 }

@@ -20,7 +20,7 @@ import {
 } from '../../autenticacion/permisos.guard.js';
 import { PERMISOS } from '../../common/dominio/permisos.js';
 import { FijarPreciosDto } from './dto/fijar-precios.dto.js';
-import { IdArticuloPipe } from './id-articulo.pipe.js';
+import { ID_ARTICULO } from './ids-ruta.js';
 import { PreciosService } from './precios.service.js';
 
 @ApiTags('catalogo')
@@ -43,7 +43,7 @@ export class PreciosController {
       'Precios netos vigentes, si el artículo es exclusivo para profesionales y el historial de cambios con su vigencia, quién los fijó y el motivo, del más reciente al más antiguo. El id del artículo es el del formato o del pack.',
   })
   @ApiOkResponse({ description: 'Precios del artículo.' })
-  listar(@Param('id', IdArticuloPipe) articuloId: number) {
+  listar(@Param('id', ID_ARTICULO) articuloId: number) {
     return this.precios.listar(articuloId);
   }
 
@@ -59,7 +59,7 @@ export class PreciosController {
       'Datos inválidos, sin ningún precio o con precio minorista en un artículo exclusivo.',
   })
   fijar(
-    @Param('id', IdArticuloPipe) articuloId: number,
+    @Param('id', ID_ARTICULO) articuloId: number,
     @Body() dto: FijarPreciosDto,
     @UsuarioActual() usuario: UsuarioAutenticado,
   ) {

@@ -28,6 +28,7 @@ import {
   JwtAutenticacionGuard,
   UsuarioActual,
 } from '../../autenticacion/jwt-autenticacion.guard.js';
+import { IdRutaPipe } from '../../common/validacion/id-ruta.pipe.js';
 import {
   type DireccionCuenta,
   DireccionesService,
@@ -36,7 +37,8 @@ import {
   ActualizarDireccionDto,
   CrearDireccionDto,
 } from './dto/guardar-direccion.dto.js';
-import { IdDireccionPipe } from './id-direccion.pipe.js';
+
+const idDireccion = new IdRutaPipe('La dirección no existe.');
 
 /**
  * Direcciones de la cuenta con la sesión iniciada. Se identifican por su id, siempre dentro de
@@ -86,7 +88,7 @@ export class DireccionesController {
   @ApiNotFoundResponse({ description: 'La dirección no es de la cuenta.' })
   actualizar(
     @UsuarioActual() usuario: UsuarioAutenticado,
-    @Param('id', IdDireccionPipe) id: number,
+    @Param('id', idDireccion) id: number,
     @Body() dto: ActualizarDireccionDto,
   ): Promise<DireccionCuenta> {
     return this.direcciones.actualizar(usuario.codigoPublico, id, dto);
@@ -101,7 +103,7 @@ export class DireccionesController {
   @ApiNotFoundResponse({ description: 'La dirección no es de la cuenta.' })
   marcarPrincipal(
     @UsuarioActual() usuario: UsuarioAutenticado,
-    @Param('id', IdDireccionPipe) id: number,
+    @Param('id', idDireccion) id: number,
   ): Promise<DireccionCuenta> {
     return this.direcciones.marcarPrincipal(usuario.codigoPublico, id);
   }
@@ -117,7 +119,7 @@ export class DireccionesController {
   @ApiNotFoundResponse({ description: 'La dirección no es de la cuenta.' })
   eliminar(
     @UsuarioActual() usuario: UsuarioAutenticado,
-    @Param('id', IdDireccionPipe) id: number,
+    @Param('id', idDireccion) id: number,
   ): Promise<void> {
     return this.direcciones.eliminar(usuario.codigoPublico, id);
   }

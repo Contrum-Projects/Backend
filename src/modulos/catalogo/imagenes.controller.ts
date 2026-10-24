@@ -35,8 +35,7 @@ import {
 } from '../../autenticacion/permisos.guard.js';
 import { PERMISOS } from '../../common/dominio/permisos.js';
 import { OrdenarImagenesDto } from './dto/ordenar-imagenes.dto.js';
-import { IdArticuloPipe } from './id-articulo.pipe.js';
-import { IdImagenPipe } from './id-imagen.pipe.js';
+import { ID_ARTICULO, ID_IMAGEN } from './ids-ruta.js';
 import { type ArchivoSubido, ImagenesService } from './imagenes.service.js';
 import {
   CAMPO_IMAGEN,
@@ -82,7 +81,7 @@ export class ImagenesController {
     description: 'El almacenamiento de imágenes no está configurado.',
   })
   subir(
-    @Param('id', IdArticuloPipe) articuloId: number,
+    @Param('id', ID_ARTICULO) articuloId: number,
     @UploadedFile() archivo: ArchivoSubido | undefined,
   ) {
     return this.imagenes.subir(articuloId, archivo);
@@ -94,7 +93,7 @@ export class ImagenesController {
     description: 'En el orden en que se muestran, con su URL pública.',
   })
   @ApiOkResponse({ description: 'Imágenes del artículo.' })
-  listar(@Param('id', IdArticuloPipe) articuloId: number) {
+  listar(@Param('id', ID_ARTICULO) articuloId: number) {
     return this.imagenes.listar(articuloId);
   }
 
@@ -110,7 +109,7 @@ export class ImagenesController {
       'El orden no trae exactamente las imágenes del artículo, o la principal no es una de ellas.',
   })
   ordenar(
-    @Param('id', IdArticuloPipe) articuloId: number,
+    @Param('id', ID_ARTICULO) articuloId: number,
     @Body() dto: OrdenarImagenesDto,
   ) {
     return this.imagenes.ordenar(articuloId, dto);
@@ -127,8 +126,8 @@ export class ImagenesController {
     description: 'Es la única imagen del artículo.',
   })
   eliminar(
-    @Param('id', IdArticuloPipe) articuloId: number,
-    @Param('imagenId', IdImagenPipe) imagenId: number,
+    @Param('id', ID_ARTICULO) articuloId: number,
+    @Param('imagenId', ID_IMAGEN) imagenId: number,
   ) {
     return this.imagenes.eliminar(articuloId, imagenId);
   }
