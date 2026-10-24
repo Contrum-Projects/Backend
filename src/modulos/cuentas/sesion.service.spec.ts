@@ -34,6 +34,7 @@ describe('SesionService', () => {
     usuario: { findUnique: ReturnType<typeof vi.fn> };
     sesion: {
       create: ReturnType<typeof vi.fn>;
+      findMany: ReturnType<typeof vi.fn>;
       updateMany: ReturnType<typeof vi.fn>;
     };
   };
@@ -57,6 +58,20 @@ describe('SesionService', () => {
     ...cambios,
   });
 
+  const VENCE = new Date('2026-11-20T12:00:00Z');
+  const sesionVigente = () => ({
+    id: 3,
+    codigoPublico: SID,
+    tokenRefrescoHash: hashearTokenSesion('refresco-actual'),
+    fechaExpiracion: VENCE,
+    usuario: {
+      codigoPublico: '0b5c7f6e-3a0e-4c55-9d43-2f0f8e2b1a11',
+      nombre: 'Camila',
+      apellido: 'Rojas',
+      rol: ROLES.PROFESIONAL,
+    },
+  });
+
   beforeAll(async () => {
     hashContrasena = await argon2.hash('Secreta123');
   });
@@ -66,6 +81,7 @@ describe('SesionService', () => {
       usuario: { findUnique: vi.fn().mockResolvedValue(usuario()) },
       sesion: {
         create: vi.fn().mockResolvedValue({ codigoPublico: SID }),
+        findMany: vi.fn().mockResolvedValue([sesionVigente()]),
         updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
     };
@@ -301,6 +317,87 @@ describe('SesionService', () => {
         fechaRevocacion: null,
       });
       expect(consulta.data.fechaRevocacion).toBeInstanceOf(Date);
+    });
+  });
+
+  describe('renovar la sesión', () => {
+    it('Renovar sesión · entrega un token de acceso de la misma sesión con el rol de la base', async () => {
+      const { sesion, vencimientoRefresco } = await servicio.renovar([
+        'refresco-actual',
+      ]);
+
+      const carga = await jwt.verifyAsync<CargaTokenAcceso>(
+        sesion.tokenAcceso,
+        {
+          audience: AUDIENCIA_TOKEN_ACCESO,
+        },
+      );
+      expect(carga).toMatchObject({
+        sub: '0b5c7f6e-3a0e-4c55-9d43-2f0f8e2b1a11',
+        sid: SID,
+        rol: ROLES.PROFESIONAL,
+      });
+      expect(sesion.expiraEn).toBe(900);
+      // La sesión no se alarga
+      expect(vencimientoRefresco).toEqual(VENCE);
+    });
+
+    it('Renovar sesión · busca solo sesiones abiertas, vigentes y de cuentas activas con correo confirmado', async () => {
+      await servicio.renovar(['refresco-actual']);
+
+      const { where } = prisma.sesion.findMany.mock.calls[0][0];
+      expect(where).toMatchObject({
+        tokenRefrescoHash: { in: [hashearTokenSesion('refresco-actual')] },
+        fechaRevocacion: null,
+        usuario: { activo: true, fechaVerificacionCorreo: { not: null } },
+      });
+      expect(where.fechaExpiracion.gt).toBeInstanceOf(Date);
+    });
+
+    it('Renovar sesión · cambia el token de refresco por otro con una condición atómica', async () => {
+      const { tokenRefresco } = await servicio.renovar(['refresco-actual']);
+
+      const consulta = prisma.sesion.updateMany.mock.calls[0][0];
+      expect(consulta.where).toEqual({
+        id: 3,
+        tokenRefrescoHash: hashearTokenSesion('refresco-actual'),
+        fechaRevocacion: null,
+      });
+      expect(consulta.data.tokenRefrescoHash).toBe(
+        hashearTokenSesion(tokenRefresco),
+      );
+      expect(tokenRefresco).not.toBe('refresco-actual');
+    });
+
+    it('Renovar sesión · sin cookie, o sin sesión vigente, responde 401 sin escribir', async () => {
+      prisma.sesion.findMany.mockResolvedValue([]);
+
+      for (const tokens of [[], ['revocado-o-vencido']]) {
+        await expect(servicio.renovar(tokens)).rejects.toThrow(
+          UnauthorizedException,
+        );
+      }
+      expect(prisma.sesion.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('Renovar sesión · cookies de dos sesiones vigentes (una plantada): no elige ninguna (401)', async () => {
+      prisma.sesion.findMany.mockResolvedValue([
+        sesionVigente(),
+        { ...sesionVigente(), id: 4 },
+      ]);
+
+      await expect(servicio.renovar(['plantada', 'real'])).rejects.toThrow(
+        UnauthorizedException,
+      );
+      expect(prisma.sesion.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('Renovar sesión · otra renovación ganó con el mismo token: responde 401', async () => {
+      prisma.sesion.updateMany.mockResolvedValue({ count: 0 });
+
+      await expect(servicio.renovar(['refresco-actual'])).rejects.toThrow(
+        UnauthorizedException,
+      );
     });
   });
 });

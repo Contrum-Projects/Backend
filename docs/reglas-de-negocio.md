@@ -89,7 +89,14 @@ de acceso, es idempotente y tiene un límite de 30/min por IP, `LIMITES.CIERRE_S
 todos pide token de acceso. La revocación queda en `SESION.fechaRevocacion` y
 `JwtAutenticacionGuard` la consulta en la base en cada petición (sin Redis: una marca perdida
 dejaría pasar un token revocado). Los tokens de acceso van con HS256 y audiencia `cp-acceso`.
-La futura renovación del token debe rechazar sesiones revocadas o vencidas.
+Decisiones del 24 oct (renovación de la sesión): `POST /api/cuentas/sesion/renovar` lee las
+cookies `refresco` y, si corresponden a **una sola** sesión abierta, vigente y de una cuenta activa
+con el correo confirmado, entrega un token de acceso nuevo (con el rol leído de la base) y cambia
+el token de refresco por otro con una condición atómica: cada token de refresco sirve una vez. La
+sesión no se alarga (vence en la fecha del inicio de sesión). Cookies de dos sesiones vigentes,
+sesión cerrada o vencida, o cuenta desactivada: 401 y se borra la cookie. Límite de 30/min por IP
+(`LIMITES.RENOVAR_SESION`). Dos renovaciones simultáneas con el mismo token: gana una, la otra
+recibe 401.
 Decisiones del 20 oct (E1-H5): «mi cuenta» (`/api/cuentas/yo` y `/api/cuentas/yo/direcciones`)
 es solo para cliente y profesional (`CompradorGuard`; el personal recibe 403). El correo no se
 edita en esta historia. El RUT no se cambia ni se borra (403) si la cuenta es profesional o tiene
@@ -176,9 +183,14 @@ producto o del pack) rechaza el precio minorista con 400. La vigencia rige desde
 cambio (sin precios programados). `GET` devuelve los netos vigentes, `exclusivo` y el historial,
 del más reciente al más antiguo, con nombre y apellido de quien fijó cada precio. Se bloquean la
 fila del artículo y la de su producto o pack, así el canal no cambia mientras se fijan precios.
-**PENDIENTE:** si un producto con precio minorista pasa a exclusivo (`PATCH` de E3-H1), ¿se borra o
-cierra ese minorista? Hoy queda guardado. Y la historia de E2 que muestre exclusivos al profesional
-debe dejar de exigir el minorista en `FORMATO_VENDIBLE` para ese canal.
+Decisión del 24 oct: si un producto con precio minorista pasa a exclusivo (`PATCH` de E3-H1), el
+minorista **queda guardado** (no se borra ni se cierra su vigencia en HISTORIAL_PRECIO) por si el
+producto vuelve a venderse a todo público; mientras es exclusivo, `GET` lo muestra, `PUT` no lo
+cambia (400) y la tienda no lo muestra. Al volver a `general`, rige de nuevo ese minorista. La
+historia de E2 que muestre exclusivos al profesional debe dejar de exigir el minorista en
+`FORMATO_VENDIBLE` para ese canal.
+El precio con IVA de la tienda es `precioConIva()` (`montos.ts`): el neto se redondea al peso y
+luego se le suma el IVA; el pedido (E5) debe usar la misma función.
 
 **E2 Catálogo público.** Precio según rol calculado en el backend. Disponibilidad desde el stock
 vendible (solo bodegas con `abasteceVentaOnline`); la de un pack es la de su componente más escaso.

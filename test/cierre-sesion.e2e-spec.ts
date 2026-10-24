@@ -214,4 +214,99 @@ describe('Cuentas · cierre de sesión (e2e)', () => {
     await cerrarTodas().expect(401);
     await cerrarTodas('no-es-un-jwt').expect(401);
   });
+
+  describe('renovar la sesión', () => {
+    const renovar = (cookie?: string) => {
+      const peticion = request(app.getHttpServer()).post(`${RUTA}/renovar`);
+      return cookie ? peticion.set('Cookie', cookie) : peticion;
+    };
+    const cookieDe = (cabecera: string | string[] | undefined) =>
+      ([] as string[])
+        .concat(cabecera ?? [])
+        .find((c) => c.startsWith('refresco=') && !c.startsWith('refresco=;'))
+        ?.split(';')[0];
+
+    it('Renovar sesión · entrega un token de acceso nuevo y cambia la cookie; la anterior deja de servir', async () => {
+      const dispositivo = await iniciar(await crearCuenta());
+      const antes = await sesionDe(dispositivo);
+
+      const respuesta = await renovar(dispositivo.cookie).expect(200);
+
+      const cuerpo = respuesta.body as {
+        tokenAcceso: string;
+        usuario: { rol: string };
+      };
+      expect(cuerpo.usuario.rol).toBe(ROLES.CLIENTE);
+      await request(app.getHttpServer())
+        .get('/api/cuentas/yo')
+        .auth(cuerpo.tokenAcceso, { type: 'bearer' })
+        .expect(200);
+      const nuevaCookie = cookieDe(respuesta.headers['set-cookie']);
+      expect(nuevaCookie).toBeDefined();
+      expect(nuevaCookie).not.toBe(dispositivo.cookie);
+      // Misma sesión, sin alargar su vencimiento
+      const despues = await prisma.sesion.findUniqueOrThrow({
+        where: { id: antes.id },
+      });
+      expect(despues.fechaExpiracion).toEqual(antes.fechaExpiracion);
+      expect(despues.tokenRefrescoHash).not.toBe(antes.tokenRefrescoHash);
+
+      // El token de refresco anterior ya no renueva y su cookie se borra
+      const rechazo = await renovar(dispositivo.cookie).expect(401);
+      expect(borraCookie(rechazo.headers['set-cookie'])).toBe(true);
+      await renovar(nuevaCookie).expect(200);
+    });
+
+    it('Renovar sesión · sesión cerrada, cuenta desactivada o sin cookie: 401', async () => {
+      await renovar().expect(401);
+
+      const cerrada = await iniciar(await crearCuenta());
+      await request(app.getHttpServer())
+        .delete(RUTA)
+        .set('Cookie', cerrada.cookie)
+        .expect(204);
+      await renovar(cerrada.cookie).expect(401);
+
+      const email = await crearCuenta();
+      const desactivada = await iniciar(email);
+      await prisma.usuario.update({
+        where: { email },
+        data: { activo: false },
+      });
+      await renovar(desactivada.cookie).expect(401);
+    });
+
+    it('Renovar sesión · el rol sale de la base: un cambio de rol se ve al renovar', async () => {
+      const email = await crearCuenta();
+      const dispositivo = await iniciar(email);
+      await prisma.usuario.update({
+        where: { email },
+        data: { rol: ROLES.PROFESIONAL },
+      });
+
+      const respuesta = await renovar(dispositivo.cookie).expect(200);
+
+      expect((respuesta.body as { usuario: { rol: string } }).usuario.rol).toBe(
+        ROLES.PROFESIONAL,
+      );
+    });
+
+    it('Renovar sesión · con una cookie plantada de otra sesión vigente no elige ninguna (401)', async () => {
+      const real = await iniciar(await crearCuenta());
+      const plantada = await iniciar(await crearCuenta());
+
+      await renovar(`${plantada.cookie}; ${real.cookie}`).expect(401);
+      // Con una cookie inventada al lado, la real sí renueva
+      await renovar(`refresco=inventada; ${real.cookie}`).expect(200);
+    });
+
+    it('Renovar sesión · más de 30 renovaciones por minuto desde la IP → 429', async () => {
+      const respuestas = await Promise.all(
+        Array.from({ length: 31 }, () => renovar()),
+      );
+
+      expect(respuestas.filter((r) => r.status === 401)).toHaveLength(30);
+      expect(respuestas.filter((r) => r.status === 429)).toHaveLength(1);
+    });
+  });
 });

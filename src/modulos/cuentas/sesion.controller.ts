@@ -34,6 +34,7 @@ import { LIMITES } from '../../limites/limites.js';
 import { IniciarSesionDto } from './dto/iniciar-sesion.dto.js';
 import {
   DemasiadosIntentosException,
+  SesionNoRenovableException,
   SesionService,
   type SesionIniciada,
 } from './sesion.service.js';
@@ -99,6 +100,45 @@ export class SesionController {
     } catch (error) {
       if (error instanceof DemasiadosIntentosException) {
         respuesta.setHeader('Retry-After', String(error.esperaSegundos));
+      }
+      throw error;
+    }
+  }
+
+  @Post('renovar')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: LIMITES.RENOVAR_SESION })
+  @ApiOperation({
+    summary: 'Renovar la sesión con la cookie de refresco',
+    description:
+      'Entrega un token de acceso nuevo y cambia el token de refresco de la cookie por otro (cada uno sirve una vez). La sesión vence en la fecha del inicio de sesión: no se alarga.',
+  })
+  @ApiOkResponse({ description: 'Sesión renovada.' })
+  @ApiUnauthorizedResponse({
+    description:
+      'Sin cookie, o con la sesión cerrada, vencida o de una cuenta desactivada; borra la cookie.',
+  })
+  @ApiTooManyRequestsResponse({
+    description: 'Más de 30 renovaciones por minuto desde la IP.',
+  })
+  async renovar(
+    @Headers('cookie') cookies: string | undefined,
+    @Res({ passthrough: true }) respuesta: Response,
+  ): Promise<SesionIniciada> {
+    try {
+      const resultado = await this.sesiones.renovar(
+        leerCookies(cookies, COOKIE_REFRESCO),
+      );
+      respuesta.cookie(COOKIE_REFRESCO, resultado.tokenRefresco, {
+        ...this.opcionesCookie(),
+        expires: resultado.vencimientoRefresco,
+      });
+      return resultado.sesion;
+    } catch (error) {
+      // Una cookie que ya no sirve se borra: el navegador no la seguirá enviando
+      if (error instanceof SesionNoRenovableException) {
+        respuesta.clearCookie(COOKIE_REFRESCO, this.opcionesCookie());
       }
       throw error;
     }
