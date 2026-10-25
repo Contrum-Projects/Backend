@@ -212,6 +212,17 @@ Salidas que no son venta: merma por vencimiento, merma por daño, consumo en la 
 y transferencias. La venta descuenta siguiendo el orden del código de ubicación; un pack descuenta
 de sus componentes; la cancelación reingresa. Bajo el stock mínimo: aviso en el panel y correo a
 bodegueros y administradores.
+Decisiones del 25 oct (E11-H2): `POST /api/inventario/entradas` con `inventario.registrar`. La
+entrada trae proveedor (activo), fecha de recepción (no posterior a hoy en Chile), documento del
+proveedor (`TIPOS_DOCUMENTO_PROVEEDOR`: `factura` o `guia_despacho`, solo como respaldo; no se emite
+nada), número, **una ubicación de destino para toda la entrada** (activa, de bodega activa) y, por
+formato (una vez, hasta 200 por entrada), cantidad entera > 0 y costo unitario neto ≥ 0 (se admite
+0). El número de documento se guarda sin espacios y en mayúsculas, y el mismo documento (proveedor,
+tipo y número) no se registra dos veces: 409 por un índice único nuevo en `entrada_inventario`
+(cambio al MER). Si la suma pasaría el máximo de `existencia.cantidad` (int4), 400 sin cambios. Un formato desactivado sí se puede recibir. En una
+transacción: entrada + detalle, stock sumado con `INSERT ... ON CONFLICT` en EXISTENCIA y un
+movimiento `TIPOS_MOVIMIENTO.ENTRADA` por formato con `id_entrada` y ubicación de destino.
+PENDIENTE: ninguna historia crea bodegas ni ubicaciones (ni las comunas que la bodega exige).
 
 **E5 Carrito y compra.** Carrito del visitante en el navegador; se une al de la cuenta al iniciar
 sesión. Un carrito por cuenta; el carrito no guarda precios. El pedido exige sesión y correo

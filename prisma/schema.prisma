@@ -610,7 +610,7 @@ model EntradaInventario {
   detalles    DetalleEntrada[]
   movimientos MovimientoInventario[]
 
-  @@index([proveedorId])
+  @@unique([proveedorId, tipoDocumentoProveedor, numeroDocumentoProveedor])
   @@map("entrada_inventario")
 }
 

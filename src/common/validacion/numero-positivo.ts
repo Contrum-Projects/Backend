@@ -5,6 +5,8 @@ import { type Presencia, segunPresencia } from './presencia.js';
 interface OpcionesNumero extends Presencia {
   /** Cómo se nombra el dato en el mensaje: «El peso». */
   etiqueta: string;
+  /** La etiqueta es femenina («La cantidad»): el mensaje dice «obligatoria». */
+  femenino?: boolean;
   /** El valor puede ser 0 (el stock mínimo); si no, debe ser mayor que 0. */
   admiteCero?: boolean;
   /** Admite hasta dos decimales (columnas `Decimal(_, 2)`); si no, debe ser entero. */
@@ -16,6 +18,7 @@ interface OpcionesNumero extends Presencia {
 /** Número positivo (o cero) que cabe en su columna, entero o con hasta dos decimales. */
 export function NumeroPositivo({
   etiqueta,
+  femenino,
   admiteCero,
   decimales,
   maximo = MAXIMO_INT4,
@@ -34,7 +37,7 @@ export function NumeroPositivo({
           valor <= maximo,
         defaultMessage: (argumentos?: ValidationArguments) => {
           if (argumentos?.value === undefined || argumentos.value === null) {
-            return `${etiqueta} es obligatorio.`;
+            return `${etiqueta} es ${femenino ? 'obligatoria' : 'obligatorio'}.`;
           }
           const tipo = decimales
             ? 'un número con hasta dos decimales'
