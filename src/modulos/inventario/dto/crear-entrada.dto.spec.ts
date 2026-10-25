@@ -117,6 +117,22 @@ describe('CrearEntradaDto', () => {
     ]);
   });
 
+  it('acepta hasta 200 formatos por entrada', async () => {
+    const lineas = (n: number) =>
+      Array.from({ length: n }, (_, i) => ({
+        formatoId: i + 1,
+        cantidad: 1,
+        costoUnitarioNeto: 100,
+      }));
+
+    expect(await mensajes({ ...entradaBase(), detalles: lineas(200) })).toEqual(
+      [],
+    );
+    expect(await mensajes({ ...entradaBase(), detalles: lineas(201) })).toEqual(
+      ['Una entrada tiene hasta 200 formatos: divídela en varias.'],
+    );
+  });
+
   it('rechaza una fecha que no existe, un tipo de documento desconocido y un detalle mal formado', async () => {
     expect(
       await mensajes({ ...entradaBase(), fechaRecepcion: '2026-02-30' }),

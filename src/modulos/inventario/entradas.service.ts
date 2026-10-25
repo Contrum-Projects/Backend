@@ -9,6 +9,7 @@ import {
   TIPOS_MOVIMIENTO,
   type Valor,
 } from '../../common/dominio/valores.js';
+import { MAXIMO_INT4 } from '../../common/validacion/enteros.js';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { CrearEntradaDto } from './dto/crear-entrada.dto.js';
@@ -73,6 +74,7 @@ export class EntradasService {
     const detalles = [...dto.detalles].sort(
       (a, b) => a.formatoId - b.formatoId,
     );
+    const numeroDocumento = normalizarNumeroDocumento(dto.numeroDocumento);
 
     return this.prisma.$transaction(async (tx) => {
       const usuario = await tx.usuario.findUnique({
@@ -89,14 +91,24 @@ export class EntradasService {
         detalles.map((detalle) => detalle.formatoId),
       );
 
-      const entrada = await this.crearEntrada(tx, dto, usuario.id);
+      const entrada = await this.crearEntrada(
+        tx,
+        dto,
+        numeroDocumento,
+        usuario.id,
+      );
       for (const detalle of detalles) {
-        await sumarExistencia(
+        const sumada = await sumarExistencia(
           tx,
           detalle.formatoId,
           dto.ubicacionId,
           detalle.cantidad,
         );
+        if (!sumada) {
+          throw new BadRequestException(
+            `El stock del formato ${detalle.formatoId} en esa ubicación superaría el máximo permitido.`,
+          );
+        }
       }
       const movimientos = await tx.movimientoInventario.createManyAndReturn({
         data: detalles.map((detalle) => ({
@@ -118,7 +130,7 @@ export class EntradasService {
         proveedor,
         fechaRecepcion: dto.fechaRecepcion,
         tipoDocumento: dto.tipoDocumento as TipoDocumentoProveedor,
-        numeroDocumento: dto.numeroDocumento,
+        numeroDocumento,
         observacion: dto.observacion ?? null,
         ubicacion,
         detalles: detalles.map((detalle) => ({
@@ -198,7 +210,12 @@ export class EntradasService {
    * (proveedor, tipo, número), no una consulta previa: dos registros simultáneos del mismo
    * documento no pueden crearse los dos.
    */
-  private async crearEntrada(tx: Tx, dto: CrearEntradaDto, usuarioId: number) {
+  private async crearEntrada(
+    tx: Tx,
+    dto: CrearEntradaDto,
+    numeroDocumento: string,
+    usuarioId: number,
+  ) {
     try {
       return await tx.entradaInventario.create({
         data: {
@@ -206,7 +223,7 @@ export class EntradasService {
           usuarioId,
           fechaRecepcion: new Date(`${dto.fechaRecepcion}T00:00:00Z`),
           tipoDocumentoProveedor: dto.tipoDocumento,
-          numeroDocumentoProveedor: dto.numeroDocumento,
+          numeroDocumentoProveedor: numeroDocumento,
           observacion: dto.observacion ?? null,
           detalles: {
             create: dto.detalles.map((detalle) => ({
@@ -233,19 +250,29 @@ export class EntradasService {
 }
 
 /**
+ * Número de documento como se guarda: sin espacios y en mayúsculas, para que la misma factura
+ * escrita de otra forma choque con la restricción UNIQUE.
+ */
+export const normalizarNumeroDocumento = (numero: string) =>
+  numero.replace(/\s+/g, '').toUpperCase();
+
+/**
  * Suma unidades a la existencia del formato en la ubicación, o la crea, en una sola sentencia
- * atómica: dos entradas simultáneas del mismo formato suman las dos (RNF-13).
+ * atómica: dos entradas simultáneas del mismo formato suman las dos (RNF-13). Devuelve `false`
+ * si la suma pasaría el máximo de la columna (int4); entonces no cambia nada.
  */
 const sumarExistencia = async (
   tx: Tx,
   formatoId: number,
   ubicacionId: number,
   cantidad: number,
-): Promise<void> => {
-  await tx.$executeRaw`
+): Promise<boolean> => {
+  const filas = await tx.$executeRaw`
     INSERT INTO existencia (id_formato, id_ubicacion, cantidad, fecha_actualizacion)
     VALUES (${formatoId}, ${ubicacionId}, ${cantidad}, now())
     ON CONFLICT (id_formato, id_ubicacion) DO UPDATE
     SET cantidad = existencia.cantidad + EXCLUDED.cantidad,
-        fecha_actualizacion = now()`;
+        fecha_actualizacion = now()
+    WHERE existencia.cantidad::bigint + EXCLUDED.cantidad <= ${MAXIMO_INT4}`;
+  return filas === 1;
 };

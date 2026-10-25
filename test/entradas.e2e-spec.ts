@@ -335,6 +335,8 @@ describe('Inventario · entradas (e2e)', () => {
     await registrar(entradaValida('F-100')).expect(201);
 
     await registrar(entradaValida('F-100')).expect(409);
+    // La misma factura escrita de otra forma también es repetida
+    await registrar(entradaValida(' f-1 00 ')).expect(409);
 
     expect(
       await prisma.entradaInventario.count({ where: { proveedorId } }),
@@ -360,6 +362,23 @@ describe('Inventario · entradas (e2e)', () => {
     });
     await registrar(entradaValida()).expect(400);
 
+    expect(
+      await prisma.entradaInventario.count({ where: { proveedorId } }),
+    ).toBe(0);
+  });
+
+  it('una entrada que llevaría el stock sobre el máximo responde 400 y no registra nada', async () => {
+    await prisma.existencia.create({
+      data: { formatoId: formatos[0], ubicacionId, cantidad: 2_147_483_640 },
+    });
+
+    const respuesta = await registrar(entradaValida()).expect(400);
+
+    expect(mensajeDe(respuesta.body)).toBe(
+      `El stock del formato ${formatos[0]} en esa ubicación superaría el máximo permitido.`,
+    );
+    expect(await stockDe(formatos[0])).toBe(2_147_483_640);
+    expect(await stockDe(formatos[1])).toBe(0);
     expect(
       await prisma.entradaInventario.count({ where: { proveedorId } }),
     ).toBe(0);

@@ -20,6 +20,8 @@ const TIPOS_DOCUMENTO = Object.values(TIPOS_DOCUMENTO_PROVEEDOR);
 export const MAXIMO_COSTO_NETO = 9_999_999_999.99;
 /** Largo máximo de la observación de una entrada. */
 export const MAXIMO_OBSERVACION_ENTRADA = 500;
+/** Máximo de formatos por entrada: acota la transacción y los bloqueos de existencia. */
+export const MAXIMO_LINEAS_ENTRADA = 200;
 
 /** Un formato recibido en la entrada, con su cantidad y su costo. */
 export class DetalleEntradaDto {
@@ -50,7 +52,8 @@ export class DetalleEntradaDto {
 }
 
 /**
- * Lista de formatos recibidos, no vacía y sin formatos repetidos. Deja cada línea como
+ * Lista de formatos recibidos, no vacía, de hasta `MAXIMO_LINEAS_ENTRADA` y sin formatos
+ * repetidos. Deja cada línea como
  * `DetalleEntradaDto` (una que no es objeto queda vacía y se informa lo que le falta) y lo que no
  * es lista como lista vacía: así cada caso da un solo mensaje en español.
  */
@@ -78,11 +81,16 @@ function ListaDetalles() {
         validate: (valor: unknown) =>
           Array.isArray(valor) &&
           valor.length > 0 &&
+          valor.length <= MAXIMO_LINEAS_ENTRADA &&
           !repiteFormato(valor as DetalleEntradaDto[]),
-        defaultMessage: ({ value }: ValidationArguments) =>
-          Array.isArray(value) && value.length > 0
-            ? 'Cada formato debe aparecer una sola vez en la entrada.'
-            : 'Indica los formatos recibidos.',
+        defaultMessage: ({ value }: ValidationArguments) => {
+          if (!Array.isArray(value) || value.length === 0) {
+            return 'Indica los formatos recibidos.';
+          }
+          return value.length > MAXIMO_LINEAS_ENTRADA
+            ? `Una entrada tiene hasta ${MAXIMO_LINEAS_ENTRADA} formatos: divídela en varias.`
+            : 'Cada formato debe aparecer una sola vez en la entrada.';
+        },
       },
     }),
     ValidateNested({ each: true, message: 'Indica los formatos recibidos.' }),
@@ -125,7 +133,12 @@ export class CrearEntradaDto {
   })
   tipoDocumento: string;
 
-  @ApiProperty({ example: 'F-12345', maxLength: 50 })
+  @ApiProperty({
+    example: 'F-12345',
+    maxLength: 50,
+    description:
+      'Se guarda sin espacios y en mayúsculas: «f-123 45» y «F-12345» son el mismo documento.',
+  })
   @TextoObligatorio({ etiqueta: 'El número de documento', maximo: 50 })
   numeroDocumento: string;
 

@@ -2,7 +2,11 @@ import { BadRequestException, ConflictException } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client.js';
 import type { PrismaService } from '../../prisma/prisma.service.js';
 import type { CrearEntradaDto } from './dto/crear-entrada.dto.js';
-import { EntradasService, hoyEnLaTienda } from './entradas.service.js';
+import {
+  EntradasService,
+  hoyEnLaTienda,
+  normalizarNumeroDocumento,
+} from './entradas.service.js';
 
 const crearPrisma = () => {
   const tx = {
@@ -103,8 +107,8 @@ describe('EntradasService', () => {
 
     const llamadas = prisma.tx.$executeRaw.mock.calls;
     expect(llamadas).toHaveLength(2);
-    expect(valoresSql(llamadas[0])).toEqual([11, 1, 24]);
-    expect(valoresSql(llamadas[1])).toEqual([12, 1, 6]);
+    expect(valoresSql(llamadas[0])).toEqual([11, 1, 24, 2_147_483_647]);
+    expect(valoresSql(llamadas[1])).toEqual([12, 1, 6, 2_147_483_647]);
     expect((llamadas[0][0] as string[]).join('?')).toContain(
       'ON CONFLICT (id_formato, id_ubicacion) DO UPDATE',
     );
@@ -237,6 +241,34 @@ describe('EntradasService', () => {
       ),
     );
     expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('guarda el número de documento sin espacios y en mayúsculas', async () => {
+    const entrada = await servicio.registrar(
+      { ...dtoBase(), numeroDocumento: 'f-123 45' },
+      'uuid-bodeguero',
+    );
+
+    expect(prisma.tx.entradaInventario.create.mock.calls[0][0]).toMatchObject({
+      data: { numeroDocumentoProveedor: 'F-12345' },
+    });
+    expect(entrada.numeroDocumento).toBe('F-12345');
+    expect(normalizarNumeroDocumento(' gd	77 ')).toBe('GD77');
+  });
+
+  it('una suma que pasaría el máximo del stock responde 400 y no deja movimientos', async () => {
+    prisma.tx.$executeRaw.mockResolvedValueOnce(0);
+
+    await expect(
+      servicio.registrar(dtoBase(), 'uuid-bodeguero'),
+    ).rejects.toThrow(
+      new BadRequestException(
+        'El stock del formato 11 en esa ubicación superaría el máximo permitido.',
+      ),
+    );
+    expect(
+      prisma.tx.movimientoInventario.createManyAndReturn,
+    ).not.toHaveBeenCalled();
   });
 
   it('el mismo documento del proveedor ya registrado responde 409', async () => {
