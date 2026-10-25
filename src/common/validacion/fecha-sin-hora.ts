@@ -1,10 +1,18 @@
-import { ValidateBy } from 'class-validator';
-import { recortarTexto, segunPresencia } from './presencia.js';
+import { ValidateBy, type ValidationArguments } from 'class-validator';
+import { type Presencia, recortarTexto, segunPresencia } from './presencia.js';
 
-/** Fecha sin hora (AAAA-MM-DD) que existe en el calendario; `null` o vacío la borra. */
-export function FechaSinHora({ etiqueta }: { etiqueta: string }) {
-  return segunPresencia('borrable', [
-    recortarTexto(true),
+interface Opciones extends Presencia {
+  /** Cómo se nombra el dato en el mensaje: «La fecha de vencimiento». */
+  etiqueta: string;
+}
+
+/**
+ * Fecha sin hora (AAAA-MM-DD) que existe en el calendario. Por defecto es borrable: `null` o
+ * vacío la borra.
+ */
+export function FechaSinHora({ etiqueta, presencia = 'borrable' }: Opciones) {
+  return segunPresencia(presencia, [
+    recortarTexto(presencia === 'borrable'),
     ValidateBy({
       name: 'fechaSinHora',
       validator: {
@@ -18,8 +26,12 @@ export function FechaSinHora({ etiqueta }: { etiqueta: string }) {
             fecha.toISOString().slice(0, 10) === valor
           );
         },
-        defaultMessage: () =>
-          `${etiqueta} debe ser una fecha válida con el formato AAAA-MM-DD.`,
+        defaultMessage: (argumentos?: ValidationArguments) =>
+          argumentos?.value === undefined ||
+          argumentos.value === null ||
+          argumentos.value === ''
+            ? `${etiqueta} es obligatoria.`
+            : `${etiqueta} debe ser una fecha válida con el formato AAAA-MM-DD.`,
       },
     }),
   ]);
