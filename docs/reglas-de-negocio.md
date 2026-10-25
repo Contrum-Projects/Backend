@@ -223,6 +223,14 @@ tipo y número) no se registra dos veces: 409 por un índice único nuevo en `en
 transacción: entrada + detalle, stock sumado con `INSERT ... ON CONFLICT` en EXISTENCIA y un
 movimiento `TIPOS_MOVIMIENTO.ENTRADA` por formato con `id_entrada` y ubicación de destino.
 PENDIENTE: ninguna historia crea bodegas ni ubicaciones (ni las comunas que la bodega exige).
+Decisiones del 25 oct (E11-H3): `POST /api/inventario/salidas` con `inventario.registrar`. Una
+salida es de **un formato en una ubicación**, con tipo (`TIPOS_SALIDA`: `merma_vencimiento`,
+`merma_dano` o `consumo_peluqueria`), cantidad entera > 0 y observación opcional (hasta 500). Se
+admiten formatos, ubicaciones y bodegas desactivados: su stock físico también vence o se daña. En
+una transacción: el stock se descuenta con condición atómica (`cantidad >= n`) y se crea un
+movimiento con el tipo de la salida y `id_ubicacion_origen`. Si la ubicación no tiene stock
+suficiente (o no tiene existencia del formato), 400 indicando cuánto hay, sin cambios. Sin
+cambios al MER: la salida es solo el MOVIMIENTO.
 
 **E5 Carrito y compra.** Carrito del visitante en el navegador; se une al de la cuenta al iniciar
 sesión. Un carrito por cuenta; el carrito no guarda precios. El pedido exige sesión y correo
