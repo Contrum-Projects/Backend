@@ -87,7 +87,18 @@ export const TIPOS_DOCUMENTO_PROVEEDOR = {
 export const TIPOS_MOVIMIENTO = {
   /** E11-H2, decisión del 25 de octubre de 2026: recepción de un proveedor. */
   ENTRADA: 'entrada',
+  /** E11-H3, decisión del 25 de octubre de 2026: salidas que no son venta. */
+  MERMA_VENCIMIENTO: 'merma_vencimiento',
+  MERMA_DANO: 'merma_dano',
+  CONSUMO_PELUQUERIA: 'consumo_peluqueria',
 } as const;
+
+/** Tipos de movimiento que se registran como salida que no es venta (E11-H3, RF-11.06). */
+export const TIPOS_SALIDA = [
+  TIPOS_MOVIMIENTO.MERMA_VENCIMIENTO,
+  TIPOS_MOVIMIENTO.MERMA_DANO,
+  TIPOS_MOVIMIENTO.CONSUMO_PELUQUERIA,
+] as const;
 
 /** SOLICITUD_VERIFICACION.estado (Épica 10; el sistema nunca rechaza solo: RNF-27). */
 export const ESTADOS_SOLICITUD = {
