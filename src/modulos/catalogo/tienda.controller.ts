@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -15,12 +15,14 @@ import {
 } from '../../autenticacion/sesion-opcional.guard.js';
 import { Paginacion } from '../../common/validacion/paginacion.js';
 import { ListarTiendaDto } from './dto/listar-tienda.dto.js';
+import { ID_PACK, ID_PRODUCTO } from './ids-ruta.js';
+import { TiendaDetalleService } from './tienda-detalle.service.js';
 import { TiendaPacksService } from './tienda-packs.service.js';
 import { TiendaService } from './tienda.service.js';
 
 /**
  * Catálogo público: no pide sesión. Solo el profesional, con su token, ve el precio mayorista
- * y los productos exclusivos (E2-H4, RNF-04).
+ * y los productos exclusivos (E2-H4, RNF-04), también en el detalle (E2-H3).
  */
 @ApiTags('tienda')
 @Controller('tienda')
@@ -28,6 +30,7 @@ export class TiendaController {
   constructor(
     private readonly tienda: TiendaService,
     private readonly packs: TiendaPacksService,
+    private readonly detalle: TiendaDetalleService,
   ) {}
 
   @Get('productos')
@@ -53,6 +56,54 @@ export class TiendaController {
     @UsuarioOpcional() usuario: UsuarioAutenticado | undefined,
   ) {
     return this.tienda.listarProductos(filtros, usuario?.rol);
+  }
+
+  @Get('productos/:id')
+  @UseGuards(SesionOpcionalGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Detalle de un producto (E2-H3)',
+    description:
+      'Producto con su descripción, marca, categoría y sus formatos a la venta (el predeterminado primero). Cada formato trae sus imágenes (la principal primero), el precio minorista con IVA y `disponibilidad`: `disponible` si hay stock en bodegas activas que abastecen la venta online, `agotado` si no; no se informan cantidades. La sesión es opcional: con el token de una cuenta profesional también se ven los productos exclusivos y cada formato trae `precioMayorista` con IVA (`precio` es `null` si el producto es exclusivo). Lo que la tienda no muestra a quien consulta responde 404.',
+  })
+  @ApiOkResponse({ description: 'Detalle del producto.' })
+  @ApiUnauthorizedResponse({
+    description:
+      'Llegó un token de acceso inválido, vencido o de una sesión cerrada.',
+  })
+  @ApiNotFoundResponse({
+    description:
+      'El producto no existe, no está a la venta o es exclusivo para profesionales.',
+  })
+  obtenerProducto(
+    @Param('id', ID_PRODUCTO) id: number,
+    @UsuarioOpcional() usuario: UsuarioAutenticado | undefined,
+  ) {
+    return this.detalle.obtenerProducto(id, usuario?.rol);
+  }
+
+  @Get('packs/:id')
+  @UseGuards(SesionOpcionalGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Detalle de un pack (E2-H3)',
+    description:
+      'Pack vigente hoy (hora de Chile) con sus imágenes, precio minorista con IVA, componentes y `disponibilidad`: la de su componente más escaso, contando las unidades de cada formato que lleva el pack. La sesión es opcional: con el token de una cuenta profesional también se ven los packs exclusivos y se recibe `precioMayorista` con IVA y `exclusivo`. Lo que la tienda no muestra a quien consulta responde 404.',
+  })
+  @ApiOkResponse({ description: 'Detalle del pack.' })
+  @ApiUnauthorizedResponse({
+    description:
+      'Llegó un token de acceso inválido, vencido o de una sesión cerrada.',
+  })
+  @ApiNotFoundResponse({
+    description:
+      'El pack no existe, no está vigente, no está a la venta o es exclusivo para profesionales.',
+  })
+  obtenerPack(
+    @Param('id', ID_PACK) id: number,
+    @UsuarioOpcional() usuario: UsuarioAutenticado | undefined,
+  ) {
+    return this.detalle.obtenerPack(id, usuario?.rol);
   }
 
   @Get('packs')

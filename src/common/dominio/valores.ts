@@ -143,6 +143,15 @@ export const TIPOS_NOTIFICACION = {
   RECUPERACION_CONTRASENA: 'recuperacion_contrasena',
 } as const;
 
+/**
+ * Disponibilidad que la tienda muestra de un formato o pack (E2-H3, decisión del 26 de octubre de
+ * 2026). No es una columna: se calcula con el stock vendible y no revela cuántas unidades hay.
+ */
+export const DISPONIBILIDADES = {
+  DISPONIBLE: 'disponible',
+  AGOTADO: 'agotado',
+} as const;
+
 /** NOTIFICACION.estado_envio (decisión del 14 de octubre de 2026, E1-H1). */
 export const ESTADOS_NOTIFICACION = {
   PENDIENTE: 'pendiente',
