@@ -120,14 +120,15 @@ export const TIPOS_CAMPANA = {
 } as const;
 
 /**
- * TOKEN_CORREO.tipo. Lista abierta: cada historia agrega el suyo
- * (recuperación de contraseña, E1-H4).
+ * TOKEN_CORREO.tipo. Lista abierta: cada historia agrega el suyo.
  */
 export const TIPOS_TOKEN = {
   /** E1-H1, decisión del 14 de octubre de 2026. */
   CONFIRMACION_CORREO: 'confirmacion_correo',
   /** E13-H1, decisión del 18 de octubre de 2026: el personal define su contraseña. */
   INVITACION_PERSONAL: 'invitacion_personal',
+  /** E1-H4, decisión del 26 de octubre de 2026: enlace para definir una contraseña nueva. */
+  RECUPERACION_CONTRASENA: 'recuperacion_contrasena',
 } as const;
 
 /**
@@ -138,6 +139,8 @@ export const TIPOS_NOTIFICACION = {
   CONFIRMACION_CORREO: 'confirmacion_correo',
   /** E13-H1, decisión del 18 de octubre de 2026. */
   INVITACION_PERSONAL: 'invitacion_personal',
+  /** E1-H4, decisión del 26 de octubre de 2026. */
+  RECUPERACION_CONTRASENA: 'recuperacion_contrasena',
 } as const;
 
 /** NOTIFICACION.estado_envio (decisión del 14 de octubre de 2026, E1-H1). */

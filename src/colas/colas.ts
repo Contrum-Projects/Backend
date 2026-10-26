@@ -28,12 +28,15 @@ export const TRABAJOS_CORREO = {
   CONFIRMACION_CORREO: 'confirmacion-correo',
   /** Invitación al personal para definir su contraseña (E13-H1). */
   INVITACION_PERSONAL: 'invitacion-personal',
+  /** Enlace para recuperar la contraseña (E1-H4). */
+  RECUPERACION_CONTRASENA: 'recuperacion-contrasena',
 } as const;
 
 /**
- * Datos de un correo con enlace de un uso: confirmación del correo (E1-H1) e
- * invitación al personal (E13-H1). El enlace lleva el token en claro, por eso el
- * trabajo se borra de Redis al terminar (bien o mal).
+ * Datos de un correo con enlace de un uso: confirmación del correo (E1-H1),
+ * invitación al personal (E13-H1) y recuperación de la contraseña (E1-H4). El
+ * enlace lleva el token en claro, por eso el trabajo se borra de Redis al
+ * terminar (bien o mal).
  */
 export interface TrabajoCorreoConEnlace {
   notificacionId: number;
@@ -44,6 +47,7 @@ export interface TrabajoCorreoConEnlace {
 
 export type TrabajoConfirmacionCorreo = TrabajoCorreoConEnlace;
 export type TrabajoInvitacionPersonal = TrabajoCorreoConEnlace;
+export type TrabajoRecuperacionContrasena = TrabajoCorreoConEnlace;
 
 /**
  * Prioridad de los correos (RNF-16): en BullMQ, número menor = sale antes.

@@ -97,6 +97,21 @@ sesión no se alarga (vence en la fecha del inicio de sesión). Cookies de dos s
 sesión cerrada o vencida, o cuenta desactivada: 401 y se borra la cookie. Límite de 30/min por IP
 (`LIMITES.RENOVAR_SESION`). Dos renovaciones simultáneas con el mismo token: gana una, la otra
 recibe 401.
+Decisiones del 26 oct (E1-H4): `POST /api/cuentas/recuperar-contrasena` con el correo responde
+siempre el mismo 200, tenga o no cuenta (no revela qué correos están registrados); solo una cuenta
+`activo` recibe el enlace, sea cliente, profesional o personal, con o sin el correo confirmado.
+El enlace (`TIPOS_TOKEN.RECUPERACION_CONTRASENA`) dura 1 h (`RECUPERACION_CONTRASENA_HORAS`), va
+a `URL_TIENDA/restablecer-contrasena?token=...` y pedir otro deja sin efecto los anteriores (con
+la fila de la cuenta bloqueada). `POST /api/cuentas/restablecer-contrasena` con el token y la
+contraseña nueva (mismas reglas que el registro) consume el token con una condición atómica y, en
+la misma transacción, guarda la contraseña, confirma el correo si no lo estaba, invalida los demás
+enlaces de recuperación y la invitación del personal pendiente, y revoca todas las sesiones de la
+cuenta. Token inexistente, de otro tipo, usado o vencido, o cuenta desactivada: 400 que pide un
+enlace nuevo. Cada ruta tiene un límite de 5 cada 15 min por IP (`LIMITES.RECUPERAR_CONTRASENA`).
+Además, cada correo recibe a lo más 3 enlaces por hora desde cualquier IP
+(`LIMITE_RECUPERACION_POR_CORREO`, contado en Redis con el hash del correo, tenga o no cuenta);
+pasado el tope se responde el mismo 200 sin enviar nada ni anular el último enlace. Si Redis no
+responde, la solicitud pasa (RNF-32). Por confirmar con el jefe de proyecto.
 Decisiones del 20 oct (E1-H5): «mi cuenta» (`/api/cuentas/yo` y `/api/cuentas/yo/direcciones`)
 es solo para cliente y profesional (`CompradorGuard`; el personal recibe 403). El correo no se
 edita en esta historia. El RUT no se cambia ni se borra (403) si la cuenta es profesional o tiene
