@@ -9,10 +9,13 @@ import { ImagenesController } from './imagenes.controller.js';
 import { ImagenesService } from './imagenes.service.js';
 import { MarcasController } from './marcas.controller.js';
 import { MarcasService } from './marcas.service.js';
+import { PacksController } from './packs.controller.js';
+import { PacksService } from './packs.service.js';
 import { PreciosController } from './precios.controller.js';
 import { PreciosService } from './precios.service.js';
 import { ProductosController } from './productos.controller.js';
 import { ProductosService } from './productos.service.js';
+import { TiendaPacksService } from './tienda-packs.service.js';
 import { TiendaController } from './tienda.controller.js';
 import { TiendaService } from './tienda.service.js';
 
@@ -25,6 +28,7 @@ import { TiendaService } from './tienda.service.js';
     ProductosController,
     FormatosController,
     ImagenesController,
+    PacksController,
     PreciosController,
     TiendaController,
   ],
@@ -35,8 +39,10 @@ import { TiendaService } from './tienda.service.js';
     ProductosService,
     FormatosService,
     ImagenesService,
+    PacksService,
     PreciosService,
     TiendaService,
+    TiendaPacksService,
   ],
   exports: [MarcasService, CategoriasService],
 })

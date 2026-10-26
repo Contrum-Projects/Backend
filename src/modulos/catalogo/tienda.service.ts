@@ -42,7 +42,8 @@ const FORMATO_VENDIBLE_PROFESIONAL = {
   ],
 } satisfies Prisma.FormatoProductoWhereInput;
 
-const IMAGEN_PRINCIPAL = {
+/** La imagen que la tienda muestra de un artículo: la principal (también la usan los packs). */
+export const IMAGEN_PRINCIPAL = {
   select: { ubicacionArchivo: true },
   orderBy: [{ esPrincipal: 'desc' }, { orden: 'asc' }, { id: 'asc' }],
   take: 1,
