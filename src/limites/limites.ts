@@ -15,11 +15,26 @@ export const LIMITES = {
   /** Aceptar la invitación del personal (E13-H1, decisión del 18 oct 2026): 5/min, como el registro. */
   ACEPTAR_INVITACION: { limit: 5, ttl: 60_000 },
   /**
+   * Recuperar la contraseña (E1-H4, RNF-09, decisión del 26 oct 2026): 5 cada 15 min por IP,
+   * aparte para solicitar el enlace y para definir la contraseña nueva.
+   */
+  RECUPERAR_CONTRASENA: { limit: 5, ttl: 15 * 60_000 },
+  /**
    * Editar los datos personales (E1-H5, decisión del 20 oct 2026): 10/hora por cuenta, con
    * `LimitePorCuentaGuard`. Alcanza para corregir datos y frena probar RUT en serie (el 409
    * indica si un RUT ya tiene cuenta).
    */
   EDITAR_DATOS: { limit: 10, ttl: 60 * 60_000 },
+} as const;
+
+/**
+ * Enlaces de recuperación de la contraseña por correo (E1-H4, RNF-09, decisión del 26 oct
+ * 2026): 3 por hora, desde cualquier IP. Frena llenar el buzón de alguien y anular su enlace
+ * una y otra vez. Pasado el tope se responde lo mismo, sin enviar nada.
+ */
+export const LIMITE_RECUPERACION_POR_CORREO = {
+  maximo: 3,
+  ventanaMs: 60 * 60_000,
 } as const;
 
 /**

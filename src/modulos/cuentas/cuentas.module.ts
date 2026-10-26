@@ -8,8 +8,11 @@ import { DireccionesService } from './direcciones.service.js';
 import { IntentosSesion } from './intentos-sesion.js';
 import { MiCuentaController } from './mi-cuenta.controller.js';
 import { MiCuentaService } from './mi-cuenta.service.js';
+import { RecuperacionContrasenaController } from './recuperacion-contrasena.controller.js';
+import { RecuperacionContrasenaService } from './recuperacion-contrasena.service.js';
 import { SesionController } from './sesion.controller.js';
 import { SesionService } from './sesion.service.js';
+import { SolicitudesRecuperacion } from './solicitudes-recuperacion.js';
 
 /** Épica 1: cuentas y acceso (ver src/modulos/README.md). */
 @Module({
@@ -19,6 +22,7 @@ import { SesionService } from './sesion.service.js';
     SesionController,
     MiCuentaController,
     DireccionesController,
+    RecuperacionContrasenaController,
   ],
   providers: [
     CuentasService,
@@ -26,6 +30,8 @@ import { SesionService } from './sesion.service.js';
     IntentosSesion,
     MiCuentaService,
     DireccionesService,
+    RecuperacionContrasenaService,
+    SolicitudesRecuperacion,
   ],
 })
 export class CuentasModule {}
