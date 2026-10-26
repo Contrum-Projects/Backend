@@ -9,10 +9,11 @@ import {
   TIPOS_MOVIMIENTO,
   type Valor,
 } from '../../common/dominio/valores.js';
-import { MAXIMO_INT4 } from '../../common/validacion/enteros.js';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { type UbicacionResumen, ubicacionDe } from './comprobaciones.js';
 import type { CrearEntradaDto } from './dto/crear-entrada.dto.js';
+import { sumarExistencia } from './existencias.js';
 
 type Tx = Prisma.TransactionClient;
 type TipoDocumentoProveedor = Valor<typeof TIPOS_DOCUMENTO_PROVEEDOR>;
@@ -36,7 +37,7 @@ export interface EntradaRegistrada {
   tipoDocumento: TipoDocumentoProveedor;
   numeroDocumento: string;
   observacion: string | null;
-  ubicacion: { id: number; codigo: string; bodega: string };
+  ubicacion: UbicacionResumen;
   detalles: DetalleEntradaRegistrado[];
 }
 
@@ -85,7 +86,9 @@ export class EntradasService {
         throw new UnauthorizedException('Debes iniciar sesión.');
       }
       const proveedor = await this.proveedorActivo(tx, dto.proveedorId);
-      const ubicacion = await this.ubicacionActiva(tx, dto.ubicacionId);
+      const ubicacion = await ubicacionDe(tx, dto.ubicacionId, {
+        activa: true,
+      });
       await this.comprobarFormatos(
         tx,
         detalles.map((detalle) => detalle.formatoId),
@@ -100,8 +103,7 @@ export class EntradasService {
       for (const detalle of detalles) {
         const sumada = await sumarExistencia(
           tx,
-          detalle.formatoId,
-          dto.ubicacionId,
+          { formatoId: detalle.formatoId, ubicacionId: dto.ubicacionId },
           detalle.cantidad,
         );
         if (!sumada) {
@@ -160,31 +162,6 @@ export class EntradasService {
       id: proveedor.id,
       rut: proveedor.rut,
       razonSocial: proveedor.razonSocial,
-    };
-  }
-
-  private async ubicacionActiva(tx: Tx, id: number) {
-    const ubicacion = await tx.ubicacion.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        codigo: true,
-        activa: true,
-        bodega: { select: { nombre: true, activa: true } },
-      },
-    });
-    if (!ubicacion) {
-      throw new BadRequestException('La ubicación no existe.');
-    }
-    if (!ubicacion.activa || !ubicacion.bodega.activa) {
-      throw new BadRequestException(
-        'La ubicación o su bodega está desactivada: elige otra ubicación.',
-      );
-    }
-    return {
-      id: ubicacion.id,
-      codigo: ubicacion.codigo,
-      bodega: ubicacion.bodega.nombre,
     };
   }
 
@@ -255,24 +232,3 @@ export class EntradasService {
  */
 export const normalizarNumeroDocumento = (numero: string) =>
   numero.replace(/\s+/g, '').toUpperCase();
-
-/**
- * Suma unidades a la existencia del formato en la ubicación, o la crea, en una sola sentencia
- * atómica: dos entradas simultáneas del mismo formato suman las dos (RNF-13). Devuelve `false`
- * si la suma pasaría el máximo de la columna (int4); entonces no cambia nada.
- */
-const sumarExistencia = async (
-  tx: Tx,
-  formatoId: number,
-  ubicacionId: number,
-  cantidad: number,
-): Promise<boolean> => {
-  const filas = await tx.$executeRaw`
-    INSERT INTO existencia (id_formato, id_ubicacion, cantidad, fecha_actualizacion)
-    VALUES (${formatoId}, ${ubicacionId}, ${cantidad}, now())
-    ON CONFLICT (id_formato, id_ubicacion) DO UPDATE
-    SET cantidad = existencia.cantidad + EXCLUDED.cantidad,
-        fecha_actualizacion = now()
-    WHERE existencia.cantidad::bigint + EXCLUDED.cantidad <= ${MAXIMO_INT4}`;
-  return filas === 1;
-};
