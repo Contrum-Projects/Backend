@@ -231,6 +231,21 @@ una transacción: el stock se descuenta con condición atómica (`cantidad >= n`
 movimiento con el tipo de la salida y `id_ubicacion_origen`. Si la ubicación no tiene stock
 suficiente (o no tiene existencia del formato), 400 indicando cuánto hay, sin cambios. Sin
 cambios al MER: la salida es solo el MOVIMIENTO.
+Decisiones del 25 oct (E11-H4): `POST /api/inventario/ajustes` y
+`POST /api/inventario/transferencias`, ambos con `inventario.registrar`. El **ajuste** es de un
+formato en una ubicación, con la diferencia **con signo** (entero distinto de 0: positiva suma,
+negativa descuenta) y un **motivo obligatorio** (hasta 500) que queda en la observación del
+movimiento. Positivo: suma con `INSERT ... ON CONFLICT` (crea la existencia; 400 si pasaría el
+máximo de int4) y movimiento `ajuste_positivo` con `id_ubicacion_destino`. Negativo: descuenta con
+condición atómica (400 indicando cuánto hay si no alcanza) y movimiento `ajuste_negativo` con
+`id_ubicacion_origen`. La cantidad del movimiento siempre es positiva. Se admiten formatos y
+ubicaciones desactivados, como en las salidas. La **transferencia** mueve una cantidad entera > 0
+de un formato de un origen a un destino distinto (400 si son el mismo), de la misma bodega o de
+otra; el destino debe ser una ubicación activa de bodega activa y el origen puede estar
+desactivado (para vaciarlo). En una transacción: descuento atómico en el origen (400 sin cambios
+si no alcanza), suma en el destino y **un** movimiento `transferencia` con ambas ubicaciones y
+observación opcional (hasta 500). Las existencias se tocan en orden de id de ubicación, para que
+dos transferencias cruzadas simultáneas no se bloqueen. Sin cambios al MER.
 
 **E5 Carrito y compra.** Carrito del visitante en el navegador; se une al de la cuenta al iniciar
 sesión. Un carrito por cuenta; el carrito no guarda precios. El pedido exige sesión y correo

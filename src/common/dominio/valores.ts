@@ -91,6 +91,11 @@ export const TIPOS_MOVIMIENTO = {
   MERMA_VENCIMIENTO: 'merma_vencimiento',
   MERMA_DANO: 'merma_dano',
   CONSUMO_PELUQUERIA: 'consumo_peluqueria',
+  /** E11-H4, decisión del 25 de octubre de 2026: corrección del conteo físico. */
+  AJUSTE_POSITIVO: 'ajuste_positivo',
+  AJUSTE_NEGATIVO: 'ajuste_negativo',
+  /** E11-H4: un movimiento con la ubicación de origen y la de destino. */
+  TRANSFERENCIA: 'transferencia',
 } as const;
 
 /** Tipos de movimiento que se registran como salida que no es venta (E11-H3, RF-11.06). */
