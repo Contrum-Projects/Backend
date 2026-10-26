@@ -7,13 +7,15 @@ import { CompradorGuard } from './comprador.guard.js';
 import { JwtAutenticacionGuard } from './jwt-autenticacion.guard.js';
 import { RevocacionSesiones } from './revocacion-sesiones.js';
 import { PermisosGuard } from './permisos.guard.js';
+import { SesionOpcionalGuard } from './sesion-opcional.guard.js';
 
 /**
  * Tokens de acceso y su verificación, para todos los módulos: protege una ruta con
  * `@UseGuards(JwtAutenticacionGuard)` y lee la cuenta con `@UsuarioActual()`; para
  * exigir un permiso del panel, `@UseGuards(JwtAutenticacionGuard, PermisosGuard)` con
  * `@RequierePermiso(...)`; para las rutas de «mi cuenta» (solo cliente y profesional),
- * `@UseGuards(JwtAutenticacionGuard, CompradorGuard)`.
+ * `@UseGuards(JwtAutenticacionGuard, CompradorGuard)`; para una ruta pública que cambia según
+ * el rol, `@UseGuards(SesionOpcionalGuard)` con `@UsuarioOpcional()`.
  */
 @Global()
 @Module({
@@ -32,6 +34,7 @@ import { PermisosGuard } from './permisos.guard.js';
     JwtAutenticacionGuard,
     PermisosGuard,
     CompradorGuard,
+    SesionOpcionalGuard,
   ],
   exports: [
     JwtModule,
@@ -39,6 +42,7 @@ import { PermisosGuard } from './permisos.guard.js';
     JwtAutenticacionGuard,
     PermisosGuard,
     CompradorGuard,
+    SesionOpcionalGuard,
   ],
 })
 export class AutenticacionModule {}

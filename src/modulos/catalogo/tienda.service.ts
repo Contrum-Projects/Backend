@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { urlPublicaArchivo } from '../../almacen/almacen-archivos.js';
 import { precioConIva } from '../../common/dominio/montos.js';
+import { ROLES, type Rol } from '../../common/dominio/roles.js';
 import { CANALES_VENTA } from '../../common/dominio/valores.js';
 import { POR_PAGINA } from '../../common/validacion/paginacion.js';
 import { escaparComodines } from '../../common/validacion/texto-busqueda.js';
@@ -26,8 +27,30 @@ const FORMATO_VENDIBLE = {
 } satisfies Prisma.FormatoProductoWhereInput;
 
 /**
- * Lo que la tienda muestra de un producto. El `select` es explícito: el precio mayorista
- * nunca se lee para el listado público (RNF-04).
+ * Para el profesional (E2-H4): el formato de un producto exclusivo solo necesita el precio
+ * mayorista, porque no se vende a minoristas (E3-H5); el de uno general, los dos precios.
+ */
+const FORMATO_VENDIBLE_PROFESIONAL = {
+  articulo: {
+    activo: true,
+    precioMayoristaNeto: { not: null },
+    imagenes: { some: {} },
+  },
+  OR: [
+    { producto: { canalVenta: CANALES_VENTA.PROFESIONAL } },
+    { articulo: { precioMinoristaNeto: { not: null } } },
+  ],
+} satisfies Prisma.FormatoProductoWhereInput;
+
+const IMAGEN_PRINCIPAL = {
+  select: { ubicacionArchivo: true },
+  orderBy: [{ esPrincipal: 'desc' }, { orden: 'asc' }, { id: 'asc' }],
+  take: 1,
+} satisfies Prisma.ArticuloVenta$imagenesArgs;
+
+/**
+ * Lo que la tienda muestra de un producto a quien no es profesional. El `select` es explícito:
+ * el precio mayorista nunca se lee para ellos (RNF-04).
  */
 const SELECCION = {
   id: true,
@@ -39,20 +62,40 @@ const SELECCION = {
     select: {
       esPredeterminado: true,
       articulo: {
+        select: { precioMinoristaNeto: true, imagenes: IMAGEN_PRINCIPAL },
+      },
+    },
+  },
+} satisfies Prisma.ProductoSelect;
+
+/** Lo que ve el profesional: además, el canal y el precio mayorista (E2-H4). */
+const SELECCION_PROFESIONAL = {
+  ...SELECCION,
+  canalVenta: true,
+  formatos: {
+    where: FORMATO_VENDIBLE_PROFESIONAL,
+    select: {
+      esPredeterminado: true,
+      articulo: {
         select: {
           precioMinoristaNeto: true,
-          imagenes: {
-            select: { ubicacionArchivo: true },
-            orderBy: [{ esPrincipal: 'desc' }, { orden: 'asc' }, { id: 'asc' }],
-            take: 1,
-          },
+          precioMayoristaNeto: true,
+          imagenes: IMAGEN_PRINCIPAL,
         },
       },
     },
   },
 } satisfies Prisma.ProductoSelect;
 
+const ORDEN = [
+  { nombre: 'asc' },
+  { id: 'asc' },
+] satisfies Prisma.ProductoOrderByWithRelationInput[];
+
 type FilaProducto = Prisma.ProductoGetPayload<{ select: typeof SELECCION }>;
+type FilaProductoProfesional = Prisma.ProductoGetPayload<{
+  select: typeof SELECCION_PROFESIONAL;
+}>;
 
 export interface ProductoTienda {
   id: number;
@@ -63,6 +106,25 @@ export interface ProductoTienda {
   precio: number;
   /** URL pública de la imagen principal del formato mostrado. */
   imagen: string;
+}
+
+/** Lo que ve el profesional (E2-H4): los dos precios del mismo formato y si es exclusivo. */
+export interface ProductoTiendaProfesional extends Omit<
+  ProductoTienda,
+  'precio'
+> {
+  /** Precio minorista con IVA incluido; `null` si el producto es exclusivo para profesionales. */
+  precio: number | null;
+  /** Precio mayorista con IVA incluido, en pesos enteros. */
+  precioMayorista: number;
+  exclusivo: boolean;
+}
+
+export interface ListadoTienda {
+  items: (ProductoTienda | ProductoTiendaProfesional)[];
+  total: number;
+  pagina: number;
+  limite: number;
 }
 
 export interface MarcaTienda {
@@ -81,13 +143,20 @@ export class TiendaService {
   ) {}
 
   /**
-   * Productos de la tienda (E2-H1 y E2-H2, RF-02.01, RF-02.02, RF-02.07 y RF-02.08), ordenados
-   * por nombre. Solo los activos, de venta general (los exclusivos llegan con E2-H4), sin marca
-   * o con la marca activa, y con al menos un formato vendible. Con `categoriaId` incluye sus
-   * subcategorías. Con `buscar`, cada palabra debe estar en el nombre, la marca o la categoría
-   * (propia o superior). Búsqueda y filtros se exigen a la vez.
+   * Productos de la tienda (E2-H1, E2-H2 y E2-H4; RF-02.01, RF-02.02, RF-02.04, RF-02.05,
+   * RF-02.07 y RF-02.08), ordenados por nombre. Solo los activos, sin marca o con la marca
+   * activa, y con al menos un formato vendible. Con `categoriaId` incluye sus subcategorías.
+   * Con `buscar`, cada palabra debe estar en el nombre, la marca o la categoría (propia o
+   * superior). Búsqueda y filtros se exigen a la vez.
+   *
+   * Solo el `rol` profesional ve los productos exclusivos y el precio mayorista; visitantes,
+   * clientes y personal reciben solo los de venta general con el minorista (RNF-04).
    */
-  async listarProductos(filtros: ListarTiendaDto) {
+  async listarProductos(
+    filtros: ListarTiendaDto,
+    rol?: Rol,
+  ): Promise<ListadoTienda> {
+    const verMayorista = rol === ROLES.PROFESIONAL;
     const pagina = filtros.pagina ?? 1;
     const limite = filtros.limite ?? POR_PAGINA;
     // Una palabra repetida no cambia el resultado: se busca una vez
@@ -113,9 +182,13 @@ export class TiendaService {
     }
     const where: Prisma.ProductoWhereInput = {
       activo: true,
-      canalVenta: CANALES_VENTA.GENERAL,
+      canalVenta: verMayorista
+        ? { in: [CANALES_VENTA.GENERAL, CANALES_VENTA.PROFESIONAL] }
+        : CANALES_VENTA.GENERAL,
       OR: [{ marcaId: null }, { marca: { is: { activa: true } } }],
-      formatos: { some: FORMATO_VENDIBLE },
+      formatos: {
+        some: verMayorista ? FORMATO_VENDIBLE_PROFESIONAL : FORMATO_VENDIBLE,
+      },
       categoriaId: categorias ? { in: categorias } : undefined,
       marcaId: filtros.marcaId,
       AND:
@@ -125,21 +198,36 @@ export class TiendaService {
             )
           : undefined,
     };
+    const consulta = {
+      where,
+      orderBy: ORDEN,
+      skip: (pagina - 1) * limite,
+      take: limite,
+    };
+    const precios: Precios = {
+      porcentajeIva: this.config.get('IVA_PORCENTAJE', { infer: true }),
+      urlBaseImagenes: this.config.get('R2_URL_PUBLICA', { infer: true }),
+    };
+    if (verMayorista) {
+      const [filas, total] = await this.prisma.$transaction([
+        this.prisma.producto.findMany({
+          ...consulta,
+          select: SELECCION_PROFESIONAL,
+        }),
+        this.prisma.producto.count({ where }),
+      ]);
+      const items = filas
+        .map((fila) => aProductoProfesional(fila, precios))
+        .filter((item) => item !== null);
+      return { items, total, pagina, limite };
+    }
     const [filas, total] = await this.prisma.$transaction([
-      this.prisma.producto.findMany({
-        where,
-        select: SELECCION,
-        orderBy: [{ nombre: 'asc' }, { id: 'asc' }],
-        skip: (pagina - 1) * limite,
-        take: limite,
-      }),
+      this.prisma.producto.findMany({ ...consulta, select: SELECCION }),
       this.prisma.producto.count({ where }),
     ]);
-    const porcentajeIva = this.config.get('IVA_PORCENTAJE', { infer: true });
-    const urlBaseImagenes = this.config.get('R2_URL_PUBLICA', { infer: true });
     const items = filas
-      .map((fila) => aProductoTienda(fila, porcentajeIva, urlBaseImagenes))
-      .filter((item): item is ProductoTienda => item !== null);
+      .map((fila) => aProductoTienda(fila, precios))
+      .filter((item) => item !== null);
     return { items, total, pagina, limite };
   }
 
@@ -225,37 +313,94 @@ const condicionPalabra = (
   };
 };
 
+interface Precios {
+  porcentajeIva: number;
+  urlBaseImagenes: string | undefined;
+}
+
+interface FormatoCandidato {
+  esPredeterminado: boolean;
+  articulo: { imagenes: { ubicacionArchivo: string }[] };
+}
+
 /**
  * Elige el formato que representa al producto: el predeterminado si se puede vender; si no,
- * el más barato. El precio va con IVA, en pesos enteros, igual que lo cobrará el pedido.
+ * el más barato según `neto` (el precio que ve quien consulta).
  */
-const aProductoTienda = (
-  fila: FilaProducto,
-  porcentajeIva: number,
-  urlBaseImagenes: string | undefined,
-): ProductoTienda | null => {
-  const formatos = fila.formatos
-    .map((formato) => ({
-      esPredeterminado: formato.esPredeterminado,
-      neto: Number(formato.articulo.precioMinoristaNeto),
-      imagen: formato.articulo.imagenes[0]?.ubicacionArchivo,
-    }))
-    .filter((formato) => formato.imagen !== undefined)
+const elegirFormato = <F extends FormatoCandidato>(
+  formatos: F[],
+  neto: (formato: F) => number,
+) =>
+  formatos
+    .filter((formato) => formato.articulo.imagenes[0] !== undefined)
     .sort(
       (a, b) =>
         Number(b.esPredeterminado) - Number(a.esPredeterminado) ||
-        a.neto - b.neto,
-    );
-  const elegido = formatos[0];
-  if (!elegido?.imagen) {
+        neto(a) - neto(b),
+    )[0];
+
+/** Los datos del producto que ven todos, con la imagen del formato elegido. */
+const datosComunes = (
+  fila: FilaProducto | FilaProductoProfesional,
+  formato: FormatoCandidato,
+  { urlBaseImagenes }: Precios,
+) => ({
+  id: fila.id,
+  nombre: fila.nombre,
+  marca: fila.marca,
+  categoria: fila.categoria,
+  imagen: urlPublicaArchivo(
+    urlBaseImagenes,
+    formato.articulo.imagenes[0]!.ubicacionArchivo,
+  ),
+});
+
+/** Para quien no es profesional. El precio va con IVA, en pesos enteros, como lo cobrará el pedido. */
+const aProductoTienda = (
+  fila: FilaProducto,
+  precios: Precios,
+): ProductoTienda | null => {
+  const elegido = elegirFormato(fila.formatos, (formato) =>
+    Number(formato.articulo.precioMinoristaNeto),
+  );
+  if (!elegido) {
     return null;
   }
   return {
-    id: fila.id,
-    nombre: fila.nombre,
-    marca: fila.marca,
-    categoria: fila.categoria,
-    precio: precioConIva(elegido.neto, porcentajeIva),
-    imagen: urlPublicaArchivo(urlBaseImagenes, elegido.imagen),
+    ...datosComunes(fila, elegido, precios),
+    precio: precioConIva(
+      Number(elegido.articulo.precioMinoristaNeto),
+      precios.porcentajeIva,
+    ),
+  };
+};
+
+/**
+ * Para el profesional (E2-H4): el formato se elige por el mayorista y los dos precios salen de
+ * ese mismo formato. Un exclusivo no muestra el minorista aunque lo tenga guardado (E3-H5).
+ */
+const aProductoProfesional = (
+  fila: FilaProductoProfesional,
+  precios: Precios,
+): ProductoTiendaProfesional | null => {
+  const elegido = elegirFormato(fila.formatos, (formato) =>
+    Number(formato.articulo.precioMayoristaNeto),
+  );
+  if (!elegido) {
+    return null;
+  }
+  const exclusivo = fila.canalVenta === CANALES_VENTA.PROFESIONAL;
+  const { precioMinoristaNeto, precioMayoristaNeto } = elegido.articulo;
+  return {
+    ...datosComunes(fila, elegido, precios),
+    precio:
+      exclusivo || precioMinoristaNeto === null
+        ? null
+        : precioConIva(Number(precioMinoristaNeto), precios.porcentajeIva),
+    precioMayorista: precioConIva(
+      Number(precioMayoristaNeto),
+      precios.porcentajeIva,
+    ),
+    exclusivo,
   };
 };

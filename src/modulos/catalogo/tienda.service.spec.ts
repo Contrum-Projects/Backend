@@ -1,5 +1,6 @@
 import { NotFoundException } from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
+import { ROLES } from '../../common/dominio/roles.js';
 import type { Entorno } from '../../config/entorno.js';
 import type { PrismaService } from '../../prisma/prisma.service.js';
 import type { CacheCatalogo } from './cache-catalogo.js';
@@ -347,6 +348,195 @@ describe('TiendaService', () => {
       expect(whereDe(prisma)).toMatchObject({ AND: undefined });
       expect(prisma.categoria.findMany).not.toHaveBeenCalled();
     });
+  });
+
+  describe('listarProductos según el rol (E2-H4)', () => {
+    /** Formato como lo lee la consulta del profesional, con los dos precios. */
+    const formatoPro = (
+      minorista: string | null,
+      mayorista: string,
+      extra: object = {},
+      imagen = 'img/a.jpg',
+    ) => ({
+      esPredeterminado: false,
+      articulo: {
+        precioMinoristaNeto: minorista,
+        precioMayoristaNeto: mayorista,
+        imagenes: [{ ubicacionArchivo: imagen }],
+      },
+      ...extra,
+    });
+
+    const consultaDe = () =>
+      JSON.stringify(prisma.producto.findMany.mock.calls[0]);
+
+    beforeEach(() => {
+      prisma.producto.findMany.mockResolvedValue([
+        fila({
+          canalVenta: 'general',
+          formatos: [formatoPro('10000', '7000')],
+        }),
+      ]);
+    });
+
+    it('E2-H4 · precio mayorista: el profesional recibe el mayorista con IVA y el minorista del mismo formato', async () => {
+      prisma.producto.findMany.mockResolvedValue([
+        fila({
+          canalVenta: 'general',
+          formatos: [formatoPro('10000', '7000')],
+        }),
+      ]);
+
+      const { items } = await servicio.listarProductos({}, ROLES.PROFESIONAL);
+
+      expect(items).toEqual([
+        {
+          id: 5,
+          nombre: 'Shampoo reparador',
+          marca: { id: 2, nombre: 'Kerastase' },
+          categoria: { id: 3, nombre: 'Reparación' },
+          precio: 11900,
+          precioMayorista: 8330,
+          exclusivo: false,
+          imagen: 'img/a.jpg',
+        },
+      ]);
+      expect(consultaDe()).toContain('"precioMayoristaNeto":true');
+    });
+
+    it('E2-H4 · precio mayorista: el formato se elige por el predeterminado y, si no hay, por el mayorista más barato', async () => {
+      prisma.producto.findMany.mockResolvedValue([
+        fila({
+          canalVenta: 'general',
+          formatos: [
+            formatoPro('5000', '4000', {}, 'img/chico.jpg'),
+            formatoPro(
+              '20000',
+              '15000',
+              { esPredeterminado: true },
+              'img/g.jpg',
+            ),
+          ],
+        }),
+        fila({
+          id: 6,
+          canalVenta: 'general',
+          formatos: [
+            // El minorista más barato no es el del mayorista más barato
+            formatoPro('3000', '2900', {}, 'img/b.jpg'),
+            formatoPro('3500', '2000', {}, 'img/c.jpg'),
+          ],
+        }),
+      ]);
+
+      const { items } = await servicio.listarProductos({}, ROLES.PROFESIONAL);
+
+      expect(items[0]).toMatchObject({
+        precio: 23800,
+        precioMayorista: 17850,
+        imagen: 'img/g.jpg',
+      });
+      expect(items[1]).toMatchObject({
+        precio: 4165,
+        precioMayorista: 2380,
+        imagen: 'img/c.jpg',
+      });
+    });
+
+    it('E2-H4 · productos exclusivos: el profesional los ve en el listado, con canal general o profesional', async () => {
+      await servicio.listarProductos({}, ROLES.PROFESIONAL);
+
+      expect(whereDe(prisma)).toMatchObject({
+        activo: true,
+        canalVenta: { in: ['general', 'profesional'] },
+      });
+    });
+
+    it('E2-H4 · productos exclusivos: también aparecen al buscar y filtrar', async () => {
+      await servicio.listarProductos(
+        { buscar: 'shampoo', categoriaId: 1, marcaId: 2 },
+        ROLES.PROFESIONAL,
+      );
+
+      expect(whereDe(prisma)).toMatchObject({
+        canalVenta: { in: ['general', 'profesional'] },
+        categoriaId: { in: [1, 2, 3] },
+        marcaId: 2,
+        AND: [expect.any(Object)],
+      });
+    });
+
+    it('E2-H4 · productos exclusivos: se venden con solo el precio mayorista; el general sigue exigiendo los dos', async () => {
+      await servicio.listarProductos({}, ROLES.PROFESIONAL);
+
+      expect(whereDe(prisma)).toMatchObject({
+        formatos: {
+          some: {
+            articulo: {
+              activo: true,
+              precioMayoristaNeto: { not: null },
+              imagenes: { some: {} },
+            },
+            OR: [
+              { producto: { canalVenta: 'profesional' } },
+              { articulo: { precioMinoristaNeto: { not: null } } },
+            ],
+          },
+        },
+      });
+    });
+
+    it('E2-H4 · productos exclusivos: van marcados y sin precio minorista, aunque tengan uno guardado', async () => {
+      prisma.producto.findMany.mockResolvedValue([
+        fila({
+          canalVenta: 'profesional',
+          formatos: [formatoPro('10000', '7000')],
+        }),
+        fila({
+          id: 6,
+          canalVenta: 'profesional',
+          formatos: [formatoPro(null, '5000')],
+        }),
+      ]);
+
+      const { items } = await servicio.listarProductos({}, ROLES.PROFESIONAL);
+
+      expect(items[0]).toMatchObject({
+        precio: null,
+        precioMayorista: 8330,
+        exclusivo: true,
+      });
+      expect(items[1]).toMatchObject({
+        precio: null,
+        precioMayorista: 5950,
+        exclusivo: true,
+      });
+    });
+
+    it.each([
+      ['visitante', undefined],
+      ['cliente', ROLES.CLIENTE],
+      ['vendedor', ROLES.VENDEDOR],
+      ['bodeguero', ROLES.BODEGUERO],
+      ['administrador', ROLES.ADMINISTRADOR],
+    ])(
+      'E2-H4 · usuario no verificado (%s): solo venta general, sin leer ni enviar el precio mayorista',
+      async (_nombre, rol) => {
+        const { items } = await servicio.listarProductos({}, rol);
+
+        expect(whereDe(prisma)).toMatchObject({ canalVenta: 'general' });
+        expect(consultaDe()).not.toContain('"precioMayoristaNeto":true');
+        expect(consultaDe()).not.toContain('"canalVenta":true');
+        expect(Object.keys(items[0]!).sort()).toEqual([
+          'categoria',
+          'id',
+          'imagen',
+          'marca',
+          'nombre',
+          'precio',
+        ]);
+      },
+    );
   });
 
   describe('categorías y marcas', () => {

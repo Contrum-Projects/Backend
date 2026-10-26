@@ -204,6 +204,19 @@ tildes (sin `unaccent`). Vacío o solo espacios no filtra; más de 100 caractere
 condiciones a la consulta) responde 400; caracteres de control, también 400.
 `%`, `_` y `\` se buscan como texto: Prisma no escapa los comodines de ILIKE en `contains`, hay
 que escaparlos antes. Sin coincidencias responde 200 con la lista vacía; sin caché.
+Decisiones del 26 oct (E2-H4): `GET /api/tienda/productos` acepta sesión **opcional**
+(`SesionOpcionalGuard`): sin `Authorization` es un visitante; con un token inválido, vencido o de
+una sesión cerrada responde 401 (no se trata como visitante). Se usa el rol del token, que es
+confiable porque cambiar el rol revoca las sesiones (RNF-28). Solo el rol `profesional` ve los
+productos exclusivos (canal `profesional`) junto a los generales, al explorar, buscar y filtrar;
+cliente, visitante y **personal** ven solo los generales, con una consulta que no lee el
+mayorista. Para el profesional, cada producto trae `precio` (minorista con IVA; `null` si es
+exclusivo, aunque tenga uno guardado), `precioMayorista` (con IVA, `precioConIva()`) y
+`exclusivo`; los dos precios salen del mismo formato: el predeterminado o el de mayorista más
+barato. El formato de un exclusivo se vende con mayorista e imagen (sin exigir minorista); el de
+uno general sigue exigiendo los dos precios. Alcance: solo el listado; el detalle (E2-H3) debe
+reutilizar esta regla. PENDIENTE: ninguna historia de E2 lista packs (generales ni exclusivos).
+Que solo el profesional compre exclusivos lo valida E5 al crear el pedido.
 
 **E11 Inventario.** Sin lotes. Stock por formato y ubicación (EXISTENCIA). El stock nunca queda bajo
 cero ni cambia sin un MOVIMIENTO que lo explique. Entrada: proveedor, documento y detalle (un

@@ -31,8 +31,10 @@ interface ProductoTienda {
   nombre: string;
   marca: { id: number; nombre: string } | null;
   categoria: { id: number; nombre: string };
-  precio: number;
+  precio: number | null;
   imagen: string;
+  precioMayorista?: number;
+  exclusivo?: boolean;
 }
 
 interface ListadoRespuesta {
@@ -86,6 +88,8 @@ describe('Tienda · explorar el catálogo (e2e)', () => {
     /** Formatos del producto; por defecto uno vendible de $10.000 neto con imagen. */
     formatos?: {
       minorista: number | null;
+      /** Por defecto $7.777 neto. */
+      mayorista?: number | null;
       predeterminado?: boolean;
       activo?: boolean;
       imagen?: boolean;
@@ -118,7 +122,8 @@ describe('Tienda · explorar el catálogo (e2e)', () => {
           sku: `${PREFIJO}-${randomUUID().slice(0, 8)}`,
           tipo: TIPOS_ARTICULO.FORMATO,
           precioMinoristaNeto: formato.minorista,
-          precioMayoristaNeto: 7777,
+          precioMayoristaNeto:
+            formato.mayorista === undefined ? 7777 : formato.mayorista,
           activo: formato.activo ?? true,
         },
       });
@@ -155,8 +160,34 @@ describe('Tienda · explorar el catálogo (e2e)', () => {
     return producto;
   };
 
-  const listar = (consulta: object = {}) =>
-    request(app.getHttpServer()).get(`${RUTA}/productos`).query(consulta);
+  const listar = (consulta: object = {}, token?: string) => {
+    const peticion = request(app.getHttpServer())
+      .get(`${RUTA}/productos`)
+      .query(consulta);
+    return token ? peticion.auth(token, { type: 'bearer' }) : peticion;
+  };
+
+  /** Crea una cuenta con el rol indicado, inicia sesión y devuelve su token de acceso. */
+  const tokenDe = async (rol: string) => {
+    const email = `e2e-tienda-${randomUUID()}@prueba.cl`;
+    correosCreados.push(email);
+    await prisma.usuario.create({
+      data: {
+        codigoPublico: randomUUID(),
+        nombre: 'Camila',
+        apellido: 'Rojas',
+        email,
+        contrasenaHash: await argon2.hash(CONTRASENA),
+        rol,
+        fechaVerificacionCorreo: new Date(),
+      },
+    });
+    const sesion = await request(app.getHttpServer())
+      .post('/api/cuentas/sesion')
+      .send({ email, contrasena: CONTRASENA })
+      .expect(200);
+    return (sesion.body as { tokenAcceso: string }).tokenAcceso;
+  };
 
   const conIva = (neto: number) => calcularMontos(neto, porcentajeIva).total;
 
@@ -580,6 +611,149 @@ describe('Tienda · explorar el catálogo (e2e)', () => {
         'La búsqueda admite hasta 5 palabras.',
       );
       await listar({ buscar: '  a  b c d e ' }).expect(200);
+    });
+  });
+
+  describe('GET /tienda/productos según el rol (E2-H4)', () => {
+    /** Una categoría con un producto general y uno exclusivo que solo tiene mayorista. */
+    const catalogoMixto = async () => {
+      const categoria = await nuevaCategoria();
+      const general = await nuevoProducto({
+        categoriaId: categoria,
+        nombre: 'General',
+        formatos: [{ minorista: 10000, mayorista: 7000 }],
+      });
+      const exclusivo = await nuevoProducto({
+        categoriaId: categoria,
+        nombre: 'Exclusivo',
+        canalVenta: CANALES_VENTA.PROFESIONAL,
+        formatos: [{ minorista: null, mayorista: 5000 }],
+      });
+      return { categoria, general, exclusivo };
+    };
+
+    it('E2-H4 · precio mayorista: el profesional recibe el mayorista con IVA junto al minorista', async () => {
+      const { categoria, general } = await catalogoMixto();
+      const token = await tokenDe(ROLES.PROFESIONAL);
+
+      const { items } = (
+        await listar({ categoriaId: categoria }, token).expect(200)
+      ).body as ListadoRespuesta;
+
+      expect(items.find((p) => p.id === general.id)).toEqual({
+        id: general.id,
+        nombre: general.nombre,
+        marca: { id: marcaId, nombre: expect.any(String) as string },
+        categoria: { id: categoria, nombre: expect.any(String) as string },
+        precio: conIva(10000),
+        precioMayorista: conIva(7000),
+        exclusivo: false,
+        imagen: expect.stringMatching(/principal\.jpg$/) as string,
+      });
+    });
+
+    it('E2-H4 · productos exclusivos: el profesional los ve al explorar, sin precio minorista', async () => {
+      const { categoria, general, exclusivo } = await catalogoMixto();
+      const token = await tokenDe(ROLES.PROFESIONAL);
+
+      const cuerpo = (
+        await listar({ categoriaId: categoria }, token).expect(200)
+      ).body as ListadoRespuesta;
+
+      expect(cuerpo.total).toBe(2);
+      expect(cuerpo.items.map((p) => p.id)).toEqual(
+        expect.arrayContaining([general.id, exclusivo.id]),
+      );
+      expect(cuerpo.items.find((p) => p.id === exclusivo.id)).toMatchObject({
+        precio: null,
+        precioMayorista: conIva(5000),
+        exclusivo: true,
+      });
+    });
+
+    it('E2-H4 · productos exclusivos: el profesional los encuentra al buscar', async () => {
+      const categoria = await nuevaCategoria();
+      const palabra = palabraUnica();
+      const exclusivo = await nuevoProducto({
+        categoriaId: categoria,
+        nombre: palabra,
+        canalVenta: CANALES_VENTA.PROFESIONAL,
+        formatos: [{ minorista: null, mayorista: 5000 }],
+      });
+      const token = await tokenDe(ROLES.PROFESIONAL);
+
+      const conSesion = (await listar({ buscar: palabra }, token).expect(200))
+        .body as ListadoRespuesta;
+      const sinSesion = (await listar({ buscar: palabra }).expect(200))
+        .body as ListadoRespuesta;
+
+      expect(conSesion.items.map((p) => p.id)).toEqual([exclusivo.id]);
+      expect(sinSesion).toMatchObject({ items: [], total: 0 });
+    });
+
+    it('E2-H4 · productos exclusivos: sin precio mayorista, inactivo o sin imagen no se muestra', async () => {
+      const categoria = await nuevaCategoria();
+      const exclusivo = {
+        categoriaId: categoria,
+        canalVenta: CANALES_VENTA.PROFESIONAL,
+      };
+      await nuevoProducto({
+        ...exclusivo,
+        formatos: [{ minorista: 10000, mayorista: null }],
+      });
+      await nuevoProducto({ ...exclusivo, activo: false });
+      await nuevoProducto({
+        ...exclusivo,
+        formatos: [{ minorista: null, imagen: false }],
+      });
+      // Un general sin minorista tampoco se vende, ni siquiera al profesional
+      await nuevoProducto({
+        categoriaId: categoria,
+        formatos: [{ minorista: null }],
+      });
+      const token = await tokenDe(ROLES.PROFESIONAL);
+
+      const respuesta = await listar({ categoriaId: categoria }, token).expect(
+        200,
+      );
+
+      expect(respuesta.body).toMatchObject({ items: [], total: 0 });
+    });
+
+    it.each([
+      ['visitante', undefined],
+      ['cliente', ROLES.CLIENTE],
+      ['vendedor', ROLES.VENDEDOR],
+    ])(
+      'E2-H4 · usuario no verificado (%s): solo el minorista, sin exclusivos ni precio mayorista',
+      async (_nombre, rol) => {
+        const { categoria, general } = await catalogoMixto();
+        const token = rol ? await tokenDe(rol) : undefined;
+
+        const respuesta = await listar(
+          { categoriaId: categoria },
+          token,
+        ).expect(200);
+
+        const cuerpo = respuesta.body as ListadoRespuesta;
+        expect(cuerpo.total).toBe(1);
+        expect(cuerpo.items.map((p) => p.id)).toEqual([general.id]);
+        expect(cuerpo.items[0]!.precio).toBe(conIva(10000));
+        expect(respuesta.text).not.toMatch(/mayorista|exclusivo/i);
+        expect(respuesta.text).not.toContain(String(conIva(7000)));
+      },
+    );
+
+    it('E2-H4 · token inválido o de una sesión cerrada: 401', async () => {
+      const categoria = await nuevaCategoria();
+      const token = await tokenDe(ROLES.PROFESIONAL);
+      await request(app.getHttpServer())
+        .delete('/api/cuentas/sesion/todas')
+        .auth(token, { type: 'bearer' })
+        .expect(204);
+
+      await listar({ categoriaId: categoria }, 'no-es-un-token').expect(401);
+      await listar({ categoriaId: categoria }, token).expect(401);
     });
   });
 
