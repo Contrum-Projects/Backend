@@ -41,7 +41,7 @@ const COMPONENTE_GENERAL = {
  * Packs de la tienda para quien no es profesional (E3-H6): de venta general, vigentes hoy, con
  * el artículo activo, sus dos precios e imagen, y todos sus componentes a la venta.
  */
-const packsGenerales = (hoy: string): Prisma.PackWhereInput => ({
+export const packsGenerales = (hoy: string): Prisma.PackWhereInput => ({
   ...packVigente(hoy),
   canalVenta: CANALES_VENTA.GENERAL,
   articulo: {
@@ -57,7 +57,7 @@ const packsGenerales = (hoy: string): Prisma.PackWhereInput => ({
  * Para el profesional, como en E2-H4: también los exclusivos, que solo necesitan el precio
  * mayorista; los generales siguen exigiendo los dos precios.
  */
-const packsProfesional = (hoy: string): Prisma.PackWhereInput => ({
+export const packsProfesional = (hoy: string): Prisma.PackWhereInput => ({
   AND: [
     packVigente(hoy),
     {
@@ -82,7 +82,7 @@ const packsProfesional = (hoy: string): Prisma.PackWhereInput => ({
   componentes: { some: {} },
 });
 
-const COMPONENTES = {
+export const COMPONENTES = {
   select: {
     cantidad: true,
     formato: {
@@ -93,7 +93,7 @@ const COMPONENTES = {
 } satisfies Prisma.Pack$componentesArgs;
 
 /** Lo que ve quien no es profesional. El `select` es explícito: no lee el mayorista (RNF-04). */
-const SELECCION = {
+export const SELECCION = {
   id: true,
   nombre: true,
   descripcion: true,
@@ -104,7 +104,7 @@ const SELECCION = {
   componentes: COMPONENTES,
 } satisfies Prisma.PackSelect;
 
-const SELECCION_PROFESIONAL = {
+export const SELECCION_PROFESIONAL = {
   ...SELECCION,
   canalVenta: true,
   articulo: {
@@ -121,8 +121,8 @@ const ORDEN = [
   { id: 'asc' },
 ] satisfies Prisma.PackOrderByWithRelationInput[];
 
-type FilaPack = Prisma.PackGetPayload<{ select: typeof SELECCION }>;
-type FilaPackProfesional = Prisma.PackGetPayload<{
+export type FilaPack = Prisma.PackGetPayload<{ select: typeof SELECCION }>;
+export type FilaPackProfesional = Prisma.PackGetPayload<{
   select: typeof SELECCION_PROFESIONAL;
 }>;
 
@@ -231,7 +231,7 @@ const datosComunes = (
   })),
 });
 
-const aPackTienda = (
+export const aPackTienda = (
   fila: FilaPack,
   porcentajeIva: number,
   urlBase: string | undefined,
@@ -244,7 +244,7 @@ const aPackTienda = (
 });
 
 /** Un exclusivo no muestra el minorista aunque lo tenga guardado (E3-H5). */
-const aPackProfesional = (
+export const aPackProfesional = (
   fila: FilaPackProfesional,
   porcentajeIva: number,
   urlBase: string | undefined,
