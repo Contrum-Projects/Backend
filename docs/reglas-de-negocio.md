@@ -206,6 +206,20 @@ historia de E2 que muestre exclusivos al profesional debe dejar de exigir el min
 `FORMATO_VENDIBLE` para ese canal.
 El precio con IVA de la tienda es `precioConIva()` (`montos.ts`): el neto se redondea al peso y
 luego se le suma el IVA; el pedido (E5) debe usar la misma función.
+Decisiones del 26 oct (E3-H6): rutas `POST` y `GET /api/catalogo/packs`, `GET` y `PATCH
+/api/catalogo/packs/:id`, con `catalogo.gestionar`. El pack trae SKU (mismas reglas y unicidad
+que el formato, 409), nombre, descripción, canal de venta, vigencia opcional y sus componentes
+(`formatoId` y `cantidad`). Nace activo, **sin precios** (los fija el administrador con
+`PUT /api/catalogo/articulos/:id/precios`, E3-H5) y sin stock propio: no tiene existencias. Lleva
+al menos un formato, hasta 20 distintos, cada uno una vez, con cantidad entera de 1 a 99 y al
+menos 2 unidades en total (un «3x2» de un mismo formato vale). Cada componente debe ser un
+formato de producto: otro pack (incluido él mismo) responde 400; un id inexistente, o un formato o
+producto desactivado, también 400. Un pack `general` no lleva formatos de productos exclusivos
+(400); uno `profesional` sí. Vigencia: fechas AAAA-MM-DD, ambas opcionales, días incluidos en hora
+de Chile; el término no puede ser anterior al inicio (400). `PATCH` cambia solo lo que llega,
+`null` quita una fecha y `componentes` reemplaza la lista completa; si cambian el canal o los
+componentes se revisan otra vez las reglas, con la fila del pack bloqueada. El panel devuelve
+`vigente` calculado con el día de hoy.
 
 **E2 Catálogo público.** Precio según rol calculado en el backend. Disponibilidad desde el stock
 vendible (solo bodegas con `abasteceVentaOnline`); la de un pack es la de su componente más escaso.
@@ -230,8 +244,16 @@ exclusivo, aunque tenga uno guardado), `precioMayorista` (con IVA, `precioConIva
 `exclusivo`; los dos precios salen del mismo formato: el predeterminado o el de mayorista más
 barato. El formato de un exclusivo se vende con mayorista e imagen (sin exigir minorista); el de
 uno general sigue exigiendo los dos precios. Alcance: solo el listado; el detalle (E2-H3) debe
-reutilizar esta regla. PENDIENTE: ninguna historia de E2 lista packs (generales ni exclusivos).
+reutilizar esta regla.
 Que solo el profesional compre exclusivos lo valida E5 al crear el pedido.
+Decisiones del 26 oct (E3-H6): los packs se listan aparte en `GET /api/tienda/packs` (paginado,
+por nombre, sesión opcional como E2-H4, sin caché). Solo salen los packs vigentes hoy en hora de
+Chile, con el artículo activo, imagen y todos sus componentes activos (formato, producto y marca).
+Visitante, cliente y personal ven solo los generales con los dos precios, sin leer el mayorista; el
+profesional ve además los exclusivos (solo con mayorista) y recibe `precioMayorista` y `exclusivo`
+(`precio` en `null` si es exclusivo). Un pack general con un componente cuyo producto pasó a
+exclusivo deja de mostrarse. Cada pack trae `vigenteHasta` y sus componentes (producto, formato,
+cantidad). La disponibilidad (componente más escaso) no se muestra, igual que en los productos.
 
 **E11 Inventario.** Sin lotes. Stock por formato y ubicación (EXISTENCIA). El stock nunca queda bajo
 cero ni cambia sin un MOVIMIENTO que lo explique. Entrada: proveedor, documento y detalle (un

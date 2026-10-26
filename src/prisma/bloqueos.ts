@@ -7,6 +7,9 @@ type Tx = Prisma.TransactionClient;
  * Bloqueos de fila y de transacción (RNF-12, RNF-13). Cada uno dura hasta el fin de la
  * transacción. Están todos aquí para que dos módulos que protegen el mismo dato tomen el mismo
  * bloqueo, y para que ningún número de bloqueo de transacción se repita.
+ *
+ * Orden de las filas del catálogo, para que dos transacciones no se esperen entre sí: primero el
+ * artículo, luego el pack o el producto.
  */
 
 /**
@@ -46,12 +49,16 @@ export const bloquearCuenta = async (
 };
 
 /** Bloquea la fila del artículo de venta (formato o pack): imágenes y precios (E3-H3, E3-H5). */
-export const bloquearArticulo = async (tx: Tx, id: number): Promise<void> => {
+export const bloquearArticulo = async (
+  tx: Tx,
+  id: number,
+  noExiste = 'El artículo no existe.',
+): Promise<void> => {
   const [articulo] = await tx.$queryRaw<{ id: number }[]>`
     SELECT id_articulo AS id FROM articulo_venta
     WHERE id_articulo = ${id}
     FOR UPDATE`;
-  if (!articulo) throw new NotFoundException('El artículo no existe.');
+  if (!articulo) throw new NotFoundException(noExiste);
 };
 
 /**
@@ -84,9 +91,35 @@ export const bloquearProductoDelFormato = async (
   return producto.productoId;
 };
 
-/** Bloquea la fila del pack: su canal de venta mientras se fijan precios (E3-H5). */
-export const bloquearPack = async (tx: Tx, id: number): Promise<void> => {
+/**
+ * Bloquea la fila del pack: su canal de venta mientras se fijan precios (E3-H5) y su canal y
+ * componentes mientras se editan (E3-H6).
+ */
+export const bloquearPack = async (
+  tx: Tx,
+  id: number,
+  noExiste = 'El artículo no existe.',
+): Promise<void> => {
   const [pack] = await tx.$queryRaw<{ id: number }[]>`
     SELECT id_pack AS id FROM pack WHERE id_pack = ${id} FOR UPDATE`;
-  if (!pack) throw new NotFoundException('El artículo no existe.');
+  if (!pack) throw new NotFoundException(noExiste);
+};
+
+/**
+ * Bloquea para lectura (`FOR SHARE`) los productos de esos formatos, en orden de id: su canal y
+ * si están activos no cambian mientras se guardan como componentes de un pack (E3-H6).
+ */
+export const bloquearProductosDeFormatos = async (
+  tx: Tx,
+  formatoIds: number[],
+): Promise<void> => {
+  if (formatoIds.length === 0) return;
+  await tx.$queryRaw`
+    SELECT p.id_producto FROM producto p
+    WHERE p.id_producto IN (
+      SELECT f.id_producto FROM formato_producto f
+      WHERE f.id_formato = ANY(${formatoIds}::int[])
+    )
+    ORDER BY p.id_producto
+    FOR SHARE`;
 };

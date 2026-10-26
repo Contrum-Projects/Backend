@@ -13,7 +13,9 @@ import {
   SesionOpcionalGuard,
   UsuarioOpcional,
 } from '../../autenticacion/sesion-opcional.guard.js';
+import { Paginacion } from '../../common/validacion/paginacion.js';
 import { ListarTiendaDto } from './dto/listar-tienda.dto.js';
+import { TiendaPacksService } from './tienda-packs.service.js';
 import { TiendaService } from './tienda.service.js';
 
 /**
@@ -23,7 +25,10 @@ import { TiendaService } from './tienda.service.js';
 @ApiTags('tienda')
 @Controller('tienda')
 export class TiendaController {
-  constructor(private readonly tienda: TiendaService) {}
+  constructor(
+    private readonly tienda: TiendaService,
+    private readonly packs: TiendaPacksService,
+  ) {}
 
   @Get('productos')
   @UseGuards(SesionOpcionalGuard)
@@ -48,6 +53,27 @@ export class TiendaController {
     @UsuarioOpcional() usuario: UsuarioAutenticado | undefined,
   ) {
     return this.tienda.listarProductos(filtros, usuario?.rol);
+  }
+
+  @Get('packs')
+  @UseGuards(SesionOpcionalGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Packs de la tienda (E3-H6)',
+    description:
+      'Packs activos, vigentes hoy (hora de Chile) y a la venta, ordenados por nombre y paginados, con imagen, precio minorista con IVA, último día de la promoción y sus componentes. Un pack fuera de su vigencia no se devuelve. La sesión es opcional: con el token de una cuenta profesional se incluyen los packs exclusivos y cada pack trae además `precioMayorista` con IVA y `exclusivo` (`precio` es `null` en los exclusivos).',
+  })
+  @ApiOkResponse({ description: 'Página de packs con el total.' })
+  @ApiBadRequestResponse({ description: 'Paginación inválida.' })
+  @ApiUnauthorizedResponse({
+    description:
+      'Llegó un token de acceso inválido, vencido o de una sesión cerrada.',
+  })
+  listarPacks(
+    @Query() paginacion: Paginacion,
+    @UsuarioOpcional() usuario: UsuarioAutenticado | undefined,
+  ) {
+    return this.packs.listar(paginacion, usuario?.rol);
   }
 
   @Get('categorias')

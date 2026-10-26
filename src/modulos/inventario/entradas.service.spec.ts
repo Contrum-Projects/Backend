@@ -4,7 +4,6 @@ import type { PrismaService } from '../../prisma/prisma.service.js';
 import type { CrearEntradaDto } from './dto/crear-entrada.dto.js';
 import {
   EntradasService,
-  hoyEnLaTienda,
   normalizarNumeroDocumento,
 } from './entradas.service.js';
 
@@ -297,10 +296,5 @@ describe('EntradasService', () => {
     await expect(
       servicio.registrar(dtoBase(), 'uuid-bodeguero'),
     ).rejects.toThrow('conexión perdida');
-  });
-
-  it('hoyEnLaTienda usa la fecha de Chile', () => {
-    expect(hoyEnLaTienda(new Date('2026-10-26T02:30:00Z'))).toBe('2026-10-25');
-    expect(hoyEnLaTienda(new Date('2026-10-26T03:30:00Z'))).toBe('2026-10-26');
   });
 });
