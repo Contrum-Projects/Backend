@@ -17,7 +17,7 @@ import { MarcasService } from './marcas.service.js';
  * Un formato se puede vender en la tienda si su artículo está activo, tiene sus dos precios e
  * imagen. El formato nace sin precios (E3-H2) y no se muestra hasta que E3-H5 los fija.
  */
-const FORMATO_VENDIBLE = {
+export const FORMATO_VENDIBLE = {
   articulo: {
     activo: true,
     precioMinoristaNeto: { not: null },
@@ -30,7 +30,7 @@ const FORMATO_VENDIBLE = {
  * Para el profesional (E2-H4): el formato de un producto exclusivo solo necesita el precio
  * mayorista, porque no se vende a minoristas (E3-H5); el de uno general, los dos precios.
  */
-const FORMATO_VENDIBLE_PROFESIONAL = {
+export const FORMATO_VENDIBLE_PROFESIONAL = {
   articulo: {
     activo: true,
     precioMayoristaNeto: { not: null },
@@ -41,6 +41,24 @@ const FORMATO_VENDIBLE_PROFESIONAL = {
     { articulo: { precioMinoristaNeto: { not: null } } },
   ],
 } satisfies Prisma.FormatoProductoWhereInput;
+
+/**
+ * Producto que la tienda muestra (E2-H1 y E2-H4): activo, sin marca o con la marca activa y con
+ * al menos un formato vendible. Solo el profesional ve los exclusivos. El detalle (E2-H3) usa
+ * esta misma regla.
+ */
+export const productoALaVenta = (
+  verMayorista: boolean,
+): Prisma.ProductoWhereInput => ({
+  activo: true,
+  canalVenta: verMayorista
+    ? { in: [CANALES_VENTA.GENERAL, CANALES_VENTA.PROFESIONAL] }
+    : CANALES_VENTA.GENERAL,
+  OR: [{ marcaId: null }, { marca: { is: { activa: true } } }],
+  formatos: {
+    some: verMayorista ? FORMATO_VENDIBLE_PROFESIONAL : FORMATO_VENDIBLE,
+  },
+});
 
 /** La imagen que la tienda muestra de un artículo: la principal (también la usan los packs). */
 export const IMAGEN_PRINCIPAL = {
@@ -182,14 +200,7 @@ export class TiendaService {
       await this.exigirMarcaActiva(filtros.marcaId);
     }
     const where: Prisma.ProductoWhereInput = {
-      activo: true,
-      canalVenta: verMayorista
-        ? { in: [CANALES_VENTA.GENERAL, CANALES_VENTA.PROFESIONAL] }
-        : CANALES_VENTA.GENERAL,
-      OR: [{ marcaId: null }, { marca: { is: { activa: true } } }],
-      formatos: {
-        some: verMayorista ? FORMATO_VENDIBLE_PROFESIONAL : FORMATO_VENDIBLE,
-      },
+      ...productoALaVenta(verMayorista),
       categoriaId: categorias ? { in: categorias } : undefined,
       marcaId: filtros.marcaId,
       AND:

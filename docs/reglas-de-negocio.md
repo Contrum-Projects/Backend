@@ -254,6 +254,23 @@ profesional ve además los exclusivos (solo con mayorista) y recibe `precioMayor
 (`precio` en `null` si es exclusivo). Un pack general con un componente cuyo producto pasó a
 exclusivo deja de mostrarse. Cada pack trae `vigenteHasta` y sus componentes (producto, formato,
 cantidad). La disponibilidad (componente más escaso) no se muestra, igual que en los productos.
+Decisiones del 26 oct (E2-H3): el detalle es `GET /api/tienda/productos/:id` y
+`GET /api/tienda/packs/:id`, con sesión opcional como E2-H4 y sin caché. Se ve con la **misma
+regla del listado** (`productoALaVenta`, `packsGenerales` y `packsProfesional`): lo que el listado
+no muestra a ese rol (inactivo, sin formato vendible, de marca desactivada, fuera de vigencia o
+exclusivo para quien no es profesional) responde 404, sin revelar que existe. El producto trae sus
+formatos vendibles (el predeterminado primero), cada uno con todas sus imágenes (la principal
+primero), su precio con IVA y su `disponibilidad`; el pack, lo mismo que en el listado más sus
+imágenes y su `disponibilidad`. El profesional recibe además el mayorista, como en E2-H4.
+**Stock vendible:** la suma de EXISTENCIA en ubicaciones activas de bodegas activas con
+`abasteceVentaOnline` (`EXISTENCIA_VENDIBLE`, `src/modulos/catalogo/disponibilidad.ts`). La
+disponibilidad es `DISPONIBILIDADES`: `disponible` con al menos una unidad, `agotado` si no; no se
+informa cuántas unidades hay. La de un pack es la de su componente más escaso contando las
+unidades que lleva: `min(floor(stock / cantidad))`. **El carrito y el pedido (E5) deben rechazar
+un artículo agotado** usando `stockVendible`, `unidadesDePack` y `disponibilidad` de ese archivo
+(criterio 2 de E2-H3); `stockVendible` acepta el cliente de una transacción. Consecuencia
+aceptada del criterio 3: cruzando un formato con los packs que lo llevan (p. ej. 3 unidades) se
+deduce un umbral de stock (0, 1-2, 3 o más), nunca la cifra exacta.
 
 **E11 Inventario.** Sin lotes. Stock por formato y ubicación (EXISTENCIA). El stock nunca queda bajo
 cero ni cambia sin un MOVIMIENTO que lo explique. Entrada: proveedor, documento y detalle (un

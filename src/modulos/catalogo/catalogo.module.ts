@@ -15,6 +15,7 @@ import { PreciosController } from './precios.controller.js';
 import { PreciosService } from './precios.service.js';
 import { ProductosController } from './productos.controller.js';
 import { ProductosService } from './productos.service.js';
+import { TiendaDetalleService } from './tienda-detalle.service.js';
 import { TiendaPacksService } from './tienda-packs.service.js';
 import { TiendaController } from './tienda.controller.js';
 import { TiendaService } from './tienda.service.js';
@@ -43,6 +44,7 @@ import { TiendaService } from './tienda.service.js';
     PreciosService,
     TiendaService,
     TiendaPacksService,
+    TiendaDetalleService,
   ],
   exports: [MarcasService, CategoriasService],
 })
