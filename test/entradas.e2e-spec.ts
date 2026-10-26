@@ -13,8 +13,8 @@ import {
   TIPOS_ARTICULO,
   TIPOS_MOVIMIENTO,
 } from '../src/common/dominio/valores.js';
+import { hoyEnLaTienda } from '../src/common/dominio/fechas.js';
 import { configurarApp } from '../src/configurar-app.js';
-import { hoyEnLaTienda } from '../src/modulos/inventario/entradas.service.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { REDIS } from '../src/redis/redis.module.js';
 

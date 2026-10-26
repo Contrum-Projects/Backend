@@ -4,6 +4,7 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
+import { hoyEnLaTienda } from '../../common/dominio/fechas.js';
 import {
   TIPOS_DOCUMENTO_PROVEEDOR,
   TIPOS_MOVIMIENTO,
@@ -17,9 +18,6 @@ import { sumarExistencia } from './existencias.js';
 
 type Tx = Prisma.TransactionClient;
 type TipoDocumentoProveedor = Valor<typeof TIPOS_DOCUMENTO_PROVEEDOR>;
-
-/** Zona horaria de la tienda: «hoy» para la fecha de recepción. */
-const ZONA_HORARIA_TIENDA = 'America/Santiago';
 
 /** Un formato recibido y el movimiento de entrada que lo respalda. */
 export interface DetalleEntradaRegistrado {
@@ -40,12 +38,6 @@ export interface EntradaRegistrada {
   ubicacion: UbicacionResumen;
   detalles: DetalleEntradaRegistrado[];
 }
-
-/** Fecha de hoy (AAAA-MM-DD) en la zona horaria de la tienda. */
-export const hoyEnLaTienda = (ahora = new Date()) =>
-  new Intl.DateTimeFormat('en-CA', { timeZone: ZONA_HORARIA_TIENDA }).format(
-    ahora,
-  );
 
 /**
  * Entradas de inventario recibidas de un proveedor (E11-H2, RF-11.02 a RF-11.04). La entrada, su
