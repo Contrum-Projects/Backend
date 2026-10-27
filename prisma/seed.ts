@@ -1,11 +1,9 @@
 /**
- * Datos iniciales: las 16 regiones de Chile (código CUT) y una cuenta de
- * administrador para entrar al panel en desarrollo.
+ * Datos iniciales: las 16 regiones y las 346 comunas de Chile (código CUT, decreto
+ * N° 1.115 de 2018; ver prisma/comunas.ts) y una cuenta de administrador para entrar al
+ * panel en desarrollo.
  *
  * Ejecutar: pnpm db:seed  (es idempotente: se puede correr varias veces)
- *
- * PENDIENTE: cargar las 346 comunas con su código CUT desde la fuente oficial
- * (lo cubre la historia de territorio / despacho).
  */
 import 'dotenv/config';
 import { randomUUID } from 'node:crypto';
@@ -13,6 +11,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import argon2 from 'argon2';
 import { PrismaClient } from '../src/generated/prisma/client.js';
 import { ROLES } from '../src/common/dominio/roles.js';
+import { COMUNAS } from './comunas.js';
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
@@ -46,6 +45,21 @@ async function main() {
     });
   }
 
+  const regiones = await prisma.region.findMany({
+    select: { id: true, codigoCut: true },
+  });
+  const idRegion = new Map(regiones.map((r) => [r.codigoCut, r.id]));
+  for (const [codigoCut, nombre] of COMUNAS) {
+    // Los dos primeros dígitos del código de la comuna son los de su región
+    const regionId = idRegion.get(codigoCut.slice(0, 2));
+    if (!regionId) throw new Error(`La comuna ${codigoCut} no tiene región.`);
+    await prisma.comuna.upsert({
+      where: { codigoCut },
+      update: { nombre, regionId },
+      create: { codigoCut, nombre, regionId },
+    });
+  }
+
   const email = (
     process.env.SEED_ADMIN_EMAIL ?? 'admin@cabelloperfecto.local'
   ).toLowerCase();
@@ -65,7 +79,7 @@ async function main() {
   });
 
   console.log(
-    `Semilla lista: ${REGIONES.length} regiones y la cuenta ${email}`,
+    `Semilla lista: ${REGIONES.length} regiones, ${COMUNAS.length} comunas y la cuenta ${email}`,
   );
 }
 
