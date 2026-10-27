@@ -313,6 +313,13 @@ desactivado (para vaciarlo). En una transacción: descuento atómico en el orige
 si no alcanza), suma en el destino y **un** movimiento `transferencia` con ambas ubicaciones y
 observación opcional (hasta 500). Las existencias se tocan en orden de id de ubicación, para que
 dos transferencias cruzadas simultáneas no se bloqueen. Sin cambios al MER.
+Decisiones del 27 oct (E11-H5): `GET /api/inventario/stock/formatos/:id` con `inventario.consultar`
+(administrador, vendedor y bodeguero; el vendedor también ve el costo). Devuelve el formato, las
+ubicaciones **con stock > 0** (también las desactivadas o de bodega desactivada, con `activa` en
+falso), el total y la última entrada: proveedor y costo unitario neto de la entrada de **fecha de
+recepción** más reciente (empate: la registrada después, id mayor); sin entradas, `null` y total 0.
+Un formato desactivado se consulta; uno inexistente o un id imposible, 404. Solo lectura desde
+PostgreSQL, sin caché. Sin listado de formatos en esta historia. Sin cambios al MER.
 
 **E5 Carrito y compra.** Carrito del visitante en el navegador; se une al de la cuenta al iniciar
 sesión. Un carrito por cuenta; el carrito no guarda precios. El pedido exige sesión y correo
