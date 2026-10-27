@@ -342,6 +342,20 @@ Blue Express no responde, se informa y se ofrece retiro. Costo del envío guarda
 **E9 Facturación.** Boleta: el comprobante de Mercado Pago. Factura: el cliente elige uno de sus
 datos de facturación; el personal registra la factura emitida en el SII con folio (único por tipo)
 y archivo; el documento guarda copia de los datos del receptor y de los montos.
+Decisiones del 27 oct (E9-H2): `GET`, `POST`, `PATCH /:id` y `DELETE /:id` en
+`/api/cuentas/yo/facturacion`, solo para cliente y profesional (`CompradorGuard`; el personal
+recibe 403). Cada registro lleva RUT (se guarda como `12345678-K`, con dígito verificador
+válido), razón social (hasta 150), giro (150), dirección (200) y comuna (código CUT, que el MER
+exige para copiarla al documento), más un correo de facturación opcional. Falta cualquiera de
+los obligatorios: 400 y el mensaje nombra cada dato que falta. Una cuenta tiene tantos registros
+como quiera y `GET` devuelve los activos, del más antiguo al más reciente. Los registros se
+identifican por su id dentro de la cuenta del token (el de otra cuenta, o uno ya eliminado,
+responde 404). `DELETE` lo **desactiva** (`activo = false`) en vez de borrarlo, porque los
+pedidos lo referencian. Los cambios y las altas toman `bloquearCuenta`, como las direcciones.
+PROPUESTAS por confirmar: (1) la historia solo pide guardar y consultar; editar y eliminar se
+agregaron porque en el RF-09.02 dice administrar. (2) El mismo RUT puede repetirse en varios
+registros de la cuenta (una empresa con sucursales); no hay límite de registros. (3) El RUT de
+facturación puede ser distinto del RUT personal de la cuenta (E1-H5) y no se compara con él.
 
 **E8 Pedidos.** Estados: pendiente de pago, pagado, en preparación, despachado, entregado, listo
 para retiro, retirado, cancelado (`ESTADOS_PEDIDO`). Cada cambio guarda fecha, quién y comentario,

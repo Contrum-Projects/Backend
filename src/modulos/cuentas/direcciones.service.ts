@@ -1,19 +1,13 @@
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
-import { Prisma } from '../../generated/prisma/client.js';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { bloquearCuenta } from '../../prisma/bloqueos.js';
+import { buscarComuna } from './comunas.js';
 import type {
   ActualizarDireccionDto,
   CrearDireccionDto,
 } from './dto/guardar-direccion.dto.js';
 
 const NO_EXISTE = 'La dirección no existe.';
-
-type Tx = Prisma.TransactionClient;
 
 /** Una dirección de la cuenta, con su comuna y región (E1-H5). */
 export interface DireccionCuenta {
@@ -43,15 +37,6 @@ const SELECCION_DIRECCION = {
     },
   },
 } as const;
-
-const buscarComuna = async (tx: Tx, codigoCut: string) => {
-  const comuna = await tx.comuna.findUnique({
-    where: { codigoCut },
-    select: { id: true },
-  });
-  if (!comuna) throw new BadRequestException('La comuna no existe.');
-  return comuna.id;
-};
 
 @Injectable()
 export class DireccionesService {
