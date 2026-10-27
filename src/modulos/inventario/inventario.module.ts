@@ -7,6 +7,8 @@ import { ProveedoresController } from './proveedores.controller.js';
 import { ProveedoresService } from './proveedores.service.js';
 import { SalidasController } from './salidas.controller.js';
 import { SalidasService } from './salidas.service.js';
+import { StockController } from './stock.controller.js';
+import { StockService } from './stock.service.js';
 import { TransferenciasController } from './transferencias.controller.js';
 import { TransferenciasService } from './transferencias.service.js';
 
@@ -18,6 +20,7 @@ import { TransferenciasService } from './transferencias.service.js';
     SalidasController,
     AjustesController,
     TransferenciasController,
+    StockController,
   ],
   providers: [
     ProveedoresService,
@@ -25,6 +28,7 @@ import { TransferenciasService } from './transferencias.service.js';
     SalidasService,
     AjustesService,
     TransferenciasService,
+    StockService,
   ],
 })
 export class InventarioModule {}
