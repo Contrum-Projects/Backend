@@ -1,11 +1,9 @@
 /**
- * Datos iniciales: las 16 regiones de Chile (código CUT) y una cuenta de
- * administrador para entrar al panel en desarrollo.
+ * Datos iniciales: las 16 regiones y las 346 comunas de Chile (código CUT, decreto
+ * N° 1.115 de 2018; ver prisma/comunas.ts) y una cuenta de administrador para entrar al
+ * panel en desarrollo.
  *
  * Ejecutar: pnpm db:seed  (es idempotente: se puede correr varias veces)
- *
- * PENDIENTE: cargar las 346 comunas con su código CUT desde la fuente oficial
- * (lo cubre la historia de territorio / despacho).
  */
 import 'dotenv/config';
 import { randomUUID } from 'node:crypto';
@@ -13,38 +11,15 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import argon2 from 'argon2';
 import { PrismaClient } from '../src/generated/prisma/client.js';
 import { ROLES } from '../src/common/dominio/roles.js';
+import { COMUNAS } from './comunas.js';
+import { cargarTerritorio, REGIONES } from './territorio.js';
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
 });
 
-const REGIONES: [string, string][] = [
-  ['15', 'Arica y Parinacota'],
-  ['01', 'Tarapacá'],
-  ['02', 'Antofagasta'],
-  ['03', 'Atacama'],
-  ['04', 'Coquimbo'],
-  ['05', 'Valparaíso'],
-  ['13', 'Metropolitana de Santiago'],
-  ['06', "Libertador General Bernardo O'Higgins"],
-  ['07', 'Maule'],
-  ['16', 'Ñuble'],
-  ['08', 'Biobío'],
-  ['09', 'La Araucanía'],
-  ['14', 'Los Ríos'],
-  ['10', 'Los Lagos'],
-  ['11', 'Aysén del General Carlos Ibáñez del Campo'],
-  ['12', 'Magallanes y de la Antártica Chilena'],
-];
-
 async function main() {
-  for (const [codigoCut, nombre] of REGIONES) {
-    await prisma.region.upsert({
-      where: { codigoCut },
-      update: { nombre },
-      create: { codigoCut, nombre },
-    });
-  }
+  await cargarTerritorio(prisma);
 
   const email = (
     process.env.SEED_ADMIN_EMAIL ?? 'admin@cabelloperfecto.local'
@@ -65,7 +40,7 @@ async function main() {
   });
 
   console.log(
-    `Semilla lista: ${REGIONES.length} regiones y la cuenta ${email}`,
+    `Semilla lista: ${REGIONES.length} regiones, ${COMUNAS.length} comunas y la cuenta ${email}`,
   );
 }
 
