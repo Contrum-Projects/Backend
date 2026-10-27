@@ -3,11 +3,13 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types.js';
 import { COMUNAS } from '../prisma/comunas.js';
+import { cargarTerritorio } from '../prisma/territorio.js';
 import { AppModule } from '../src/app.module.js';
 import { configurarApp } from '../src/configurar-app.js';
+import { PrismaService } from '../src/prisma/prisma.service.js';
 
-// Requiere PostgreSQL y Redis levantados (`docker compose up -d db redis`) y la semilla
-// cargada (`pnpm db:seed`): regiones y comunas son datos de referencia, no los crea la prueba.
+// Requiere PostgreSQL y Redis levantados: `docker compose up -d db redis`. Carga regiones y
+// comunas igual que la semilla (el CI no la corre); son datos de referencia y no se borran.
 
 /** Códigos CUT de las regiones, de norte a sur (decreto N° 1.115 de 2018). */
 const NORTE_A_SUR = [
@@ -44,6 +46,7 @@ describe('Territorio · regiones y comunas (e2e)', () => {
     app = modulo.createNestApplication();
     configurarApp(app);
     await app.init();
+    await cargarTerritorio(app.get(PrismaService));
   });
 
   afterAll(async () => {
