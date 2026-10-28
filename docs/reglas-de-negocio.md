@@ -343,6 +343,21 @@ venta) y hay **15 minutos** para pagar (`PLAZO_PAGO_MINUTOS`; el plazo lo lleva 
 `fechaExpiracionPago` de respaldo). El profesional necesita al menos `MINIMO_UNIDADES_PELUQUERO`
 (3) unidades de **cada** formato; si no, el pedido no se crea.
 
+Decisiones del 27 oct (E5-H1): `GET /api/carrito`, `POST /api/carrito/items`, `PATCH` y `DELETE
+/api/carrito/items/:articuloId` (id del artículo de venta), solo para cliente y profesional con
+sesión (el personal recibe 403). El carrito guarda solo artículo y cantidad; cada consulta recalcula
+precio (con la misma `precioConIva` de la tienda; el mayorista solo se lee para el profesional,
+RNF-04), subtotales y total. Agregar suma a las unidades que ya había. Cada escritura bloquea la
+cuenta (`bloquearCuenta`) y responde con el carrito completo. Al consultar, una línea con más
+unidades que el stock vendible (el de E2-H3, un pack por su componente más escaso) sale con
+`stockSuficiente: false` e `impideCrearPedido: true`, y el carrito con `puedeCrearPedido: false`;
+nunca se informa cuántas unidades hay (decisión de E2-H3). **PROPUESTAS por confirmar:** (1) agregar o cambiar con más unidades que el stock se rechaza con 400 en vez de aceptar
+y señalar; (2) un artículo que deja de venderse (desactivado, sin precio, pack vencido o exclusivo
+tras perder el rol) queda en el carrito sin precio, fuera del total y señalado, y solo se puede
+quitar; (3) tope de 999 unidades por línea. El stock se revisa por línea: la suma entre packs y
+formatos que comparten componentes la valida el pedido (E5-H3, SCRUM-45), que además exige el mínimo
+del profesional. Sin cambios al MER.
+
 **E6 Pago.** Solo Mercado Pago. La notificación se responde de inmediato y se procesa en la cola
 `eventos-pago` (RNF-15: MP espera 22 s). Cada evento se procesa una vez (`idEventoExterno` único).
 Reintentos; al agotarlos queda marcado para revisión humana. Un solo pago aprobado por pedido y por
