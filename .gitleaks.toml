@@ -1,0 +1,16 @@
+# Configuración de gitleaks para el escaneo de secretos del CI (RNF-10).
+# Usa las reglas por defecto y exceptúa solo valores que se sabe que no son secretos.
+# El escaneo revisa todo el historial, así que una excepción no se puede quitar
+# mientras el valor siga en algún commit.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Falsos positivos conocidos"
+regexes = [
+  # Token de ejemplo del README de plantilla de NestJS (commit inicial).
+  '''^abc123def456$''',
+  # Secreto de prueba para firmar un JWT ajeno en jwt-autenticacion.guard.spec.ts.
+  '''^otro-secreto-de-al-menos-32-caracteres$''',
+]
