@@ -5,7 +5,7 @@
  *
  * Si una lista cambia, actualízala aquí y en docs/reglas-de-negocio.md.
  * Listas que siguen abiertas (no las inventes): estados de envío y de pago;
- * modalidades y especialidades. Los tipos de movimiento crecen con cada historia de E11. Los tipos de token y de
+ * modalidades y especialidades. Los tipos de token y de
  * notificación crecen con cada historia que los necesita.
  */
 
@@ -81,8 +81,8 @@ export const TIPOS_DOCUMENTO_PROVEEDOR = {
 } as const;
 
 /**
- * MOVIMIENTO_INVENTARIO.tipo. Lista abierta: cada historia de E11 agrega los suyos (salidas,
- * ajustes, transferencias, venta y reingreso).
+ * MOVIMIENTO_INVENTARIO.tipo: entradas, salidas, ajustes, transferencias, venta y reingreso
+ * (E11-H2 a E11-H7).
  */
 export const TIPOS_MOVIMIENTO = {
   /** E11-H2, decisión del 25 de octubre de 2026: recepción de un proveedor. */
@@ -96,6 +96,10 @@ export const TIPOS_MOVIMIENTO = {
   AJUSTE_NEGATIVO: 'ajuste_negativo',
   /** E11-H4: un movimiento con la ubicación de origen y la de destino. */
   TRANSFERENCIA: 'transferencia',
+  /** E11-H7, decisión del 28 de octubre de 2026: unidades reservadas por un pedido. */
+  VENTA: 'venta',
+  /** E11-H7: unidades de un pedido cancelado que vuelven a la ubicación de donde salieron. */
+  REINGRESO: 'reingreso',
 } as const;
 
 /** Tipos de movimiento que se registran como salida que no es venta (E11-H3, RF-11.06). */

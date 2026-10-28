@@ -334,6 +334,27 @@ después del commit. El aviso del panel no se guarda: `GET /api/inventario/stock
 `inventario.registrar` (bodeguero y administrador; **el vendedor no lo ve**) calcula al consultar
 los formatos con mínimo > 0 y total bajo él, con el faltante, del que más falta al que menos; un
 formato sale de la lista al reponerlo. Sin cambios al MER.
+Decisiones del 28 oct (E11-H7): sin rutas propias. `VentaStockService` (exportado por
+`InventarioModule`) lo llaman, **dentro de su propia transacción**, la creación del pedido (E5)
+con `descontarPorPedido(tx, pedidoId, lineas)` y la cancelación (E6-H3, E8-H3) con
+`reingresarPorPedido(tx, pedidoId, usuarioId | null)`; los avisos de stock bajo que devuelve el
+descuento se encolan con `encolarAvisos` después del commit. Un pack se descuenta de sus formatos
+(cantidad del componente × packs) y un formato que llega suelto y dentro de un pack se suma. La
+venta descuenta **solo stock vendible** (`EXISTENCIA_VENDIBLE`, lo mismo que la tienda muestra
+disponible), agotando cada ubicación en orden de **código** (desempate: id de ubicación) con
+condición atómica, y deja un movimiento `TIPOS_MOVIMIENTO.VENTA` por formato y ubicación con
+`id_pedido`, `id_ubicacion_origen` y sin usuario (el comprador está en el pedido). Si un formato
+no alcanza responde 409 «No hay stock suficiente de <producto formato>» (sin decir cuánto hay) y
+la transacción entera se revierte. Los formatos se bloquean en orden de id (`stockAntes` de
+E11-H6) y sus existencias en orden de id de ubicación, como las transferencias. El reingreso
+bloquea la fila del pedido, devuelve lo vendido menos lo ya reingresado a **la misma ubicación de
+donde salió** (aunque esté desactivada) con un movimiento `TIPOS_MOVIMIENTO.REINGRESO` con
+`id_ubicacion_destino` y quien cancela (`null` si es automática); llamarlo otra vez no reingresa
+dos veces. La validación previa del pedido (agotado, rol, mínimo del peluquero) sigue siendo de
+E5; como defensa, el servicio responde 400 si una cantidad no es un entero mayor que 0 o si las
+unidades de un formato pasarían el máximo de int4, y 409 si un artículo no existe o es un pack sin
+componentes. El resultado del descuento es interno (ubicaciones, stock y correos del personal):
+nunca va en la respuesta al comprador. Sin cambios al MER.
 
 **E5 Carrito y compra.** Carrito del visitante en el navegador; se une al de la cuenta al iniciar
 sesión. Un carrito por cuenta; el carrito no guarda precios. El pedido exige sesión y correo

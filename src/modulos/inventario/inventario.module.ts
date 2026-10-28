@@ -14,6 +14,7 @@ import { StockService } from './stock.service.js';
 import { StockBajoService } from './stock-bajo.service.js';
 import { TransferenciasController } from './transferencias.controller.js';
 import { TransferenciasService } from './transferencias.service.js';
+import { VentaStockService } from './venta-stock.service.js';
 
 /** Épica 11: inventario y bodega (ver src/modulos/README.md). */
 @Module({
@@ -34,6 +35,9 @@ import { TransferenciasService } from './transferencias.service.js';
     TransferenciasService,
     StockService,
     StockBajoService,
+    VentaStockService,
   ],
+  // El pedido (E5) y su cancelación (E6, E8) descuentan y reingresan stock con este servicio
+  exports: [VentaStockService],
 })
 export class InventarioModule {}
