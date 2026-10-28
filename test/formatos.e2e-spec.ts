@@ -495,6 +495,38 @@ describe('Catálogo · formatos de venta (e2e)', () => {
       expect(predeterminados).toHaveLength(1);
     });
 
+    it('RNF-13 · formato predeterminado: marcarlo mientras un movimiento de stock bloquea los mismos formatos no produce deadlock', async () => {
+      const primero = await nuevo();
+      const segundo = await nuevo({ esPredeterminado: true });
+      // El predeterminado (segundo) tiene un id mayor que el que se marca (primero)
+
+      // Como una venta o una salida: bloquea los formatos de menor a mayor id
+      let avisarBloqueo = () => {};
+      const primerBloqueo = new Promise<void>((r) => (avisarBloqueo = r));
+      const movimiento = prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`
+          SELECT id_formato FROM formato_producto
+          WHERE id_formato = ${primero.id} FOR NO KEY UPDATE`;
+        avisarBloqueo();
+        await tx.$executeRaw`SELECT pg_sleep(0.5)`;
+        await tx.$queryRaw`
+          SELECT id_formato FROM formato_producto
+          WHERE id_formato = ${segundo.id} FOR NO KEY UPDATE`;
+      });
+      await primerBloqueo;
+
+      const [respuesta] = await Promise.all([
+        editar(primero.id, { esPredeterminado: true }),
+        movimiento,
+      ]);
+
+      expect(respuesta.status).toBe(200);
+      const predeterminados = (await listar()).filter(
+        (f) => f.esPredeterminado,
+      );
+      expect(predeterminados.map((f) => f.id)).toEqual([primero.id]);
+    });
+
     it('E3-H2 · formato predeterminado: no se puede desmarcar (400)', async () => {
       const primero = await nuevo();
 

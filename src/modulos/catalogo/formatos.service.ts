@@ -9,6 +9,7 @@ import { TIPOS_ARTICULO } from '../../common/dominio/valores.js';
 import { Prisma } from '../../generated/prisma/client.js';
 import type { Entorno } from '../../config/entorno.js';
 import {
+  bloquearFormatosDelProducto,
   bloquearProducto,
   bloquearProductoDelFormato,
 } from '../../prisma/bloqueos.js';
@@ -230,6 +231,9 @@ export class FormatosService {
         const marcar =
           dto.esPredeterminado === true && !actual.esPredeterminado;
         if (marcar) {
+          // Antes de tocar el predeterminado anterior y este, en orden de id (sin deadlock con
+          // un movimiento de stock de los mismos formatos)
+          await bloquearFormatosDelProducto(tx, productoId);
           await tx.formatoProducto.updateMany({
             where: { productoId, esPredeterminado: true, id: { not: id } },
             data: { esPredeterminado: false },
