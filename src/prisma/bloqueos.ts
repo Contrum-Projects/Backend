@@ -9,7 +9,7 @@ type Tx = Prisma.TransactionClient;
  * bloqueo, y para que ningún número de bloqueo de transacción se repita.
  *
  * Orden de las filas del catálogo, para que dos transacciones no se esperen entre sí: primero el
- * artículo, luego el pack o el producto.
+ * artículo, luego el pack o el producto, y después sus formatos en orden de id.
  */
 
 /**
@@ -89,6 +89,23 @@ export const bloquearProductoDelFormato = async (
     FOR UPDATE OF p`;
   if (!producto) throw new NotFoundException('El formato no existe.');
   return producto.productoId;
+};
+
+/**
+ * Bloquea los formatos del producto en orden de id, con `FOR NO KEY UPDATE` como las salidas,
+ * los ajustes y la venta (E11-H6, E11-H7). Cambiar el predeterminado toca dos formatos: si los
+ * actualizara en otro orden, se cruzaría con un movimiento de stock que los bloquea de menor a
+ * mayor id y PostgreSQL abortaría a uno de los dos (deadlock).
+ */
+export const bloquearFormatosDelProducto = async (
+  tx: Tx,
+  productoId: number,
+): Promise<void> => {
+  await tx.$queryRaw`
+    SELECT id_formato FROM formato_producto
+    WHERE id_producto = ${productoId}
+    ORDER BY id_formato
+    FOR NO KEY UPDATE`;
 };
 
 /**

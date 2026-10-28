@@ -320,6 +320,34 @@ describe('FormatosService', () => {
       );
     });
 
+    it('RNF-13 · formato predeterminado: bloquea los formatos del producto en orden de id antes de cambiarlos', async () => {
+      await servicio.actualizar(11, { esPredeterminado: true });
+
+      const llamada = prisma.$queryRaw.mock.calls.findIndex(([partes]) =>
+        (partes as string[]).join('?').includes('FOR NO KEY UPDATE'),
+      );
+      expect(llamada).toBeGreaterThan(-1);
+      const [partes, productoId] = prisma.$queryRaw.mock.calls[llamada] as [
+        string[],
+        number,
+      ];
+      expect(partes.join('?')).toContain('ORDER BY id_formato');
+      expect(productoId).toBe(5);
+      expect(prisma.$queryRaw.mock.invocationCallOrder[llamada]).toBeLessThan(
+        prisma.formatoProducto.updateMany.mock.invocationCallOrder[0],
+      );
+    });
+
+    it('RNF-13 · formato predeterminado: si no cambia el predeterminado, no bloquea los demás formatos', async () => {
+      await servicio.actualizar(11, { nombreFormato: '500 ml' });
+
+      expect(
+        prisma.$queryRaw.mock.calls.some(([partes]) =>
+          (partes as string[]).join('?').includes('FOR NO KEY UPDATE'),
+        ),
+      ).toBe(false);
+    });
+
     it('E3-H2 · formato predeterminado: no se puede desmarcar el predeterminado (400)', async () => {
       prisma.formatoProducto.findUnique.mockResolvedValue({
         esPredeterminado: true,
