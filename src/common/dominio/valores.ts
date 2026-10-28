@@ -141,6 +141,8 @@ export const TIPOS_NOTIFICACION = {
   INVITACION_PERSONAL: 'invitacion_personal',
   /** E1-H4, decisión del 26 de octubre de 2026. */
   RECUPERACION_CONTRASENA: 'recuperacion_contrasena',
+  /** E11-H6, decisión del 28 de octubre de 2026: un formato quedó bajo su stock mínimo. */
+  STOCK_BAJO: 'stock_bajo',
 } as const;
 
 /**

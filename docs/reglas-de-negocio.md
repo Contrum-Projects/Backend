@@ -320,6 +320,20 @@ falso), el total y la última entrada: proveedor y costo unitario neto de la ent
 recepción** más reciente (empate: la registrada después, id mayor); sin entradas, `null` y total 0.
 Un formato desactivado se consulta; uno inexistente o un id imposible, 404. Solo lectura desde
 PostgreSQL, sin caché. Sin listado de formatos en esta historia. Sin cambios al MER.
+Decisiones del 28 oct (E11-H6): se compara el **stock total** del formato (todas sus ubicaciones,
+también las desactivadas) con `stock_minimo`. El correo sale solo cuando un movimiento lo hace
+**cruzar** (antes ≥ mínimo, después < mínimo); los movimientos siguientes, ya bajo el mínimo, no lo
+repiten. Con mínimo 0 nunca hay aviso. Hoy lo revisan la salida y el ajuste negativo (la venta lo
+hará con `StockBajoService`); la transacción bloquea la fila del formato (`FOR NO KEY UPDATE`, que
+no choca con los INSERT con llave foránea al formato de transferencias y entradas) antes del
+descuento, para que dos movimientos simultáneos no repitan ni pierdan el aviso. Los correos de un
+aviso se encolan juntos (`addBulk`), con un solo plazo de espera si Redis no responde. En la misma
+transacción se crea una NOTIFICACION `TIPOS_NOTIFICACION.STOCK_BAJO` (`pendiente`) por cada
+bodeguero y administrador **activo con el correo confirmado**, y el trabajo `stock-bajo` se encola
+después del commit. El aviso del panel no se guarda: `GET /api/inventario/stock/bajo-minimo` con
+`inventario.registrar` (bodeguero y administrador; **el vendedor no lo ve**) calcula al consultar
+los formatos con mínimo > 0 y total bajo él, con el faltante, del que más falta al que menos; un
+formato sale de la lista al reponerlo. Sin cambios al MER.
 
 **E5 Carrito y compra.** Carrito del visitante en el navegador; se une al de la cuenta al iniciar
 sesión. Un carrito por cuenta; el carrito no guarda precios. El pedido exige sesión y correo

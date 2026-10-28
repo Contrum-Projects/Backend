@@ -1,7 +1,9 @@
 import { BadRequestException, UnauthorizedException } from '@nestjs/common';
+import type { TrabajoStockBajo } from '../../colas/colas.js';
 import type { PrismaService } from '../../prisma/prisma.service.js';
 import type { CrearSalidaDto } from './dto/crear-salida.dto.js';
 import { SalidasService } from './salidas.service.js';
+import type { StockBajoService } from './stock-bajo.service.js';
 
 const FECHA = new Date('2026-10-25T15:00:00Z');
 
@@ -38,13 +40,66 @@ const dtoBase = () =>
     cantidad: 2,
   }) satisfies CrearSalidaDto;
 
+const crearStockBajo = () => ({
+  stockAntes: vi.fn().mockResolvedValue(10),
+  avisarSiCruza: vi.fn().mockResolvedValue([]),
+  encolar: vi.fn().mockResolvedValue(undefined),
+});
+
 describe('SalidasService', () => {
   let prisma: ReturnType<typeof crearPrisma>;
+  let stockBajo: ReturnType<typeof crearStockBajo>;
   let servicio: SalidasService;
 
   beforeEach(() => {
     prisma = crearPrisma();
-    servicio = new SalidasService(prisma as unknown as PrismaService);
+    stockBajo = crearStockBajo();
+    servicio = new SalidasService(
+      prisma as unknown as PrismaService,
+      stockBajo as unknown as StockBajoService,
+    );
+  });
+
+  it('E11-H6 · stock bajo el mínimo: mide el stock antes del descuento y encola los avisos después del commit', async () => {
+    const aviso = { notificacionId: 70 } as TrabajoStockBajo;
+    stockBajo.avisarSiCruza.mockResolvedValue([aviso]);
+    let confirmada = false;
+    prisma.$transaction.mockImplementation(
+      async (fn: (cliente: typeof prisma.tx) => unknown) => {
+        const resultado = await fn(prisma.tx);
+        confirmada = true;
+        return resultado;
+      },
+    );
+    stockBajo.encolar.mockImplementation(() => {
+      expect(confirmada).toBe(true);
+      return Promise.resolve();
+    });
+
+    await servicio.registrar(dtoBase(), 'uuid-bodeguero');
+
+    expect(stockBajo.stockAntes).toHaveBeenCalledWith(prisma.tx, 11);
+    expect(stockBajo.stockAntes.mock.invocationCallOrder[0]).toBeLessThan(
+      prisma.tx.existencia.updateMany.mock.invocationCallOrder[0],
+    );
+    expect(stockBajo.avisarSiCruza).toHaveBeenCalledWith(prisma.tx, 11, 10);
+    expect(stockBajo.encolar).toHaveBeenCalledWith([aviso]);
+  });
+
+  it('E11-H6 · stock sobre el mínimo: sin avisos no encola correos', async () => {
+    await servicio.registrar(dtoBase(), 'uuid-bodeguero');
+
+    expect(stockBajo.encolar).toHaveBeenCalledWith([]);
+  });
+
+  it('E11-H6 · salida rechazada: no avisa', async () => {
+    prisma.tx.existencia.updateMany.mockResolvedValue({ count: 0 });
+
+    await expect(servicio.registrar(dtoBase(), 'uuid')).rejects.toThrow(
+      BadRequestException,
+    );
+    expect(stockBajo.avisarSiCruza).not.toHaveBeenCalled();
+    expect(stockBajo.encolar).not.toHaveBeenCalled();
   });
 
   it('E11-H3 · salida registrada: descuenta el stock con una condición atómica sobre la cantidad', async () => {

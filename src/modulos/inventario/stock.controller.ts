@@ -16,6 +16,7 @@ import {
 import { PERMISOS } from '../../common/dominio/permisos.js';
 import { IdRutaPipe } from '../../common/validacion/id-ruta.pipe.js';
 import { StockService } from './stock.service.js';
+import { StockBajoService } from './stock-bajo.service.js';
 
 const ID_FORMATO = new IdRutaPipe('El formato no existe.');
 
@@ -29,7 +30,24 @@ const ID_FORMATO = new IdRutaPipe('El formato no existe.');
   description: 'El rol no tiene el permiso de consultar inventario.',
 })
 export class StockController {
-  constructor(private readonly stock: StockService) {}
+  constructor(
+    private readonly stock: StockService,
+    private readonly stockBajo: StockBajoService,
+  ) {}
+
+  // Decisión del 28 de octubre de 2026: solo bodega y administración, que son quienes reciben
+  // el correo; el vendedor consulta stock pero no ve este aviso
+  @Get('bajo-minimo')
+  @RequierePermiso(PERMISOS.INVENTARIO_REGISTRAR)
+  @ApiOperation({
+    summary: 'Formatos con stock bajo el mínimo (E11-H6)',
+    description:
+      'Aviso del panel: los formatos con stock mínimo definido cuyo stock total (todas las ubicaciones) está bajo él, del que más falta al que menos. Se calcula al consultar: un formato sale de la lista al reponerlo.',
+  })
+  @ApiOkResponse({ description: 'Formatos bajo su stock mínimo.' })
+  bajoMinimo() {
+    return this.stockBajo.listarBajoMinimo();
+  }
 
   @Get('formatos/:id')
   @ApiOperation({

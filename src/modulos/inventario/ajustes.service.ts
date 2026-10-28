@@ -18,6 +18,7 @@ import {
   stockDe,
   sumarExistencia,
 } from './existencias.js';
+import { StockBajoService } from './stock-bajo.service.js';
 
 type Tx = Prisma.TransactionClient;
 type TipoAjuste =
@@ -40,11 +41,15 @@ export interface AjusteRegistrado {
 /**
  * Ajustes de stock (E11-H4, RF-11.07): corrigen la diferencia entre el conteo físico y el stock
  * registrado. El stock y el movimiento de ajuste se escriben en una misma transacción (RNF-12) y
- * el stock nunca queda bajo cero (RNF-13).
+ * el stock nunca queda bajo cero (RNF-13). Si un ajuste negativo deja el formato bajo su stock
+ * mínimo, avisa al personal de bodega y administración (E11-H6).
  */
 @Injectable()
 export class AjustesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly stockBajo: StockBajoService,
+  ) {}
 
   /**
    * Suma (cantidad positiva) o descuenta (negativa) el stock del formato en la ubicación y deja un
@@ -62,7 +67,7 @@ export class AjustesService {
       : TIPOS_MOVIMIENTO.AJUSTE_NEGATIVO;
     const clave = { formatoId: dto.formatoId, ubicacionId: dto.ubicacionId };
 
-    return this.prisma.$transaction(async (tx) => {
+    const { ajuste, avisos } = await this.prisma.$transaction(async (tx) => {
       const usuario = await tx.usuario.findUnique({
         where: { codigoPublico: codigoPublicoUsuario },
         select: { id: true },
@@ -72,6 +77,10 @@ export class AjustesService {
       }
       await comprobarFormato(tx, dto.formatoId);
       const ubicacion = await ubicacionDe(tx, dto.ubicacionId);
+      // Solo un descuento puede dejar el formato bajo su mínimo
+      const stockAntes = positivo
+        ? null
+        : await this.stockBajo.stockAntes(tx, dto.formatoId);
 
       const stockResultante = positivo
         ? await this.sumar(tx, clave, unidades)
@@ -92,16 +101,26 @@ export class AjustesService {
       });
 
       return {
-        movimientoId: movimiento.id,
-        tipo,
-        formatoId: dto.formatoId,
-        ubicacion,
-        cantidad: dto.cantidad,
-        stockResultante,
-        observacion: dto.observacion,
-        fechaHora: movimiento.fechaHora,
+        ajuste: {
+          movimientoId: movimiento.id,
+          tipo,
+          formatoId: dto.formatoId,
+          ubicacion,
+          cantidad: dto.cantidad,
+          stockResultante,
+          observacion: dto.observacion,
+          fechaHora: movimiento.fechaHora,
+        },
+        avisos:
+          stockAntes === null
+            ? []
+            : await this.stockBajo.avisarSiCruza(tx, dto.formatoId, stockAntes),
       };
     });
+
+    // Después del commit (RNF-12): si Redis no responde, la notificación queda pendiente
+    await this.stockBajo.encolar(avisos);
+    return ajuste;
   }
 
   /** Suma al stock (o crea la existencia); si pasaría el máximo de la columna, 400. */

@@ -30,6 +30,8 @@ export const TRABAJOS_CORREO = {
   INVITACION_PERSONAL: 'invitacion-personal',
   /** Enlace para recuperar la contraseña (E1-H4). */
   RECUPERACION_CONTRASENA: 'recuperacion-contrasena',
+  /** Aviso al personal de bodega y administración: un formato quedó bajo su mínimo (E11-H6). */
+  STOCK_BAJO: 'stock-bajo',
 } as const;
 
 /**
@@ -48,6 +50,16 @@ export interface TrabajoCorreoConEnlace {
 export type TrabajoConfirmacionCorreo = TrabajoCorreoConEnlace;
 export type TrabajoInvitacionPersonal = TrabajoCorreoConEnlace;
 export type TrabajoRecuperacionContrasena = TrabajoCorreoConEnlace;
+
+/** Datos del correo de stock bajo el mínimo (E11-H6): uno por destinatario. */
+export interface TrabajoStockBajo {
+  notificacionId: number;
+  destinatario: string;
+  nombre: string;
+  formato: { id: number; sku: string; producto: string; nombreFormato: string };
+  stockTotal: number;
+  stockMinimo: number;
+}
 
 /**
  * Prioridad de los correos (RNF-16): en BullMQ, número menor = sale antes.
