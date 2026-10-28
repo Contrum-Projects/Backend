@@ -1,7 +1,9 @@
 import { BadRequestException, UnauthorizedException } from '@nestjs/common';
+import type { TrabajoStockBajo } from '../../colas/colas.js';
 import type { PrismaService } from '../../prisma/prisma.service.js';
 import { AjustesService } from './ajustes.service.js';
 import type { CrearAjusteDto } from './dto/crear-ajuste.dto.js';
+import type { StockBajoService } from './stock-bajo.service.js';
 
 const FECHA = new Date('2026-10-25T15:00:00Z');
 
@@ -40,13 +42,43 @@ const dtoBase = (cantidad: number) =>
     observacion: 'Conteo físico',
   }) satisfies CrearAjusteDto;
 
+const crearStockBajo = () => ({
+  stockAntes: vi.fn().mockResolvedValue(10),
+  avisarSiCruza: vi.fn().mockResolvedValue([]),
+  encolar: vi.fn().mockResolvedValue(undefined),
+});
+
 describe('AjustesService', () => {
   let prisma: ReturnType<typeof crearPrisma>;
+  let stockBajo: ReturnType<typeof crearStockBajo>;
   let servicio: AjustesService;
 
   beforeEach(() => {
     prisma = crearPrisma();
-    servicio = new AjustesService(prisma as unknown as PrismaService);
+    stockBajo = crearStockBajo();
+    servicio = new AjustesService(
+      prisma as unknown as PrismaService,
+      stockBajo as unknown as StockBajoService,
+    );
+  });
+
+  it('E11-H6 · stock bajo el mínimo: un ajuste negativo revisa el mínimo y encola los avisos', async () => {
+    const aviso = { notificacionId: 70 } as TrabajoStockBajo;
+    stockBajo.avisarSiCruza.mockResolvedValue([aviso]);
+
+    await servicio.registrar(dtoBase(-2), 'uuid-bodeguero');
+
+    expect(stockBajo.stockAntes).toHaveBeenCalledWith(prisma.tx, 11);
+    expect(stockBajo.avisarSiCruza).toHaveBeenCalledWith(prisma.tx, 11, 10);
+    expect(stockBajo.encolar).toHaveBeenCalledWith([aviso]);
+  });
+
+  it('E11-H6 · stock sobre el mínimo: un ajuste positivo no puede bajar el stock y no revisa el mínimo', async () => {
+    await servicio.registrar(dtoBase(3), 'uuid-bodeguero');
+
+    expect(stockBajo.stockAntes).not.toHaveBeenCalled();
+    expect(stockBajo.avisarSiCruza).not.toHaveBeenCalled();
+    expect(stockBajo.encolar).toHaveBeenCalledWith([]);
   });
 
   it('E11-H4 · ajuste positivo: suma el stock y deja un movimiento ajuste_positivo con la ubicación de destino', async () => {
