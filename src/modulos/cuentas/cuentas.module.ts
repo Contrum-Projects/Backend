@@ -3,6 +3,8 @@ import { Module } from '@nestjs/common';
 import { COLAS } from '../../colas/colas.js';
 import { CuentasController } from './cuentas.controller.js';
 import { CuentasService } from './cuentas.service.js';
+import { DatosFacturacionController } from './datos-facturacion.controller.js';
+import { DatosFacturacionService } from './datos-facturacion.service.js';
 import { DireccionesController } from './direcciones.controller.js';
 import { DireccionesService } from './direcciones.service.js';
 import { IntentosSesion } from './intentos-sesion.js';
@@ -22,6 +24,7 @@ import { SolicitudesRecuperacion } from './solicitudes-recuperacion.js';
     SesionController,
     MiCuentaController,
     DireccionesController,
+    DatosFacturacionController,
     RecuperacionContrasenaController,
   ],
   providers: [
@@ -30,6 +33,7 @@ import { SolicitudesRecuperacion } from './solicitudes-recuperacion.js';
     IntentosSesion,
     MiCuentaService,
     DireccionesService,
+    DatosFacturacionService,
     RecuperacionContrasenaService,
     SolicitudesRecuperacion,
   ],
