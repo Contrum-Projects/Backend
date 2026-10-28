@@ -25,6 +25,11 @@ export const LIMITES = {
    * indica si un RUT ya tiene cuenta).
    */
   EDITAR_DATOS: { limit: 10, ttl: 60 * 60_000 },
+  /**
+   * Cotizar el carrito del visitante (E5-H2, decisión del 28 oct 2026): 60/min por IP. Holgado
+   * para quien arma su carrito y encarece sondear el stock probando cantidades sin cuenta.
+   */
+  COTIZAR_CARRITO: { limit: 60, ttl: 60_000 },
 } as const;
 
 /**

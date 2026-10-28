@@ -378,6 +378,22 @@ tras perder el rol) queda en el carrito sin precio, fuera del total y señalado,
 quitar; (3) tope de 999 unidades por línea. El stock se revisa por línea: la suma entre packs y
 formatos que comparten componentes la valida el pedido (E5-H3, SCRUM-45), que además exige el mínimo
 del profesional. Sin cambios al MER.
+Decisiones del 28 oct (E5-H2): el carrito del visitante vive en el navegador y la API no lo guarda.
+`POST /api/carrito/cotizar` es **pública** y solo calcula: recibe `{ articulos: [{ articuloId,
+cantidad }] }` y responde con la forma de `GET /api/carrito`, siempre como visitante (minorista,
+solo generales, sin leer el mayorista aunque llegue un token). Un artículo que no se vende sin
+cuenta (inexistente, desactivado, exclusivo...) sale con `aLaVenta: false` y sin `tipo`, nombre ni
+imagen, para no revelar si existe. Al iniciar sesión, el frontend llama `POST /api/carrito/unir`
+(cliente y profesional; personal 403) con la misma lista y después vacía el carrito del navegador.
+La unión bloquea la cuenta, crea el carrito si no hay, **suma** las unidades de un artículo que ya
+estaba, descarta lo que la tienda no vende a esa cuenta o está agotado y deja en 999 una suma que
+pasa del tope. **No recorta al stock** (auditoría del 28 oct: devolver la cantidad recortada
+revelaba cuántas unidades hay): la línea queda con `stockSuficiente: false` e
+`impideCrearPedido: true`, como en `GET /api/carrito`. Cada caso va en `ajustes`
+(`AJUSTES_UNION_CARRITO`: `no_disponible`, `agotado`, `cantidad_ajustada`). La lista lleva de 1 a
+50 artículos distintos con cantidades de 1 a 999 (400). `cotizar` tiene un límite de 60 por
+minuto por IP (`LIMITES.COTIZAR_CARRITO`, RNF-09): frena sondear el stock probando cantidades sin
+cuenta. Sin cambios al MER.
 
 **E6 Pago.** Solo Mercado Pago. La notificación se responde de inmediato y se procesa en la cola
 `eventos-pago` (RNF-15: MP espera 22 s). Cada evento se procesa una vez (`idEventoExterno` único).
