@@ -8,7 +8,11 @@ import { urlPublicaArchivo } from '../../almacen/almacen-archivos.js';
 import { hoyEnLaTienda } from '../../common/dominio/fechas.js';
 import { precioConIva } from '../../common/dominio/montos.js';
 import { ROLES, type Rol } from '../../common/dominio/roles.js';
-import { TIPOS_ARTICULO } from '../../common/dominio/valores.js';
+import {
+  AJUSTES_UNION_CARRITO,
+  TIPOS_ARTICULO,
+  type Valor,
+} from '../../common/dominio/valores.js';
 import type { Entorno } from '../../config/entorno.js';
 import type { Prisma } from '../../generated/prisma/client.js';
 import { bloquearCuenta } from '../../prisma/bloqueos.js';
@@ -33,17 +37,27 @@ import {
   type CambiarCantidadCarritoDto,
   MAXIMO_UNIDADES_LINEA,
 } from './dto/articulo-carrito.dto.js';
+import type { ArticuloNavegadorDto } from './dto/articulos-navegador.dto.js';
 
 const NO_ESTA_EN_EL_CARRITO = 'El artículo no está en el carrito.';
 
 type Cliente = Prisma.TransactionClient | PrismaService;
 
+/**
+ * Quién compra: un rol comprador con sesión, o `null` para el visitante (E5-H2), que ve lo mismo
+ * que el cliente: precio minorista y solo artículos generales.
+ */
+type Comprador = Rol | null;
+
 /** Un artículo de la tienda en el carrito, con su precio y sus existencias (E5-H1). */
 export interface LineaCarrito {
   articuloId: number;
-  /** `formato` o `pack` (`TIPOS_ARTICULO`). */
-  tipo: string;
-  /** Nombre del producto, o del pack. */
+  /**
+   * `formato` o `pack` (`TIPOS_ARTICULO`); `null` al cotizar sin cuenta un artículo que no se
+   * vende, para no revelar si existe (E5-H2).
+   */
+  tipo: string | null;
+  /** Nombre del producto, o del pack; vacío en lo mismo que `tipo` en `null`. */
   nombre: string;
   /** Nombre del formato; `null` en un pack. */
   nombreFormato: string | null;
@@ -68,6 +82,18 @@ export interface CarritoCuenta {
   total: number;
   /** Hay artículos y ninguno impide crear el pedido. */
   puedeCrearPedido: boolean;
+}
+
+/** Un artículo del navegador que no se unió entero al carrito de la cuenta (E5-H2). */
+export interface AjusteUnionCarrito {
+  articuloId: number;
+  /** `AJUSTES_UNION_CARRITO`; no informa cuántas unidades hay. */
+  motivo: Valor<typeof AJUSTES_UNION_CARRITO>;
+}
+
+export interface CarritoUnido extends CarritoCuenta {
+  /** Lo que se descartó o se ajustó al unir; vacío si todo entró tal cual. */
+  ajustes: AjusteUnionCarrito[];
 }
 
 /** Lo que se necesita de un artículo que la tienda vende a esa cuenta. */
@@ -96,6 +122,17 @@ const SELECCION_LINEA = {
     },
   },
 } satisfies Prisma.ItemCarritoSelect;
+
+type DatosArticulo = Prisma.ArticuloVentaGetPayload<{
+  select: typeof SELECCION_LINEA.articulo.select;
+}>;
+
+/** Una línea por armar: los datos del artículo faltan si no se deben mostrar. */
+interface LineaPorArmar {
+  articuloId: number;
+  cantidad: number;
+  articulo: DatosArticulo | null;
+}
 
 @Injectable()
 export class CarritoService {
@@ -227,6 +264,114 @@ export class CarritoService {
     return this.obtener(codigoPublico, rol);
   }
 
+  /**
+   * E5-H2 · Precios y disponibilidad vigentes del carrito que el visitante guarda en su navegador,
+   * sin cuenta: precio minorista y solo artículos generales. No escribe nada en la base. Un
+   * artículo que no se vende sale sin datos, para no revelar si existe ni si es exclusivo.
+   */
+  async cotizar(articulos: ArticuloNavegadorDto[]): Promise<CarritoCuenta> {
+    const ids = articulos.map(({ articuloId }) => articuloId);
+    const aLaVenta = await this.articulosALaVenta(this.prisma, ids, null);
+    const datos = await this.prisma.articuloVenta.findMany({
+      where: { id: { in: [...aLaVenta.keys()] } },
+      select: { id: true, ...SELECCION_LINEA.articulo.select },
+    });
+    const datosPorId = new Map(datos.map(({ id, ...resto }) => [id, resto]));
+    return this.armar(
+      this.prisma,
+      articulos.map(({ articuloId, cantidad }) => ({
+        articuloId,
+        cantidad,
+        articulo: datosPorId.get(articuloId) ?? null,
+      })),
+      null,
+      aLaVenta,
+    );
+  }
+
+  /**
+   * E5-H2 · Une el carrito del navegador al de la cuenta (lo crea si hace falta). Un artículo que
+   * ya estaba suma sus unidades. Lo que la tienda no vende a esta cuenta o está agotado se
+   * descarta, y una suma que pasa del tope por artículo queda en el tope; cada caso va en
+   * `ajustes`. La cantidad **no** se recorta al stock: devolverla recortada diría cuántas unidades
+   * hay (E2-H3). La línea queda marcada como en `obtener` hasta que se ajuste.
+   */
+  async unir(
+    codigoPublico: string,
+    rol: Rol,
+    articulos: ArticuloNavegadorDto[],
+  ): Promise<CarritoUnido> {
+    const ajustes: AjusteUnionCarrito[] = [];
+    await this.prisma.$transaction(async (tx) => {
+      const usuarioId = await bloquearCuenta(tx, codigoPublico);
+      const ids = articulos.map(({ articuloId }) => articuloId);
+      const aLaVenta = await this.articulosALaVenta(tx, ids, rol);
+      const stock = await stockVendible(
+        tx,
+        [...aLaVenta.values()].flatMap((articulo) =>
+          articulo.componentes.map(({ formatoId }) => formatoId),
+        ),
+      );
+      const guardado = await tx.carrito.findUnique({
+        where: { usuarioId },
+        select: {
+          items: {
+            where: { articuloId: { in: ids } },
+            select: { articuloId: true, cantidad: true },
+          },
+        },
+      });
+      const previas = new Map(
+        (guardado?.items ?? []).map((item) => [item.articuloId, item.cantidad]),
+      );
+
+      const nuevas = new Map<number, number>();
+      for (const { articuloId, cantidad } of articulos) {
+        const vendido = aLaVenta.get(articuloId);
+        if (!vendido) {
+          ajustes.push({
+            articuloId,
+            motivo: AJUSTES_UNION_CARRITO.NO_DISPONIBLE,
+          });
+          continue;
+        }
+        if (this.unidadesPosibles(vendido, stock) === 0) {
+          ajustes.push({ articuloId, motivo: AJUSTES_UNION_CARRITO.AGOTADO });
+          continue;
+        }
+        const previa = previas.get(articuloId) ?? 0;
+        const deseada = previa + cantidad;
+        if (deseada > MAXIMO_UNIDADES_LINEA) {
+          ajustes.push({
+            articuloId,
+            motivo: AJUSTES_UNION_CARRITO.CANTIDAD_AJUSTADA,
+          });
+        }
+        if (previa < MAXIMO_UNIDADES_LINEA) {
+          nuevas.set(articuloId, Math.min(deseada, MAXIMO_UNIDADES_LINEA));
+        }
+      }
+      if (nuevas.size === 0) return;
+
+      const carrito = await tx.carrito.upsert({
+        where: { usuarioId },
+        create: { usuarioId },
+        update: { fechaActualizacion: new Date() },
+        select: { id: true },
+      });
+      for (const [articuloId, cantidad] of nuevas) {
+        await tx.itemCarrito.upsert({
+          where: {
+            carritoId_articuloId: { carritoId: carrito.id, articuloId },
+          },
+          create: { carritoId: carrito.id, articuloId, cantidad },
+          update: { cantidad },
+        });
+      }
+    });
+    return { ...(await this.obtener(codigoPublico, rol)), ajustes };
+  }
+
   private async exigirEnElCarrito(
     tx: Cliente,
     usuarioId: number,
@@ -257,7 +402,7 @@ export class CarritoService {
   private async articulosALaVenta(
     cliente: Cliente,
     ids: number[],
-    rol: Rol,
+    rol: Comprador,
   ): Promise<Map<number, ArticuloALaVenta>> {
     const vendibles = new Map<number, ArticuloALaVenta>();
     if (ids.length === 0) return vendibles;
@@ -375,19 +520,25 @@ export class CarritoService {
     }
   }
 
-  /** Arma la respuesta: precio y stock de cada línea a la fecha de hoy y el total. */
+  /**
+   * Arma la respuesta: precio y stock de cada línea a la fecha de hoy y el total. Recibe los
+   * artículos a la venta si quien llama ya los consultó.
+   */
   private async armar(
     cliente: Cliente,
-    items: Prisma.ItemCarritoGetPayload<{ select: typeof SELECCION_LINEA }>[],
-    rol: Rol,
+    items: LineaPorArmar[],
+    rol: Comprador,
+    vendibles?: Map<number, ArticuloALaVenta>,
   ): Promise<CarritoCuenta> {
     const porcentajeIva = this.config.get('IVA_PORCENTAJE', { infer: true });
     const urlBase = this.config.get('R2_URL_PUBLICA', { infer: true });
-    const aLaVenta = await this.articulosALaVenta(
-      cliente,
-      items.map((item) => item.articuloId),
-      rol,
-    );
+    const aLaVenta =
+      vendibles ??
+      (await this.articulosALaVenta(
+        cliente,
+        items.map((item) => item.articuloId),
+        rol,
+      ));
     const stock = await stockVendible(
       cliente,
       [...aLaVenta.values()].flatMap((articulo) =>
@@ -404,13 +555,13 @@ export class CarritoService {
       const stockSuficiente = vendido
         ? item.cantidad <= this.unidadesPosibles(vendido, stock)
         : null;
-      const clave = articulo.imagenes[0]?.ubicacionArchivo;
+      const clave = articulo?.imagenes[0]?.ubicacionArchivo;
       return {
         articuloId: item.articuloId,
-        tipo: articulo.tipo,
+        tipo: articulo?.tipo ?? null,
         nombre:
-          articulo.formato?.producto.nombre ?? articulo.pack?.nombre ?? '',
-        nombreFormato: articulo.formato?.nombreFormato ?? null,
+          articulo?.formato?.producto.nombre ?? articulo?.pack?.nombre ?? '',
+        nombreFormato: articulo?.formato?.nombreFormato ?? null,
         imagen: clave ? urlPublicaArchivo(urlBase, clave) : null,
         cantidad: item.cantidad,
         precioUnitario,

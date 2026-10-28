@@ -48,6 +48,7 @@ const crearDb = () => {
       update: vi.fn().mockResolvedValue({}),
       delete: vi.fn().mockResolvedValue({}),
     },
+    articuloVenta: { findMany: vi.fn().mockResolvedValue([]) },
     formatoProducto: { findMany: vi.fn().mockResolvedValue([]) },
     pack: { findMany: vi.fn().mockResolvedValue([]) },
     existencia: { groupBy: vi.fn().mockResolvedValue([]) },
@@ -355,6 +356,211 @@ describe('CarritoService', () => {
         servicio.cambiarCantidad(CODIGO, ROLES.CLIENTE, 11, { cantidad: 3 }),
       ).rejects.toThrow(BadRequestException);
       expect(db.itemCarrito.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('cotizar', () => {
+    it('E5-H2 · carrito sin sesión: precios minoristas y disponibilidad vigentes, sin leer el mayorista ni guardar nada', async () => {
+      venderFormato(db, 11, 10000, 2);
+      db.articuloVenta.findMany.mockResolvedValue([
+        { id: 11, ...lineaFormato(11, 0).articulo },
+      ]);
+
+      const carrito = await servicio.cotizar([{ articuloId: 11, cantidad: 3 }]);
+
+      const unitario = precioConIva(10000, IVA);
+      expect(carrito).toEqual({
+        items: [
+          {
+            articuloId: 11,
+            tipo: 'formato',
+            nombre: 'Shampoo',
+            nombreFormato: '300 ml',
+            imagen: 'https://cdn.test/articulos/11/principal.jpg',
+            cantidad: 3,
+            precioUnitario: unitario,
+            subtotal: unitario * 3,
+            aLaVenta: true,
+            stockSuficiente: false,
+            impideCrearPedido: true,
+          },
+        ],
+        total: unitario * 3,
+        puedeCrearPedido: false,
+      });
+      expect(
+        db.formatoProducto.findMany.mock.calls[0][0].select.articulo.select,
+      ).toEqual({ precioMinoristaNeto: true });
+      expect(db.pack.findMany.mock.calls[0][0].select.articulo.select).toEqual({
+        precioMinoristaNeto: true,
+      });
+      expect(db.$transaction).not.toHaveBeenCalled();
+      expect(db.carrito.upsert).not.toHaveBeenCalled();
+      expect(db.itemCarrito.upsert).not.toHaveBeenCalled();
+    });
+
+    it('E5-H2 · un artículo que no se vende sin cuenta sale sin datos ni precio y no lee los datos del artículo', async () => {
+      venderFormato(db, 11, 10000, 5);
+      db.articuloVenta.findMany.mockResolvedValue([
+        { id: 11, ...lineaFormato(11, 0).articulo },
+      ]);
+
+      const carrito = await servicio.cotizar([
+        { articuloId: 11, cantidad: 1 },
+        { articuloId: 12, cantidad: 1 },
+      ]);
+
+      expect(db.articuloVenta.findMany.mock.calls[0][0].where).toEqual({
+        id: { in: [11] },
+      });
+      expect(carrito.items[1]).toEqual({
+        articuloId: 12,
+        tipo: null,
+        nombre: '',
+        nombreFormato: null,
+        imagen: null,
+        cantidad: 1,
+        precioUnitario: null,
+        subtotal: null,
+        aLaVenta: false,
+        stockSuficiente: null,
+        impideCrearPedido: true,
+      });
+      expect(carrito.total).toBe(precioConIva(10000, IVA));
+    });
+  });
+
+  describe('unir', () => {
+    it('E5-H2 · unión al iniciar sesión: suma lo del navegador a lo guardado y agrega lo nuevo', async () => {
+      db.formatoProducto.findMany.mockResolvedValue([
+        { id: 11, articulo: { precioMinoristaNeto: 10000 } },
+        { id: 12, articulo: { precioMinoristaNeto: 5000 } },
+      ]);
+      db.existencia.groupBy.mockResolvedValue([
+        { formatoId: 11, _sum: { cantidad: 10 } },
+        { formatoId: 12, _sum: { cantidad: 10 } },
+      ]);
+      db.carrito.findUnique.mockResolvedValue({
+        items: [{ articuloId: 11, cantidad: 2 }],
+      });
+
+      const carrito = await servicio.unir(CODIGO, ROLES.CLIENTE, [
+        { articuloId: 11, cantidad: 3 },
+        { articuloId: 12, cantidad: 1 },
+      ]);
+
+      expect(db.$queryRaw).toHaveBeenCalled();
+      expect(db.carrito.upsert.mock.calls[0][0]).toMatchObject({
+        where: { usuarioId: 7 },
+        create: { usuarioId: 7 },
+      });
+      expect(
+        db.itemCarrito.upsert.mock.calls.map(([argumentos]) => argumentos),
+      ).toEqual([
+        expect.objectContaining({
+          create: { carritoId: 70, articuloId: 11, cantidad: 5 },
+          update: { cantidad: 5 },
+        }),
+        expect.objectContaining({
+          create: { carritoId: 70, articuloId: 12, cantidad: 1 },
+          update: { cantidad: 1 },
+        }),
+      ]);
+      expect(carrito.ajustes).toEqual([]);
+      expect(db.carrito.findFirst).toHaveBeenCalled();
+    });
+
+    it('E5-H2 · descarta lo que no se vende a la cuenta o está agotado; lo que supera el stock se une entero, sin recortar (no revela cuántas hay)', async () => {
+      db.formatoProducto.findMany.mockResolvedValue([
+        { id: 11, articulo: { precioMinoristaNeto: 10000 } },
+        { id: 12, articulo: { precioMinoristaNeto: 5000 } },
+      ]);
+      db.existencia.groupBy.mockResolvedValue([
+        { formatoId: 11, _sum: { cantidad: 4 } },
+        { formatoId: 12, _sum: { cantidad: 0 } },
+      ]);
+
+      const carrito = await servicio.unir(CODIGO, ROLES.CLIENTE, [
+        { articuloId: 11, cantidad: 6 },
+        { articuloId: 12, cantidad: 1 },
+        { articuloId: 99, cantidad: 1 },
+      ]);
+
+      expect(db.itemCarrito.upsert).toHaveBeenCalledTimes(1);
+      expect(db.itemCarrito.upsert.mock.calls[0][0].update).toEqual({
+        cantidad: 6,
+      });
+      expect(carrito.ajustes).toEqual([
+        { articuloId: 12, motivo: 'agotado' },
+        { articuloId: 99, motivo: 'no_disponible' },
+      ]);
+    });
+
+    it(`la suma no pasa de ${MAXIMO_UNIDADES_LINEA} unidades por artículo`, async () => {
+      venderFormato(db, 11, 10000, 5000);
+      db.carrito.findUnique.mockResolvedValue({
+        items: [{ articuloId: 11, cantidad: 990 }],
+      });
+
+      const carrito = await servicio.unir(CODIGO, ROLES.CLIENTE, [
+        { articuloId: 11, cantidad: 20 },
+      ]);
+
+      expect(db.itemCarrito.upsert.mock.calls[0][0].update).toEqual({
+        cantidad: MAXIMO_UNIDADES_LINEA,
+      });
+      expect(carrito.ajustes).toEqual([
+        { articuloId: 11, motivo: 'cantidad_ajustada' },
+      ]);
+    });
+
+    it(`una cuenta que ya tenía ${MAXIMO_UNIDADES_LINEA} unidades no se toca y se informa el ajuste`, async () => {
+      venderFormato(db, 11, 10000, 5000);
+      db.carrito.findUnique.mockResolvedValue({
+        items: [{ articuloId: 11, cantidad: MAXIMO_UNIDADES_LINEA }],
+      });
+
+      const carrito = await servicio.unir(CODIGO, ROLES.CLIENTE, [
+        { articuloId: 11, cantidad: 1 },
+      ]);
+
+      expect(db.itemCarrito.upsert).not.toHaveBeenCalled();
+      expect(carrito.ajustes).toEqual([
+        { articuloId: 11, motivo: 'cantidad_ajustada' },
+      ]);
+    });
+
+    it('si nada se puede unir no crea el carrito', async () => {
+      db.carrito.findUnique.mockResolvedValue(null);
+
+      const carrito = await servicio.unir(CODIGO, ROLES.CLIENTE, [
+        { articuloId: 99, cantidad: 1 },
+      ]);
+
+      expect(db.carrito.upsert).not.toHaveBeenCalled();
+      expect(carrito).toMatchObject({
+        items: [],
+        ajustes: [{ articuloId: 99, motivo: 'no_disponible' }],
+      });
+    });
+
+    it('RNF-04 · el profesional une con su rol (lee el mayorista) y el cliente nunca lo lee', async () => {
+      venderFormato(db, 11, 10000, 5);
+
+      await servicio.unir(CODIGO, ROLES.CLIENTE, [
+        { articuloId: 11, cantidad: 1 },
+      ]);
+      expect(
+        db.formatoProducto.findMany.mock.calls[0][0].select.articulo.select,
+      ).toEqual({ precioMinoristaNeto: true });
+
+      db.formatoProducto.findMany.mockClear();
+      await servicio.unir(CODIGO, ROLES.PROFESIONAL, [
+        { articuloId: 11, cantidad: 1 },
+      ]);
+      expect(
+        db.formatoProducto.findMany.mock.calls[0][0].select.articulo.select,
+      ).toEqual({ precioMayoristaNeto: true });
     });
   });
 

@@ -16,6 +16,7 @@ import {
   TIPOS_ARTICULO,
 } from '../src/common/dominio/valores.js';
 import { configurarApp } from '../src/configurar-app.js';
+import { LIMITES } from '../src/limites/limites.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { REDIS } from '../src/redis/redis.module.js';
 
@@ -614,6 +615,10 @@ describe('Carrito · agregar, cambiar y quitar artículos (e2e)', () => {
       () => servidor().post(`${RUTA}/items`),
       () => servidor().patch(`${RUTA}/items/1`),
       () => servidor().delete(`${RUTA}/items/1`),
+      () =>
+        servidor()
+          .post(`${RUTA}/unir`)
+          .send({ articulos: [{ articuloId: 1, cantidad: 1 }] }),
     ];
 
     for (const peticion of peticiones) await peticion().expect(401);
@@ -622,5 +627,228 @@ describe('Carrito · agregar, cambiar y quitar artículos (e2e)', () => {
     for (const peticion of peticiones) {
       await peticion().auth(vendedor, { type: 'bearer' }).expect(403);
     }
+  });
+
+  describe('E5-H2 · carrito del navegador', () => {
+    const cotizar = (articulos: object[], token?: string) => {
+      const peticion = servidor().post(`${RUTA}/cotizar`);
+      if (token) peticion.auth(token, { type: 'bearer' });
+      return peticion.send({ articulos });
+    };
+
+    const unir = (token: string, articulos: object[]) =>
+      servidor()
+        .post(`${RUTA}/unir`)
+        .auth(token, { type: 'bearer' })
+        .send({ articulos });
+
+    it('E5-H2 · carrito sin sesión: devuelve precios y disponibilidad vigentes sin cuenta y no guarda un carrito', async () => {
+      const formato = await nuevoFormato();
+      const otro = await nuevoFormato();
+      await ponerStock(formato.id, 2);
+      await ponerStock(otro.id, 10);
+      const pack = await nuevoPack([
+        { formatoId: formato.id, cantidad: 1 },
+        { formatoId: otro.id, cantidad: 1 },
+      ]);
+      const carritosAntes = await prisma.carrito.count();
+
+      const respuesta = await cotizar([
+        { articuloId: otro.id, cantidad: 3 },
+        { articuloId: formato.id, cantidad: 3 },
+        { articuloId: pack, cantidad: 1 },
+      ]).expect(200);
+
+      const unitario = precioConIva(10000, porcentajeIva);
+      const precioPack = precioConIva(15000, porcentajeIva);
+      const carrito = respuesta.body as Carrito;
+      expect(carrito).toEqual({
+        items: [
+          expect.objectContaining({
+            articuloId: otro.id,
+            tipo: TIPOS_ARTICULO.FORMATO,
+            nombreFormato: '300 ml',
+            precioUnitario: unitario,
+            subtotal: unitario * 3,
+            aLaVenta: true,
+            stockSuficiente: true,
+            impideCrearPedido: false,
+          }),
+          expect.objectContaining({
+            articuloId: formato.id,
+            stockSuficiente: false,
+            impideCrearPedido: true,
+          }),
+          expect.objectContaining({
+            articuloId: pack,
+            tipo: TIPOS_ARTICULO.PACK,
+            precioUnitario: precioPack,
+            stockSuficiente: true,
+          }),
+        ],
+        total: unitario * 6 + precioPack,
+        puedeCrearPedido: false,
+      });
+      expect(JSON.stringify(carrito)).not.toMatch(/mayorista|"stock":/i);
+      expect(await prisma.carrito.count()).toBe(carritosAntes);
+    });
+
+    it('E5-H2 · sin cuenta un exclusivo, un desactivado o un id inexistente no se cotizan ni revelan sus datos; tampoco con token de profesional', async () => {
+      const general = await nuevoFormato();
+      const exclusivo = await nuevoFormato(CANALES_VENTA.PROFESIONAL);
+      const desactivado = await nuevoFormato();
+      await Promise.all(
+        [general, exclusivo, desactivado].map((f) => ponerStock(f.id, 5)),
+      );
+      await prisma.articuloVenta.update({
+        where: { id: desactivado.id },
+        data: { activo: false },
+      });
+      const profesional = await tokenDe(ROLES.PROFESIONAL);
+
+      const respuesta = await cotizar(
+        [
+          { articuloId: general.id, cantidad: 1 },
+          { articuloId: exclusivo.id, cantidad: 1 },
+          { articuloId: desactivado.id, cantidad: 1 },
+          { articuloId: 2_000_000_000, cantidad: 1 },
+        ],
+        profesional,
+      ).expect(200);
+
+      const carrito = respuesta.body as Carrito;
+      expect(carrito.items[0]!.precioUnitario).toBe(
+        precioConIva(10000, porcentajeIva),
+      );
+      for (const linea of carrito.items.slice(1)) {
+        expect(linea).toEqual(
+          expect.objectContaining({
+            tipo: null,
+            nombre: '',
+            nombreFormato: null,
+            imagen: null,
+            precioUnitario: null,
+            aLaVenta: false,
+            impideCrearPedido: true,
+          }),
+        );
+      }
+      expect(carrito.total).toBe(precioConIva(10000, porcentajeIva));
+    });
+
+    it('E5-H2 · la lista del navegador lleva de 1 a 50 artículos distintos con cantidades de 1 a 999', async () => {
+      const malas = [
+        [],
+        [
+          { articuloId: 1, cantidad: 1 },
+          { articuloId: 1, cantidad: 1 },
+        ],
+        [{ articuloId: 1, cantidad: 1000 }],
+        Array.from({ length: 51 }, (_, i) => ({
+          articuloId: i + 1,
+          cantidad: 1,
+        })),
+      ];
+      const token = await tokenDe(ROLES.CLIENTE);
+
+      for (const articulos of malas) {
+        await cotizar(articulos).expect(400);
+        await unir(token, articulos).expect(400);
+      }
+    });
+
+    it('E5-H2 · unión al iniciar sesión: une el carrito del navegador al guardado de la cuenta, sumando lo repetido', async () => {
+      const guardado = await nuevoFormato();
+      const nuevo = await nuevoFormato();
+      await ponerStock(guardado.id, 10);
+      await ponerStock(nuevo.id, 10);
+      const token = await tokenDe(ROLES.CLIENTE);
+      await agregar(token, guardado.id, 2).expect(201);
+
+      const respuesta = await unir(token, [
+        { articuloId: nuevo.id, cantidad: 2 },
+        { articuloId: guardado.id, cantidad: 3 },
+      ]).expect(200);
+
+      const unitario = precioConIva(10000, porcentajeIva);
+      const esperado = {
+        items: [
+          expect.objectContaining({ articuloId: guardado.id, cantidad: 5 }),
+          expect.objectContaining({ articuloId: nuevo.id, cantidad: 2 }),
+        ],
+        total: unitario * 7,
+        puedeCrearPedido: true,
+      };
+      expect(respuesta.body).toMatchObject({ ...esperado, ajustes: [] });
+      expect(await ver(token)).toMatchObject(esperado);
+    });
+
+    it('E5-H2 · una cuenta sin carrito guardado queda con el del navegador', async () => {
+      const formato = await nuevoFormato();
+      await ponerStock(formato.id, 5);
+      const token = await tokenDe(ROLES.CLIENTE);
+
+      await unir(token, [{ articuloId: formato.id, cantidad: 2 }]).expect(200);
+
+      expect((await ver(token)).items).toEqual([
+        expect.objectContaining({ articuloId: formato.id, cantidad: 2 }),
+      ]);
+    });
+
+    it('E5-H2 · al unir se descarta lo agotado y lo que la tienda no vende a la cuenta; lo que supera el stock se une marcado, sin revelar cuántas hay', async () => {
+      const escaso = await nuevoFormato();
+      const agotado = await nuevoFormato();
+      const exclusivo = await nuevoFormato(CANALES_VENTA.PROFESIONAL);
+      await ponerStock(escaso.id, 3);
+      await ponerStock(exclusivo.id, 5);
+      const token = await tokenDe(ROLES.CLIENTE);
+
+      const respuesta = await unir(token, [
+        { articuloId: escaso.id, cantidad: 5 },
+        { articuloId: agotado.id, cantidad: 1 },
+        { articuloId: exclusivo.id, cantidad: 1 },
+      ]).expect(200);
+
+      const carrito = respuesta.body as Carrito & { ajustes: unknown[] };
+      expect(carrito.items).toEqual([
+        expect.objectContaining({
+          articuloId: escaso.id,
+          cantidad: 5,
+          stockSuficiente: false,
+          impideCrearPedido: true,
+        }),
+      ]);
+      expect(carrito.ajustes).toEqual([
+        { articuloId: agotado.id, motivo: 'agotado' },
+        { articuloId: exclusivo.id, motivo: 'no_disponible' },
+      ]);
+      expect(carrito.puedeCrearPedido).toBe(false);
+    });
+
+    it(`E5-H2 · cotizar sin cuenta tiene un límite de ${LIMITES.COTIZAR_CARRITO.limit} peticiones por minuto por IP`, async () => {
+      const formato = await nuevoFormato();
+      await ponerStock(formato.id, 5);
+      const articulos = [{ articuloId: formato.id, cantidad: 1 }];
+
+      for (let i = 0; i < LIMITES.COTIZAR_CARRITO.limit; i++) {
+        await cotizar(articulos).expect(200);
+      }
+      await cotizar(articulos).expect(429);
+    });
+
+    it('E5-H2 · el profesional une a precio mayorista y puede unir exclusivos', async () => {
+      const exclusivo = await nuevoFormato(CANALES_VENTA.PROFESIONAL);
+      await ponerStock(exclusivo.id, 5);
+      const token = await tokenDe(ROLES.PROFESIONAL);
+
+      const respuesta = await unir(token, [
+        { articuloId: exclusivo.id, cantidad: 1 },
+      ]).expect(200);
+
+      expect((respuesta.body as Carrito).items[0]).toMatchObject({
+        precioUnitario: precioConIva(8000, porcentajeIva),
+        aLaVenta: true,
+      });
+    });
   });
 });

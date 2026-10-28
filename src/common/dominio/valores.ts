@@ -158,6 +158,20 @@ export const DISPONIBILIDADES = {
   AGOTADO: 'agotado',
 } as const;
 
+/**
+ * Por qué un artículo del carrito del navegador no se unió entero al de la cuenta (E5-H2,
+ * decisión del 28 de octubre de 2026). No es una columna: va en la respuesta de la unión y no
+ * revela cuántas unidades hay.
+ */
+export const AJUSTES_UNION_CARRITO = {
+  /** No existe o la tienda no se lo vende a esa cuenta: se descarta. */
+  NO_DISPONIBLE: 'no_disponible',
+  /** Sin stock vendible: se descarta. */
+  AGOTADO: 'agotado',
+  /** La suma pasaba del tope por artículo: quedó en el tope. No se recorta al stock. */
+  CANTIDAD_AJUSTADA: 'cantidad_ajustada',
+} as const;
+
 /** NOTIFICACION.estado_envio (decisión del 14 de octubre de 2026, E1-H1). */
 export const ESTADOS_NOTIFICACION = {
   PENDIENTE: 'pendiente',
