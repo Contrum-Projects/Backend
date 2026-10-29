@@ -427,6 +427,22 @@ facturación puede ser distinto del RUT personal de la cuenta (E1-H5) y no se co
 para retiro, retirado, cancelado (`ESTADOS_PEDIDO`). Cada cambio guarda fecha, quién y comentario,
 y avisa por correo. Solo el personal cancela, y solo pedidos pendientes de pago; el cliente no.
 
+Decisiones del 28 oct (E8-H3): `POST /api/pedidos/:codigoPedido/cancelar` con `pedidos.gestionar`
+(administrador, bodeguero y vendedor); cliente y profesional reciben 403 y sin sesión 401. Cuerpo
+opcional `{ comentario }` (hasta 500 caracteres, se recorta). En **una transacción**: bloquea la
+fila del pedido (`FOR NO KEY UPDATE`) antes de mirar su estado, devuelve el stock con
+`VentaStockService.reingresarPorPedido(tx, pedidoId, usuarioId)` a nombre de quien cancela, agrega
+al historial el cambio `cancelado` (siguiente correlativo, con quién y el comentario) y cambia
+`estado_actual`. Solo se cancela un pedido `pendiente_pago`; cualquier otro estado (pagado, en
+preparación, ya cancelado…) responde 409 «Solo se puede cancelar un pedido pendiente de pago.», y
+un código inexistente o mal formado, 404. Dos cancelaciones simultáneas: una gana y la otra recibe
+409; el stock vuelve una sola vez. Responde `{ codigoPublico, estado }`. Si el stock no se puede
+devolver (la ubicación superaría el máximo permitido) responde 409 y no cambia nada. **El pago
+(E6-H2) debe bloquear la fila del pedido de la misma forma** antes de aplicar un pago, para que
+pago y cancelación no se pisen. PROPUESTA por confirmar: esta historia no envía correo al cliente;
+el aviso por cambio de estado (RF-08.03) lo define E8-H2 (SCRUM-58), y la cancelación automática
+por impago (E6-H3) reutilizará este mismo reingreso. Sin cambios al MER.
+
 **E4 IA.** Descripción sugerida e ingredientes desde la foto del reverso; nunca se publica sin
 revisión; se guarda el origen: manual, IA o IA editada. PENDIENTE: proveedor de IA.
 
