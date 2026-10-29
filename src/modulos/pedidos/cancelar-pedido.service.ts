@@ -1,0 +1,85 @@
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { ESTADOS_PEDIDO } from '../../common/dominio/valores.js';
+import { PrismaService } from '../../prisma/prisma.service.js';
+import { VentaStockService } from '../inventario/venta-stock.service.js';
+import type { CancelarPedidoDto } from './dto/cancelar-pedido.dto.js';
+
+export const PEDIDO_NO_EXISTE = 'El pedido no existe.';
+export const SOLO_PENDIENTE_DE_PAGO =
+  'Solo se puede cancelar un pedido pendiente de pago.';
+
+export interface PedidoCancelado {
+  codigoPublico: string;
+  estado: string;
+}
+
+/**
+ * Cancelación de un pedido que aún no se paga, por el personal (E8-H3, RF-08.05): lo deja
+ * cancelado, devuelve su stock y registra el cambio en el historial, todo en una transacción
+ * (RNF-12).
+ */
+@Injectable()
+export class CancelarPedidoService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly ventaStock: VentaStockService,
+  ) {}
+
+  /**
+   * E8-H3 · Cancela el pedido `codigoPedido` en nombre del integrante del personal
+   * `codigoPublicoPersonal`. Bloquea la fila del pedido antes de mirar su estado: si el pago
+   * (E6) o otra cancelación llegan a la vez, una espera a la otra y la segunda ve el estado ya
+   * cambiado. Solo se cancela un pedido pendiente de pago; cualquier otro estado responde 409.
+   */
+  cancelar(
+    codigoPublicoPersonal: string,
+    codigoPedido: string,
+    dto: CancelarPedidoDto,
+  ): Promise<PedidoCancelado> {
+    return this.prisma.$transaction(async (tx) => {
+      const filas = await tx.$queryRaw<{ id: number; estado: string }[]>`
+        SELECT id_pedido AS id, estado_actual AS estado
+        FROM pedido
+        WHERE codigo_publico = ${codigoPedido}
+        FOR NO KEY UPDATE`;
+      const pedido = filas[0];
+      if (!pedido) throw new NotFoundException(PEDIDO_NO_EXISTE);
+      if (pedido.estado !== ESTADOS_PEDIDO.PENDIENTE_PAGO) {
+        throw new ConflictException(SOLO_PENDIENTE_DE_PAGO);
+      }
+
+      const personal = await tx.usuario.findUniqueOrThrow({
+        where: { codigoPublico: codigoPublicoPersonal },
+        select: { id: true },
+      });
+      await this.ventaStock.reingresarPorPedido(tx, pedido.id, personal.id);
+
+      const ultimo = await tx.historialEstadoPedido.aggregate({
+        where: { pedidoId: pedido.id },
+        _max: { correlativo: true },
+      });
+      await tx.historialEstadoPedido.create({
+        data: {
+          pedidoId: pedido.id,
+          correlativo: (ultimo._max.correlativo ?? 0) + 1,
+          usuarioId: personal.id,
+          estado: ESTADOS_PEDIDO.CANCELADO,
+          comentario: dto.comentario,
+        },
+      });
+      await tx.pedido.update({
+        where: { id: pedido.id },
+        data: { estadoActual: ESTADOS_PEDIDO.CANCELADO },
+      });
+
+      return {
+        codigoPublico: codigoPedido,
+        estado: ESTADOS_PEDIDO.CANCELADO,
+      };
+    });
+  }
+}
