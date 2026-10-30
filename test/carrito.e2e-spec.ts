@@ -41,6 +41,7 @@ interface Linea {
   subtotal: number | null;
   aLaVenta: boolean;
   stockSuficiente: boolean | null;
+  bajoMinimo: boolean;
   impideCrearPedido: boolean;
 }
 
@@ -509,6 +510,56 @@ describe('Carrito · agregar, cambiar y quitar artículos (e2e)', () => {
     expect(JSON.stringify(delCliente)).not.toMatch(/mayorista/i);
   });
 
+  it('E5-H4 · bajo el mínimo: el carrito del profesional lo señala hasta llegar a 3 unidades; el del cliente, nunca', async () => {
+    const formato = await nuevoFormato();
+    await ponerStock(formato.id, 10);
+    const cliente = await tokenDe(ROLES.CLIENTE);
+    const profesional = await tokenDe(ROLES.PROFESIONAL);
+
+    const delCliente = (await agregar(cliente, formato.id, 1).expect(201))
+      .body as Carrito;
+    expect(delCliente.items[0]).toMatchObject({
+      bajoMinimo: false,
+      impideCrearPedido: false,
+    });
+    expect(delCliente.puedeCrearPedido).toBe(true);
+
+    const conDos = (await agregar(profesional, formato.id, 2).expect(201))
+      .body as Carrito;
+    expect(conDos.items[0]).toMatchObject({
+      cantidad: 2,
+      stockSuficiente: true,
+      bajoMinimo: true,
+      impideCrearPedido: true,
+    });
+    expect(conDos.puedeCrearPedido).toBe(false);
+
+    const conTres = (await agregar(profesional, formato.id, 1).expect(201))
+      .body as Carrito;
+    expect(conTres.items[0]).toMatchObject({
+      cantidad: 3,
+      bajoMinimo: false,
+      impideCrearPedido: false,
+    });
+    expect(conTres.puedeCrearPedido).toBe(true);
+  });
+
+  it('E5-H4 · cotizar sin cuenta no aplica el mínimo, aunque llegue un token de profesional', async () => {
+    const formato = await nuevoFormato();
+    await ponerStock(formato.id, 10);
+    const profesional = await tokenDe(ROLES.PROFESIONAL);
+
+    const respuesta = await servidor()
+      .post('/api/carrito/cotizar')
+      .auth(profesional, { type: 'bearer' })
+      .send({ articulos: [{ articuloId: formato.id, cantidad: 1 }] })
+      .expect(200);
+
+    const carrito = respuesta.body as Carrito;
+    expect(carrito.items[0]!.bajoMinimo).toBe(false);
+    expect(carrito.puedeCrearPedido).toBe(true);
+  });
+
   it('un producto exclusivo solo lo agrega el profesional', async () => {
     const exclusivo = await nuevoFormato(CANALES_VENTA.PROFESIONAL);
     await ponerStock(exclusivo.id, 10);
@@ -849,6 +900,44 @@ describe('Carrito · agregar, cambiar y quitar artículos (e2e)', () => {
         precioUnitario: precioConIva(8000, porcentajeIva),
         aLaVenta: true,
       });
+    });
+
+    it('E5-H4 · bajo el mínimo: unir deja la línea del profesional señalada', async () => {
+      const formato = await nuevoFormato();
+      await ponerStock(formato.id, 5);
+      const token = await tokenDe(ROLES.PROFESIONAL);
+
+      const respuesta = await unir(token, [
+        { articuloId: formato.id, cantidad: 1 },
+      ]).expect(200);
+
+      const carrito = respuesta.body as Carrito;
+      expect(carrito.items[0]).toMatchObject({
+        bajoMinimo: true,
+        impideCrearPedido: true,
+      });
+      expect(carrito.puedeCrearPedido).toBe(false);
+    });
+
+    it('E5-H4 · bajo el mínimo: cambiar la cantidad a menos de 3 se acepta y queda señalado', async () => {
+      const formato = await nuevoFormato();
+      await ponerStock(formato.id, 5);
+      const token = await tokenDe(ROLES.PROFESIONAL);
+      await agregar(token, formato.id, 3).expect(201);
+
+      const respuesta = await servidor()
+        .patch(`${RUTA}/items/${formato.id}`)
+        .auth(token, { type: 'bearer' })
+        .send({ cantidad: 2 })
+        .expect(200);
+
+      const carrito = respuesta.body as Carrito;
+      expect(carrito.items[0]).toMatchObject({
+        cantidad: 2,
+        bajoMinimo: true,
+        impideCrearPedido: true,
+      });
+      expect(carrito.puedeCrearPedido).toBe(false);
     });
   });
 });

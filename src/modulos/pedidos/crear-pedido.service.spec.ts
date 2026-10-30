@@ -107,7 +107,11 @@ describe('CrearPedidoService', () => {
     const config = {
       get: vi.fn(
         (clave: string) =>
-          ({ IVA_PORCENTAJE: 19, PLAZO_PAGO_MINUTOS: 15 })[clave],
+          ({
+            IVA_PORCENTAJE: 19,
+            PLAZO_PAGO_MINUTOS: 15,
+            MINIMO_UNIDADES_PELUQUERO: 3,
+          })[clave],
       ),
     };
     servicio = new CrearPedidoService(
@@ -328,6 +332,120 @@ describe('CrearPedidoService', () => {
     });
     expect(db.pedido.create).not.toHaveBeenCalled();
     expect(ventaStock.descontarPorPedido).not.toHaveBeenCalled();
+  });
+
+  describe('mínimo del profesional (E5-H4)', () => {
+    const lineaFormato = (
+      articuloId: number,
+      cantidad: number,
+      producto: string,
+    ) => ({
+      articuloId,
+      cantidad,
+      articulo: {
+        formato: { nombreFormato: '300 ml', producto: { nombre: producto } },
+        pack: null,
+      },
+    });
+
+    const lineaPack = (articuloId: number, cantidad: number) => ({
+      articuloId,
+      cantidad,
+      articulo: { formato: null, pack: { nombre: 'Dúo reparador' } },
+    });
+
+    it('E5-H4 · mínimo cumplido: con 3 unidades de cada formato crea el pedido y guarda el mayorista en cada línea', async () => {
+      db.carrito.findUnique.mockResolvedValue({
+        id: 5,
+        items: [lineaFormato(11, 3, 'Shampoo'), lineaFormato(12, 4, 'Bálsamo')],
+      });
+      carrito.articulosALaVenta.mockResolvedValue(
+        new Map([
+          [11, { tipo: 'formato', neto: 800 }],
+          [12, { tipo: 'formato', neto: 900 }],
+        ]),
+      );
+
+      await servicio.crear(CUENTA, ROLES.PROFESIONAL, dtoRetiro());
+
+      expect(datosPedido().detalles.create).toEqual([
+        {
+          articuloId: 11,
+          cantidad: 3,
+          precioUnitarioNetoAplicado: 800,
+          tipoPrecio: 'mayorista',
+        },
+        {
+          articuloId: 12,
+          cantidad: 4,
+          precioUnitarioNetoAplicado: 900,
+          tipoPrecio: 'mayorista',
+        },
+      ]);
+    });
+
+    it('E5-H4 · bajo el mínimo: responde 409, nombra solo los formatos que no alcanzan y no toca el stock ni el carrito', async () => {
+      db.carrito.findUnique.mockResolvedValue({
+        id: 5,
+        items: [
+          lineaFormato(11, 2, 'Shampoo'),
+          lineaFormato(12, 3, 'Bálsamo'),
+          lineaFormato(13, 1, 'Tónico'),
+        ],
+      });
+      carrito.articulosALaVenta.mockResolvedValue(
+        new Map([
+          [11, { tipo: 'formato', neto: 800 }],
+          [12, { tipo: 'formato', neto: 900 }],
+          [13, { tipo: 'formato', neto: 700 }],
+        ]),
+      );
+
+      const error = await servicio
+        .crear(CUENTA, ROLES.PROFESIONAL, dtoRetiro())
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(ConflictException);
+      const mensaje = (error as Error).message;
+      expect(mensaje).toContain('Shampoo 300 ml');
+      expect(mensaje).toContain('Tónico 300 ml');
+      expect(mensaje).not.toContain('Bálsamo');
+      expect(db.pedido.create).not.toHaveBeenCalled();
+      expect(ventaStock.descontarPorPedido).not.toHaveBeenCalled();
+      expect(db.itemCarrito.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('E5-H4 · un pack no necesita mínimo: una unidad se compra a mayorista', async () => {
+      db.carrito.findUnique.mockResolvedValue({
+        id: 5,
+        items: [lineaPack(30, 1)],
+      });
+      carrito.articulosALaVenta.mockResolvedValue(
+        new Map([[30, { tipo: 'pack', neto: 1500 }]]),
+      );
+
+      await servicio.crear(CUENTA, ROLES.PROFESIONAL, dtoRetiro());
+
+      expect(datosPedido().detalles.create[0]).toMatchObject({
+        articuloId: 30,
+        cantidad: 1,
+        tipoPrecio: 'mayorista',
+      });
+    });
+
+    it('E5-H4 · el cliente no tiene mínimo: compra una unidad a precio minorista', async () => {
+      db.carrito.findUnique.mockResolvedValue({
+        id: 5,
+        items: [lineaFormato(11, 1, 'Shampoo')],
+      });
+
+      await servicio.crear(CUENTA, ROLES.CLIENTE, dtoRetiro());
+
+      expect(datosPedido().detalles.create[0]).toMatchObject({
+        cantidad: 1,
+        tipoPrecio: 'minorista',
+      });
+    });
   });
 
   it('la dirección o los datos de facturación de otra cuenta responden 404', async () => {

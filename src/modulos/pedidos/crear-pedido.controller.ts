@@ -37,9 +37,9 @@ export class CrearPedidoController {
   @UseGuards(LimitePorCuentaGuard)
   @Throttle({ default: LIMITES.CREAR_PEDIDO })
   @ApiOperation({
-    summary: 'Crear mi pedido desde el carrito (E5-H3)',
+    summary: 'Crear mi pedido desde el carrito (E5-H3, E5-H4)',
     description:
-      'Recalcula precios, IVA y total, crea el pedido, reserva el stock, vacía el carrito y da el plazo para pagar. Repetir la misma `claveIdempotencia` devuelve el mismo pedido. El despacho a domicilio se guarda con costo 0 hasta que exista la cotización (E7-H2).',
+      'Recalcula precios, IVA y total, crea el pedido, reserva el stock, vacía el carrito y da el plazo para pagar. Repetir la misma `claveIdempotencia` devuelve el mismo pedido. El profesional debe llevar el mínimo de unidades de cada formato (los packs no tienen mínimo). El despacho a domicilio se guarda con costo 0 hasta que exista la cotización (E7-H2).',
   })
   @ApiCreatedResponse({ description: 'Detalle del pedido.' })
   @ApiBadRequestResponse({ description: 'Datos del pedido inválidos.' })
@@ -52,7 +52,7 @@ export class CrearPedidoController {
   })
   @ApiConflictResponse({
     description:
-      'Ya hay un pedido pendiente de pago, carrito vacío, artículo que ya no se vende o sin stock.',
+      'Ya hay un pedido pendiente de pago, carrito vacío, artículo que ya no se vende, sin stock o formatos bajo el mínimo del profesional.',
   })
   @ApiTooManyRequestsResponse({
     description: 'Más de 5 solicitudes por minuto de la misma cuenta.',

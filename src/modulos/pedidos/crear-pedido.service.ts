@@ -23,7 +23,10 @@ import type { Entorno } from '../../config/entorno.js';
 import type { Prisma } from '../../generated/prisma/client.js';
 import { bloquearCuenta } from '../../prisma/bloqueos.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
-import { CarritoService } from '../carrito/carrito.service.js';
+import {
+  bajoMinimoProfesional,
+  CarritoService,
+} from '../carrito/carrito.service.js';
 import { VentaStockService } from '../inventario/venta-stock.service.js';
 import type { CrearPedidoDto } from './dto/crear-pedido.dto.js';
 import {
@@ -53,6 +56,15 @@ const generarCodigoPedido = (): string =>
     (byte) => ALFABETO_CODIGO[byte % ALFABETO_CODIGO.length],
   ).join('');
 
+/** Cómo se nombra un artículo del carrito en un mensaje para el comprador. */
+const nombreDeArticulo = (articulo: {
+  formato: { nombreFormato: string; producto: { nombre: string } } | null;
+  pack: { nombre: string } | null;
+}): string =>
+  articulo.formato
+    ? `${articulo.formato.producto.nombre} ${articulo.formato.nombreFormato}`
+    : (articulo.pack?.nombre ?? 'un artículo');
+
 /**
  * Crea el pedido con lo que hay en el carrito de la cuenta (E5-H3). Todo va en una transacción
  * (RNF-12) con la cuenta bloqueada: dos confirmaciones simultáneas se ordenan y la segunda ve el
@@ -71,7 +83,7 @@ export class CrearPedidoService {
   /**
    * E5-H3 · Confirma el carrito. Los precios se recalculan aquí (nunca llegan del navegador) y el
    * stock se reserva descontándolo con un movimiento de venta. Repetir la clave de idempotencia
-   * devuelve el mismo pedido. El mínimo del profesional es de E5-H4 (SCRUM-46).
+   * devuelve el mismo pedido. El profesional debe cumplir el mínimo por formato (E5-H4).
    */
   async crear(
     codigoPublico: string,
@@ -171,12 +183,30 @@ export class CrearPedidoService {
     );
     if (noVendidos.length > 0) {
       const nombres = noVendidos.map(({ articulo }) =>
-        articulo.formato
-          ? `${articulo.formato.producto.nombre} ${articulo.formato.nombreFormato}`
-          : (articulo.pack?.nombre ?? 'un artículo'),
+        nombreDeArticulo(articulo),
       );
       throw new ConflictException(
         `Ya no está a la venta: ${nombres.join(', ')}. Quítalo del carrito para continuar.`,
+      );
+    }
+
+    const minimo = this.config.get('MINIMO_UNIDADES_PELUQUERO', {
+      infer: true,
+    });
+    const bajoMinimo = carrito.items.filter(({ articuloId, cantidad }) =>
+      bajoMinimoProfesional(
+        rol,
+        aLaVenta.get(articuloId)!.tipo,
+        cantidad,
+        minimo,
+      ),
+    );
+    if (bajoMinimo.length > 0) {
+      const nombres = bajoMinimo.map(({ articulo }) =>
+        nombreDeArticulo(articulo),
+      );
+      throw new ConflictException(
+        `Debes llevar al menos ${minimo} unidades de cada formato para comprar a precio mayorista: ${nombres.join(', ')}.`,
       );
     }
 
