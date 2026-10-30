@@ -489,6 +489,129 @@ describe('Pedidos · crear el pedido desde el carrito (e2e)', () => {
     expect(Number(detalle.precioUnitarioNetoAplicado)).toBe(802);
   });
 
+  it('E5-H4 · mínimo cumplido: con 3 unidades de cada formato crea el pedido con el mayorista en cada línea', async () => {
+    const profesional = await cuenta(ROLES.PROFESIONAL);
+    const shampoo = await nuevoFormato(5);
+    const balsamo = await nuevoFormato(5, 2000);
+    await llenarCarrito(profesional.id, [
+      { articuloId: shampoo.id, cantidad: 3 },
+      { articuloId: balsamo.id, cantidad: 4 },
+    ]);
+
+    const respuesta = await confirmar(profesional.token).expect(201);
+
+    const detalles = await prisma.detallePedido.findMany({
+      where: {
+        pedido: { codigoPublico: (respuesta.body as Pedido).codigoPublico },
+      },
+      orderBy: { articuloId: 'asc' },
+    });
+    expect(
+      detalles.map((detalle) => ({
+        cantidad: detalle.cantidad,
+        neto: Number(detalle.precioUnitarioNetoAplicado),
+        tipoPrecio: detalle.tipoPrecio,
+      })),
+    ).toEqual([
+      { cantidad: 3, neto: 802, tipoPrecio: 'mayorista' },
+      { cantidad: 4, neto: 1600, tipoPrecio: 'mayorista' },
+    ]);
+    expect(await stockDe(shampoo.id)).toBe(2);
+    expect(await stockDe(balsamo.id)).toBe(1);
+  });
+
+  it('E5-H4 · bajo el mínimo: no crea el pedido, nombra los formatos que no alcanzan y deja stock y carrito intactos', async () => {
+    const profesional = await cuenta(ROLES.PROFESIONAL);
+    const justo = await nuevoFormato(5);
+    const falta = await nuevoFormato(5);
+    await llenarCarrito(profesional.id, [
+      { articuloId: justo.id, cantidad: 3 },
+      { articuloId: falta.id, cantidad: 2 },
+    ]);
+
+    const respuesta = await confirmar(profesional.token).expect(409);
+
+    const { message } = respuesta.body as { message: string };
+    expect(message).toContain(falta.nombre);
+    expect(message).not.toContain(justo.nombre);
+    expect(await pedidosDe(profesional.id)).toBe(0);
+    expect(await stockDe(justo.id)).toBe(5);
+    expect(await stockDe(falta.id)).toBe(5);
+    expect(await itemsDelCarrito(profesional.id)).toBe(2);
+  });
+
+  it('E5-H4 · un pack no necesita mínimo: una unidad se compra a mayorista', async () => {
+    const profesional = await cuenta(ROLES.PROFESIONAL);
+    const formato = await nuevoFormato(5);
+    const pack = await nuevoPack([{ formatoId: formato.id, cantidad: 2 }]);
+    await llenarCarrito(profesional.id, [{ articuloId: pack, cantidad: 1 }]);
+
+    const respuesta = await confirmar(profesional.token).expect(201);
+
+    const [detalle] = await prisma.detallePedido.findMany({
+      where: {
+        pedido: { codigoPublico: (respuesta.body as Pedido).codigoPublico },
+      },
+    });
+    expect(detalle.tipoPrecio).toBe('mayorista');
+    expect(Number(detalle.precioUnitarioNetoAplicado)).toBe(1200);
+  });
+
+  it('E5-H4 · las unidades dentro de un pack no completan el mínimo del formato suelto', async () => {
+    const profesional = await cuenta(ROLES.PROFESIONAL);
+    const formato = await nuevoFormato(10);
+    const pack = await nuevoPack([{ formatoId: formato.id, cantidad: 2 }]);
+    await llenarCarrito(profesional.id, [
+      { articuloId: formato.id, cantidad: 1 },
+      { articuloId: pack, cantidad: 1 },
+    ]);
+
+    const respuesta = await confirmar(profesional.token).expect(409);
+
+    expect((respuesta.body as { message: string }).message).toContain(
+      formato.nombre,
+    );
+    expect(await pedidosDe(profesional.id)).toBe(0);
+  });
+
+  it('E5-H4 · repetir la clave devuelve el mismo pedido aunque el carrito ya esté bajo el mínimo', async () => {
+    const profesional = await cuenta(ROLES.PROFESIONAL);
+    const formato = await nuevoFormato(10);
+    await llenarCarrito(profesional.id, [
+      { articuloId: formato.id, cantidad: 3 },
+    ]);
+    const claveIdempotencia = randomUUID();
+    const primero = await confirmar(profesional.token, {
+      claveIdempotencia,
+    }).expect(201);
+    await prisma.carrito.update({
+      where: { usuarioId: profesional.id },
+      data: { items: { create: { articuloId: formato.id, cantidad: 1 } } },
+    });
+
+    const repetido = await confirmar(profesional.token, {
+      claveIdempotencia,
+    }).expect(201);
+
+    expect((repetido.body as Pedido).codigoPublico).toBe(
+      (primero.body as Pedido).codigoPublico,
+    );
+    expect(await pedidosDe(profesional.id)).toBe(1);
+    expect(await stockDe(formato.id)).toBe(7);
+  });
+
+  it('E5-H4 · el cliente no tiene mínimo: compra una unidad', async () => {
+    const comprador = await cuenta(ROLES.CLIENTE);
+    const formato = await nuevoFormato(5);
+    await llenarCarrito(comprador.id, [
+      { articuloId: formato.id, cantidad: 1 },
+    ]);
+
+    await confirmar(comprador.token).expect(201);
+
+    expect(await stockDe(formato.id)).toBe(4);
+  });
+
   it('E5-H3 · stock insuficiente: un cliente no puede comprar un producto exclusivo', async () => {
     const comprador = await cuenta(ROLES.CLIENTE);
     const formato = await nuevoFormato(5);
