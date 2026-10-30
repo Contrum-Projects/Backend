@@ -376,8 +376,8 @@ nunca se informa cuántas unidades hay (decisión de E2-H3). **PROPUESTAS por co
 y señalar; (2) un artículo que deja de venderse (desactivado, sin precio, pack vencido o exclusivo
 tras perder el rol) queda en el carrito sin precio, fuera del total y señalado, y solo se puede
 quitar; (3) tope de 999 unidades por línea. El stock se revisa por línea: la suma entre packs y
-formatos que comparten componentes la valida el pedido (E5-H3, SCRUM-45), que además exige el mínimo
-del profesional. Sin cambios al MER.
+formatos que comparten componentes la valida el pedido (E5-H3, SCRUM-45); el mínimo del profesional
+lo exige E5-H4 (SCRUM-46, decisión del 30 oct). Sin cambios al MER.
 Decisiones del 28 oct (E5-H2): el carrito del visitante vive en el navegador y la API no lo guarda.
 `POST /api/carrito/cotizar` es **pública** y solo calcula: recibe `{ articulos: [{ articuloId,
 cantidad }] }` y responde con la forma de `GET /api/carrito`, siempre como visitante (minorista,
@@ -394,6 +394,22 @@ revelaba cuántas unidades hay): la línea queda con `stockSuficiente: false` e
 50 artículos distintos con cantidades de 1 a 999 (400). `cotizar` tiene un límite de 60 por
 minuto por IP (`LIMITES.COTIZAR_CARRITO`, RNF-09): frena sondear el stock probando cantidades sin
 cuenta. Sin cambios al MER.
+Decisiones del 30 oct (E5-H3): `POST /api/pedidos` (cliente y profesional; personal 403) recibe
+`claveIdempotencia` (UUID), `tipoEntrega`, `tipoDocumento`, `direccionId` (obligatoria con despacho,
+rechazada con retiro) y `datosFacturacionId` (obligatorio con factura, rechazado con boleta; activo).
+Una dirección o datos de otra cuenta responden 404. Responde 201 con la forma del detalle de E8-H1.
+**Cambio al MER:** `pedido.clave_idempotencia` (nullable), única por cuenta. Con la cuenta bloqueada,
+repetir la clave devuelve el mismo pedido (201); el pedido **vacía el carrito** en la misma
+transacción, así que otra confirmación con otra clave recibe 409 «El carrito está vacío.». Correo sin
+confirmar: 403. Artículo que ya no se vende: 409 con su nombre. Sin stock: 409 de `VentaStockService`,
+que suma formatos sueltos y en packs y nombra el formato (también si viene de un pack). Los montos se
+suman **por línea** (`montosPorLineas`): el total es el del carrito y el IVA puede diferir unos pesos
+de aplicar la tasa al neto total. La línea guarda el neto vigente y su tipo de precio. **Provisional
+hasta E7-H2 (SCRUM-51):** el despacho se crea con costo 0, `servicio_envio = por_cotizar` y
+`estado_envio = pendiente`; no debe ir a producción así. **Pendiente de otras historias:** el mínimo
+del profesional es de E5-H4 (SCRUM-46) y hasta entonces no se exige; la cancelación por impago es de
+E6-H3 (SCRUM-49), que toma el plazo desde `fechaExpiracionPago`: esta historia no encola el trabajo.
+No envía correo al cliente.
 
 **E6 Pago.** Solo Mercado Pago. La notificación se responde de inmediato y se procesa en la cola
 `eventos-pago` (RNF-15: MP espera 22 s). Cada evento se procesa una vez (`idEventoExterno` único).

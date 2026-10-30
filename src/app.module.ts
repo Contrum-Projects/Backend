@@ -12,6 +12,7 @@ import { CatalogoModule } from './modulos/catalogo/catalogo.module.js';
 import { CuentasModule } from './modulos/cuentas/cuentas.module.js';
 import { InventarioModule } from './modulos/inventario/inventario.module.js';
 import { CancelarPedidoModule } from './modulos/pedidos/cancelar-pedido.module.js';
+import { CrearPedidoModule } from './modulos/pedidos/crear-pedido.module.js';
 import { MisPedidosModule } from './modulos/pedidos/mis-pedidos.module.js';
 import { PersonalModule } from './modulos/personal/personal.module.js';
 import { TerritorioModule } from './modulos/territorio/territorio.module.js';
@@ -77,6 +78,7 @@ import { SaludController } from './salud/salud.controller.js';
     CatalogoModule,
     CarritoModule,
     MisPedidosModule,
+    CrearPedidoModule,
     CancelarPedidoModule,
     TerritorioModule,
   ],

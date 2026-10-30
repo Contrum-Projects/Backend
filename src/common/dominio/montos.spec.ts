@@ -1,4 +1,26 @@
-import { calcularMontos, precioConIva } from './montos.js';
+import { calcularMontos, montosPorLineas, precioConIva } from './montos.js';
+
+describe('montosPorLineas', () => {
+  it('E5-H3 · pedido creado: el total es la suma de precioConIva × cantidad, igual que el carrito', () => {
+    expect(montosPorLineas([{ netoGuardado: 1003, cantidad: 3 }], 19)).toEqual({
+      neto: 3009,
+      iva: 573,
+      total: 3582,
+    });
+  });
+
+  it('redondea el neto con centavos antes de sumar y total === neto + iva', () => {
+    const montos = montosPorLineas(
+      [
+        { netoGuardado: 1000.4, cantidad: 2 },
+        { netoGuardado: 0, cantidad: 1 },
+      ],
+      19,
+    );
+    expect(montos).toEqual({ neto: 2000, iva: 380, total: 2380 });
+    expect(montos.total).toBe(montos.neto + montos.iva);
+  });
+});
 
 describe('precioConIva', () => {
   it('E3-H5 · precio guardado en neto: redondea el neto al peso y le suma el IVA', () => {

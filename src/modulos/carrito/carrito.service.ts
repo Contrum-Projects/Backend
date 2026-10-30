@@ -97,7 +97,7 @@ export interface CarritoUnido extends CarritoCuenta {
 }
 
 /** Lo que se necesita de un artículo que la tienda vende a esa cuenta. */
-interface ArticuloALaVenta {
+export interface ArticuloALaVenta {
   tipo: string;
   /** Precio neto guardado que le corresponde al rol: mayorista para el profesional. */
   neto: number;
@@ -399,7 +399,7 @@ export class CarritoService {
    * pack vigente y con todos sus componentes a la venta. Solo el profesional compra productos
    * exclusivos y paga el mayorista; el mayorista nunca se lee para los demás (RNF-04).
    */
-  private async articulosALaVenta(
+  async articulosALaVenta(
     cliente: Cliente,
     ids: number[],
     rol: Comprador,

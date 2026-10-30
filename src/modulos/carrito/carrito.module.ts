@@ -7,5 +7,6 @@ import { CarritoService } from './carrito.service.js';
 @Module({
   controllers: [CarritoController, CarritoVisitanteController],
   providers: [CarritoService],
+  exports: [CarritoService],
 })
 export class CarritoModule {}
