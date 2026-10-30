@@ -14,6 +14,7 @@ import {
   CARRITO_VACIO,
   CORREO_SIN_CONFIRMAR,
   CrearPedidoService,
+  PEDIDO_PENDIENTE,
 } from './crear-pedido.service.js';
 import type { CrearPedidoDto } from './dto/crear-pedido.dto.js';
 import type { MisPedidosService } from './mis-pedidos.service.js';
@@ -61,6 +62,7 @@ const crearDb = () => {
     itemCarrito: { deleteMany: vi.fn().mockResolvedValue({ count: 1 }) },
     pedido: {
       findUnique: vi.fn().mockResolvedValue(null),
+      findFirst: vi.fn().mockResolvedValue(null),
       create: vi
         .fn()
         .mockResolvedValue({ id: 40, codigoPublico: 'AB12CD34EF56' }),
@@ -309,6 +311,23 @@ describe('CrearPedidoService', () => {
     expect(error).toBeInstanceOf(ConflictException);
     expect((error as Error).message).toBe(CARRITO_VACIO);
     expect(db.pedido.create).not.toHaveBeenCalled();
+  });
+
+  it('E5-H3 · pedido pendiente: con uno sin pagar responde 409 sin crear otro ni tocar el stock', async () => {
+    db.pedido.findFirst.mockResolvedValue({ id: 39 });
+
+    const error = await servicio
+      .crear(CUENTA, ROLES.CLIENTE, dtoRetiro())
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ConflictException);
+    expect((error as Error).message).toBe(PEDIDO_PENDIENTE);
+    expect(db.pedido.findFirst.mock.calls[0][0].where).toEqual({
+      usuarioId: 7,
+      estadoActual: 'pendiente_pago',
+    });
+    expect(db.pedido.create).not.toHaveBeenCalled();
+    expect(ventaStock.descontarPorPedido).not.toHaveBeenCalled();
   });
 
   it('la dirección o los datos de facturación de otra cuenta responden 404', async () => {

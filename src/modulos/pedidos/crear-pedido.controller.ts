@@ -8,14 +8,18 @@ import {
   ApiNotFoundResponse,
   ApiOperation,
   ApiTags,
+  ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import type { UsuarioAutenticado } from '../../autenticacion/carga-token.js';
 import { CompradorGuard } from '../../autenticacion/comprador.guard.js';
 import {
   JwtAutenticacionGuard,
   UsuarioActual,
 } from '../../autenticacion/jwt-autenticacion.guard.js';
+import { LimitePorCuentaGuard } from '../../limites/limite-por-cuenta.guard.js';
+import { LIMITES } from '../../limites/limites.js';
 import { CrearPedidoService } from './crear-pedido.service.js';
 import { CrearPedidoDto } from './dto/crear-pedido.dto.js';
 import type { DetallePedidoCuenta } from './mis-pedidos.service.js';
@@ -30,6 +34,8 @@ export class CrearPedidoController {
   constructor(private readonly pedidos: CrearPedidoService) {}
 
   @Post()
+  @UseGuards(LimitePorCuentaGuard)
+  @Throttle({ default: LIMITES.CREAR_PEDIDO })
   @ApiOperation({
     summary: 'Crear mi pedido desde el carrito (E5-H3)',
     description:
@@ -45,7 +51,11 @@ export class CrearPedidoController {
     description: 'La dirección o los datos de facturación no son de la cuenta.',
   })
   @ApiConflictResponse({
-    description: 'Carrito vacío, artículo que ya no se vende o sin stock.',
+    description:
+      'Ya hay un pedido pendiente de pago, carrito vacío, artículo que ya no se vende o sin stock.',
+  })
+  @ApiTooManyRequestsResponse({
+    description: 'Más de 5 solicitudes por minuto de la misma cuenta.',
   })
   crear(
     @UsuarioActual() usuario: UsuarioAutenticado,

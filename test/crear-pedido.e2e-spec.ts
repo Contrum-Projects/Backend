@@ -612,6 +612,49 @@ describe('Pedidos · crear el pedido desde el carrito (e2e)', () => {
     );
   });
 
+  it('E5-H3 · pedido pendiente: con uno sin pagar no crea otro, y al dejar de estar pendiente sí', async () => {
+    const comprador = await cuenta(ROLES.CLIENTE);
+    const formato = await nuevoFormato(5);
+    await llenarCarrito(comprador.id, [
+      { articuloId: formato.id, cantidad: 1 },
+    ]);
+    const primero = await confirmar(comprador.token).expect(201);
+    await prisma.itemCarrito.create({
+      data: {
+        carrito: { connect: { usuarioId: comprador.id } },
+        articulo: { connect: { id: formato.id } },
+        cantidad: 1,
+      },
+    });
+
+    const rechazo = await confirmar(comprador.token).expect(409);
+
+    expect((rechazo.body as { message: string }).message).toContain(
+      'pedido pendiente de pago',
+    );
+    expect(await pedidosDe(comprador.id)).toBe(1);
+    expect(await stockDe(formato.id)).toBe(4);
+    expect(await itemsDelCarrito(comprador.id)).toBe(1);
+
+    await prisma.pedido.update({
+      where: { codigoPublico: (primero.body as Pedido).codigoPublico },
+      data: { estadoActual: 'pagado' },
+    });
+    await confirmar(comprador.token).expect(201);
+    expect(await pedidosDe(comprador.id)).toBe(2);
+  });
+
+  it('E5-H3 · límite por cuenta: la sexta solicitud del minuto responde 429 y no afecta a otra cuenta', async () => {
+    const comprador = await cuenta(ROLES.CLIENTE);
+    const otra = await cuenta(ROLES.CLIENTE);
+
+    for (let intento = 0; intento < 5; intento += 1) {
+      await confirmar(comprador.token).expect(409);
+    }
+    await confirmar(comprador.token).expect(429);
+    await confirmar(otra.token).expect(409);
+  });
+
   it('E5-H3 · carrito vacío: responde 409', async () => {
     const comprador = await cuenta(ROLES.CLIENTE);
 

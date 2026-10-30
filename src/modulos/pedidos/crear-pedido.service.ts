@@ -36,6 +36,8 @@ type Tx = Prisma.TransactionClient;
 export const CORREO_SIN_CONFIRMAR =
   'Debes confirmar tu correo antes de comprar.';
 export const CARRITO_VACIO = 'El carrito está vacío.';
+export const PEDIDO_PENDIENTE =
+  'Ya tienes un pedido pendiente de pago: págalo o espera a que se cancele antes de crear otro.';
 
 /** Costo neto del despacho mientras no exista la cotización con el courier (E7-H2). */
 const COSTO_DESPACHO_POR_COTIZAR = 0;
@@ -115,6 +117,14 @@ export class CrearPedidoService {
     if (!cuenta.fechaVerificacionCorreo) {
       throw new ForbiddenException(CORREO_SIN_CONFIRMAR);
     }
+
+    // Un solo pedido sin pagar por cuenta, con la cuenta ya bloqueada: frena agotar el stock con
+    // reservas que no se pagan. Repetir la clave no llega aquí: devuelve el mismo pedido
+    const pendiente = await tx.pedido.findFirst({
+      where: { usuarioId, estadoActual: ESTADOS_PEDIDO.PENDIENTE_PAGO },
+      select: { id: true },
+    });
+    if (pendiente) throw new ConflictException(PEDIDO_PENDIENTE);
 
     const carrito = await tx.carrito.findUnique({
       where: { usuarioId },

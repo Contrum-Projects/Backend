@@ -400,8 +400,10 @@ rechazada con retiro) y `datosFacturacionId` (obligatorio con factura, rechazado
 Una dirección o datos de otra cuenta responden 404. Responde 201 con la forma del detalle de E8-H1.
 **Cambio al MER:** `pedido.clave_idempotencia` (nullable), única por cuenta. Con la cuenta bloqueada,
 repetir la clave devuelve el mismo pedido (201); el pedido **vacía el carrito** en la misma
-transacción, así que otra confirmación con otra clave recibe 409 «El carrito está vacío.». Correo sin
-confirmar: 403. Artículo que ya no se vende: 409 con su nombre. Sin stock: 409 de `VentaStockService`,
+transacción. Contra agotar el stock con reservas sin pagar: **5 solicitudes por minuto por cuenta**
+(`LIMITES.CREAR_PEDIDO`, 429) y **un solo pedido `pendiente_pago` por cuenta**: con otra clave
+responde 409, también si su plazo ya venció y aún no se cancela (hasta E6-H3 solo lo libera el
+personal al cancelarlo). Correo sin confirmar: 403. Artículo que ya no se vende: 409 con su nombre. Sin stock: 409 de `VentaStockService`,
 que suma formatos sueltos y en packs y nombra el formato (también si viene de un pack). Los montos se
 suman **por línea** (`montosPorLineas`): el total es el del carrito y el IVA puede diferir unos pesos
 de aplicar la tasa al neto total. La línea guarda el neto vigente y su tipo de precio. **Provisional

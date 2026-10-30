@@ -30,6 +30,11 @@ export const LIMITES = {
    * para quien arma su carrito y encarece sondear el stock probando cantidades sin cuenta.
    */
   COTIZAR_CARRITO: { limit: 60, ttl: 60_000 },
+  /**
+   * Crear un pedido (E5-H3, decisión del 30 oct 2026): 5/min por cuenta, con
+   * `LimitePorCuentaGuard`. Cada pedido reserva stock: frena agotarlo con pedidos sin pagar.
+   */
+  CREAR_PEDIDO: { limit: 5, ttl: 60_000 },
 } as const;
 
 /**
