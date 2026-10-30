@@ -4,8 +4,8 @@
  * listas en los DTOs (`@IsIn(Object.values(...))`) y en los servicios.
  *
  * Si una lista cambia, actualízala aquí y en docs/reglas-de-negocio.md.
- * Listas que siguen abiertas (no las inventes): estados de envío y de pago;
- * modalidades y especialidades. Los tipos de token y de
+ * Listas que siguen abiertas (no las inventes): estados de envío (solo el
+ * provisional de E5-H3) y de pago; modalidades y especialidades. Los tipos de token y de
  * notificación crecen con cada historia que los necesita.
  */
 
@@ -25,6 +25,22 @@ export const ESTADOS_PEDIDO = {
 export const TIPOS_ENTREGA = {
   DESPACHO: 'despacho',
   RETIRO: 'retiro',
+} as const;
+
+/**
+ * ENVIO.estado_envio (E5-H3, decisión del 30 de octubre de 2026): valor provisional de un despacho
+ * recién creado. La lista la completan E7-H2 y E7-H3.
+ */
+export const ESTADOS_ENVIO = {
+  PENDIENTE: 'pendiente',
+} as const;
+
+/**
+ * ENVIO.servicio_envio (E5-H3, decisión del 30 de octubre de 2026): valor provisional hasta que
+ * E7-H2 cotice con el courier.
+ */
+export const SERVICIOS_ENVIO = {
+  POR_COTIZAR: 'por_cotizar',
 } as const;
 
 /** PEDIDO.tipo_documento_solicitado (RF-09.01). */

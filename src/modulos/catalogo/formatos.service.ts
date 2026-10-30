@@ -230,6 +230,14 @@ export class FormatosService {
         await this.exigirDatosLibres(tx, dto.sku, dto.codigoBarras, id);
         const marcar =
           dto.esPredeterminado === true && !actual.esPredeterminado;
+        // El artículo antes que sus formatos, el mismo orden del pedido (E5-H3), que lo referencia
+        // al insertar su detalle y luego bloquea los formatos: al revés habría deadlock
+        if (dto.sku !== undefined) {
+          await tx.articuloVenta.update({
+            where: { id },
+            data: { sku: dto.sku },
+          });
+        }
         if (marcar) {
           // Antes de tocar el predeterminado anterior y este, en orden de id (sin deadlock con
           // un movimiento de stock de los mismos formatos)
@@ -237,12 +245,6 @@ export class FormatosService {
           await tx.formatoProducto.updateMany({
             where: { productoId, esPredeterminado: true, id: { not: id } },
             data: { esPredeterminado: false },
-          });
-        }
-        if (dto.sku !== undefined) {
-          await tx.articuloVenta.update({
-            where: { id },
-            data: { sku: dto.sku },
           });
         }
         return tx.formatoProducto.update({

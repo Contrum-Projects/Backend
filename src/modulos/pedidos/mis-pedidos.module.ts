@@ -6,5 +6,6 @@ import { MisPedidosService } from './mis-pedidos.service.js';
 @Module({
   controllers: [MisPedidosController],
   providers: [MisPedidosService],
+  exports: [MisPedidosService],
 })
 export class MisPedidosModule {}

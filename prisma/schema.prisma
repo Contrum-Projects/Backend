@@ -377,6 +377,8 @@ model Pedido {
   montoNeto               Int      @map("monto_neto")
   montoIva                Int      @map("monto_iva")
   montoTotal              Int      @map("monto_total")
+  /// Clave que manda el navegador al confirmar: un doble clic crea un solo pedido (E5-H3).
+  claveIdempotencia       String?  @map("clave_idempotencia") @db.VarChar(36)
 
   usuario          Usuario                 @relation(fields: [usuarioId], references: [id])
   datosFacturacion DatosFacturacion?       @relation(fields: [datosFacturacionId], references: [id])
@@ -388,6 +390,7 @@ model Pedido {
   notificaciones   Notificacion[]
   movimientos      MovimientoInventario[]
 
+  @@unique([usuarioId, claveIdempotencia])
   @@index([usuarioId])
   @@index([estadoActual])
   @@map("pedido")

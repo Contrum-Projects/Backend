@@ -32,3 +32,21 @@ export const precioConIva = (
   netoGuardado: number,
   porcentajeIva: number,
 ): number => calcularMontos(Math.round(netoGuardado), porcentajeIva).total;
+
+/**
+ * Montos del pedido, sumados por línea (decisión del 30 de octubre de 2026, E5-H3): el total es la
+ * suma de `precioConIva` × cantidad, el mismo que muestran el carrito y el detalle del pedido. Por
+ * eso el IVA puede diferir unos pesos de aplicar la tasa al neto total; total === neto + iva.
+ */
+export const montosPorLineas = (
+  lineas: { netoGuardado: number; cantidad: number }[],
+  porcentajeIva: number,
+): Montos => {
+  let neto = 0;
+  let total = 0;
+  for (const { netoGuardado, cantidad } of lineas) {
+    neto += Math.round(netoGuardado) * cantidad;
+    total += precioConIva(netoGuardado, porcentajeIva) * cantidad;
+  }
+  return { neto, iva: total - neto, total };
+};
