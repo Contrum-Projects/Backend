@@ -14,6 +14,7 @@ import { InventarioModule } from './modulos/inventario/inventario.module.js';
 import { CancelarPedidoModule } from './modulos/pedidos/cancelar-pedido.module.js';
 import { CrearPedidoModule } from './modulos/pedidos/crear-pedido.module.js';
 import { MisPedidosModule } from './modulos/pedidos/mis-pedidos.module.js';
+import { PagosModule } from './modulos/pagos/pagos.module.js';
 import { PersonalModule } from './modulos/personal/personal.module.js';
 import { TerritorioModule } from './modulos/territorio/territorio.module.js';
 import { SaludController } from './salud/salud.controller.js';
@@ -80,6 +81,7 @@ import { SaludController } from './salud/salud.controller.js';
     MisPedidosModule,
     CrearPedidoModule,
     CancelarPedidoModule,
+    PagosModule,
     TerritorioModule,
   ],
   controllers: [SaludController],
