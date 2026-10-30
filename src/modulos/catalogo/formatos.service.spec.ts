@@ -305,6 +305,17 @@ describe('FormatosService', () => {
       prisma.$queryRaw.mockResolvedValue([{ productoId: 5 }]);
     });
 
+    it('cambia el SKU antes de bloquear los formatos: el mismo orden del pedido, sin deadlock (E5-H3)', async () => {
+      await servicio.actualizar(11, { esPredeterminado: true, sku: 'SHA-2' });
+
+      const bloqueo = prisma.$queryRaw.mock.calls.findIndex(([partes]) =>
+        (partes as string[]).join('?').includes('FOR NO KEY UPDATE'),
+      );
+      expect(
+        prisma.articuloVenta.update.mock.invocationCallOrder[0],
+      ).toBeLessThan(prisma.$queryRaw.mock.invocationCallOrder[bloqueo]);
+    });
+
     it('E3-H2 · formato predeterminado: marcar uno lo deja como el único predeterminado del producto', async () => {
       await servicio.actualizar(11, { esPredeterminado: true });
 
