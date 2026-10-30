@@ -56,9 +56,9 @@ export class CarritoController {
 
   @Get()
   @ApiOperation({
-    summary: 'Ver mi carrito con totales (E5-H1)',
+    summary: 'Ver mi carrito con totales (E5-H1, E5-H4)',
     description:
-      'Líneas con precio unitario y subtotal con IVA, calculados al consultar según el rol (el profesional ve el mayorista), y el total. Cada línea indica si el artículo sigue a la venta y si el stock cubre la cantidad (sin informar cuántas unidades hay); si no, `impideCrearPedido` es `true` hasta que se quite o se ajuste la cantidad.',
+      'Líneas con precio unitario y subtotal con IVA, calculados al consultar según el rol (el profesional ve el mayorista), y el total. Cada línea indica si el artículo sigue a la venta, si el stock cubre la cantidad (sin informar cuántas unidades hay) y, para el profesional, si un formato está bajo el mínimo (`bajoMinimo`); en esos casos `impideCrearPedido` es `true` hasta que se quite o se ajuste la cantidad.',
   })
   @ApiOkResponse({ description: 'Carrito de la cuenta; vacío si no tiene.' })
   obtener(
@@ -131,7 +131,7 @@ export class CarritoController {
   @ApiOperation({
     summary: 'Unir el carrito del navegador al de la cuenta (E5-H2)',
     description:
-      'Se llama al iniciar sesión con los artículos que el visitante guardó en su navegador. Un artículo que ya estaba en la cuenta suma sus unidades. Lo que no se vende a la cuenta o está agotado se descarta, y una suma sobre 999 queda en 999; cada caso va en `ajustes`. Una cantidad mayor al stock se une sin recortar (recortarla revelaría cuántas unidades hay) y la línea queda con `impideCrearPedido` hasta ajustarla. Devuelve el carrito de la cuenta con sus totales. Después de unir, el navegador debe vaciar su carrito.',
+      'Se llama al iniciar sesión con los artículos que el visitante guardó en su navegador. Un artículo que ya estaba en la cuenta suma sus unidades. Lo que no se vende a la cuenta o está agotado se descarta, y una suma sobre 999 queda en 999; cada caso va en `ajustes`. Una cantidad mayor al stock se une sin recortar (recortarla revelaría cuántas unidades hay) y la línea queda con `impideCrearPedido` hasta ajustarla; lo mismo un formato bajo el mínimo del profesional (`bajoMinimo`). Devuelve el carrito de la cuenta con sus totales. Después de unir, el navegador debe vaciar su carrito.',
   })
   @ApiOkResponse({ description: 'Carrito de la cuenta con la unión.' })
   @ApiBadRequestResponse({

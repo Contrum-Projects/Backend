@@ -72,6 +72,8 @@ export interface LineaCarrito {
   aLaVenta: boolean;
   /** Si el stock vendible cubre la cantidad; `null` si ya no se vende. No informa cuántas hay. */
   stockSuficiente: boolean | null;
+  /** E5-H4 · Solo el profesional: un formato con menos unidades que el mínimo. */
+  bajoMinimo: boolean;
   /** Mientras sea `true`, el pedido no se puede crear: hay que quitarlo o ajustar la cantidad. */
   impideCrearPedido: boolean;
 }
@@ -104,6 +106,20 @@ export interface ArticuloALaVenta {
   /** Los formatos que lo componen: él mismo si es formato, sus componentes si es pack. */
   componentes: { formatoId: number; cantidad: number }[];
 }
+
+/**
+ * E5-H4 · Si una línea no alcanza el mínimo del profesional. Solo se exige a los formatos: un pack
+ * no tiene mínimo y sus componentes no suman a los formatos sueltos.
+ */
+export const bajoMinimoProfesional = (
+  comprador: Comprador,
+  tipo: string,
+  cantidad: number,
+  minimo: number,
+): boolean =>
+  comprador === ROLES.PROFESIONAL &&
+  tipo === TIPOS_ARTICULO.FORMATO &&
+  cantidad < minimo;
 
 const SELECCION_LINEA = {
   articuloId: true,
@@ -532,6 +548,9 @@ export class CarritoService {
   ): Promise<CarritoCuenta> {
     const porcentajeIva = this.config.get('IVA_PORCENTAJE', { infer: true });
     const urlBase = this.config.get('R2_URL_PUBLICA', { infer: true });
+    const minimo = this.config.get('MINIMO_UNIDADES_PELUQUERO', {
+      infer: true,
+    });
     const aLaVenta =
       vendibles ??
       (await this.articulosALaVenta(
@@ -555,6 +574,9 @@ export class CarritoService {
       const stockSuficiente = vendido
         ? item.cantidad <= this.unidadesPosibles(vendido, stock)
         : null;
+      const bajoMinimo = vendido
+        ? bajoMinimoProfesional(rol, vendido.tipo, item.cantidad, minimo)
+        : false;
       const clave = articulo?.imagenes[0]?.ubicacionArchivo;
       return {
         articuloId: item.articuloId,
@@ -569,7 +591,8 @@ export class CarritoService {
           precioUnitario === null ? null : precioUnitario * item.cantidad,
         aLaVenta: vendido !== undefined,
         stockSuficiente,
-        impideCrearPedido: stockSuficiente !== true,
+        bajoMinimo,
+        impideCrearPedido: stockSuficiente !== true || bajoMinimo,
       };
     });
     return {
