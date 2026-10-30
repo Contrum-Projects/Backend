@@ -442,10 +442,15 @@ es un PAGO (`id_transaccion_externa` = id de Mercado Pago, `medio_pago` = `payme
 datos de la tarjeta). Aprobado por el total: PAGO `aprobado`, pedido `pagado` e historial sin
 usuario, en una transacción. Rechazado o pendiente: queda el intento y el pedido sigue
 `pendiente_pago`. El mismo pago otra vez no cambia nada. Pago de otro pedido o inexistente: 400.
-**PROPUESTAS por confirmar:** (1) un aprobado con el plazo vencido se aplica si el pedido sigue
-`pendiente_pago` (RNF-29); (2) un **segundo pago aprobado**, o uno de un pedido cancelado, **no se
-registra** (409) y queda una advertencia en el log para revisarlo a mano (su registro para revisión
-es de E6-H3); (3) un aprobado por otro monto o moneda no se aplica (400). Sin cambios al MER.
+Además (decididas por el responsable de la historia): (1) un aprobado con el plazo vencido se
+aplica si el pedido sigue `pendiente_pago` (RNF-29: antes de cancelar se aplican los pagos
+recibidos); (2) un **segundo pago aprobado**, o uno de un pedido cancelado, **no se registra** (409)
+y queda una advertencia en el log para revisarlo a mano (registrarlo para revisión es de E6-H3);
+(3) un aprobado por otro monto o moneda no se aplica (400). Límite (RNF-09): **10 solicitudes por
+minuto por cuenta** en cada ruta (`LIMITES.PAGAR_PEDIDO`, 429): cada una consulta a Mercado Pago y
+agotar la cuota del token dejaría sin pagar a todos. **Pendiente para E6-H2:** índice único parcial
+`pago(id_pedido) WHERE estado = 'aprobado'` como respaldo en la base cuando exista la segunda vía de
+escritura (el webhook); hoy lo garantiza el bloqueo de la fila del pedido. Sin cambios al MER.
 
 **E7 Despacho.** Despacho a domicilio (cotiza Blue Express por comuna, peso y medidas; caché 15 min
 de la cotización repetida) o retiro en tienda (sin costo). Región y comuna de la lista oficial. Si
