@@ -425,6 +425,32 @@ como visitante y nunca lo aplica. Sin cambios al MER.
 Reintentos; al agotarlos queda marcado para revisión humana. Un solo pago aprobado por pedido y por
 el total. Sin pago a los 15 minutos: se cancela y se libera el stock, **pero antes se aplican los
 pagos recibidos** (RNF-29). Correo al recibir el pago. Sin reembolsos.
+Decisiones del 30 oct (E6-H1): **Checkout Pro** con el SDK oficial `mercadopago`, envuelto en
+`PasarelaPago` (sin `MERCADOPAGO_ACCESS_TOKEN` la app arranca y pagar responde 503). Valores nuevos
+en `valores.ts`: `ESTADOS_PAGO` (`aprobado`, `rechazado`, `pendiente`; de Mercado Pago, `approved`
+aprueba, `rejected` y `cancelled` rechazan y todo lo demás queda pendiente). Rutas para cliente y
+profesional (`CompradorGuard`; personal 403; pedido de otra cuenta 404):
+`POST /api/pedidos/:codigoPedido/pago` crea una preferencia por el **total del pedido** en CLP
+(`external_reference` = código del pedido, `binary_mode`, vence en `fechaExpiracionPago`, regreso a
+`URL_TIENDA/pedidos/:codigo/pago`) y responde `{ urlPago, pagarHasta }`; 409 si el pedido ya está
+pagado, cancelado o con el plazo vencido. Tras un rechazo se puede pedir otra vez dentro del plazo.
+`POST /api/pedidos/:codigoPedido/pago/confirmar` con `{ pagoId }` (el `payment_id` con que vuelve el
+comprador): la API **consulta el pago a Mercado Pago** (nunca usa lo que manda el navegador) y lo
+aplica con `AplicarPagoService`, que reutilizará la notificación de E6-H2. Responde
+`{ estadoPago, pedido }` (detalle de E8-H1). La aplicación bloquea la fila del pedido; cada intento
+es un PAGO (`id_transaccion_externa` = id de Mercado Pago, `medio_pago` = `payment_method_id`, sin
+datos de la tarjeta). Aprobado por el total: PAGO `aprobado`, pedido `pagado` e historial sin
+usuario, en una transacción. Rechazado o pendiente: queda el intento y el pedido sigue
+`pendiente_pago`. El mismo pago otra vez no cambia nada. Pago de otro pedido o inexistente: 400.
+Además (decididas por el responsable de la historia): (1) un aprobado con el plazo vencido se
+aplica si el pedido sigue `pendiente_pago` (RNF-29: antes de cancelar se aplican los pagos
+recibidos); (2) un **segundo pago aprobado**, o uno de un pedido cancelado, **no se registra** (409)
+y queda una advertencia en el log para revisarlo a mano (registrarlo para revisión es de E6-H3);
+(3) un aprobado por otro monto o moneda no se aplica (400). Límite (RNF-09): **10 solicitudes por
+minuto por cuenta** en cada ruta (`LIMITES.PAGAR_PEDIDO`, 429): cada una consulta a Mercado Pago y
+agotar la cuota del token dejaría sin pagar a todos. **Pendiente para E6-H2:** índice único parcial
+`pago(id_pedido) WHERE estado = 'aprobado'` como respaldo en la base cuando exista la segunda vía de
+escritura (el webhook); hoy lo garantiza el bloqueo de la fila del pedido. Sin cambios al MER.
 
 **E7 Despacho.** Despacho a domicilio (cotiza Blue Express por comuna, peso y medidas; caché 15 min
 de la cotización repetida) o retiro en tienda (sin costo). Región y comuna de la lista oficial. Si

@@ -35,6 +35,12 @@ export const LIMITES = {
    * `LimitePorCuentaGuard`. Cada pedido reserva stock: frena agotarlo con pedidos sin pagar.
    */
   CREAR_PEDIDO: { limit: 5, ttl: 60_000 },
+  /**
+   * Ir a pagar y confirmar el pago (E6-H1, decisión del 30 oct 2026): 10/min por cuenta en cada
+   * ruta, con `LimitePorCuentaGuard`. Cada llamada consulta a Mercado Pago: frena agotar la cuota
+   * del token de la tienda, que dejaría sin pagar a todos los compradores.
+   */
+  PAGAR_PEDIDO: { limit: 10, ttl: 60_000 },
 } as const;
 
 /**

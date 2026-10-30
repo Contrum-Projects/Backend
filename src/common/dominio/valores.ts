@@ -5,7 +5,7 @@
  *
  * Si una lista cambia, actualízala aquí y en docs/reglas-de-negocio.md.
  * Listas que siguen abiertas (no las inventes): estados de envío (solo el
- * provisional de E5-H3) y de pago; modalidades y especialidades. Los tipos de token y de
+ * provisional de E5-H3); modalidades y especialidades. Los tipos de token y de
  * notificación crecen con cada historia que los necesita.
  */
 
@@ -19,6 +19,17 @@ export const ESTADOS_PEDIDO = {
   LISTO_PARA_RETIRO: 'listo_para_retiro',
   RETIRADO: 'retirado',
   CANCELADO: 'cancelado',
+} as const;
+
+/**
+ * PAGO.estado (E6-H1, decisión del 30 de octubre de 2026). Cada intento que Mercado Pago crea es
+ * un pago: `pending` e `in_process` quedan pendientes; `rejected` y `cancelled`, rechazados. Un
+ * pedido tiene a lo más un pago aprobado.
+ */
+export const ESTADOS_PAGO = {
+  APROBADO: 'aprobado',
+  RECHAZADO: 'rechazado',
+  PENDIENTE: 'pendiente',
 } as const;
 
 /** PEDIDO.tipo_entrega (RF-07.01). */
