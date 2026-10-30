@@ -17,14 +17,18 @@ import {
   ApiOperation,
   ApiServiceUnavailableResponse,
   ApiTags,
+  ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import type { UsuarioAutenticado } from '../../autenticacion/carga-token.js';
 import { CompradorGuard } from '../../autenticacion/comprador.guard.js';
 import {
   JwtAutenticacionGuard,
   UsuarioActual,
 } from '../../autenticacion/jwt-autenticacion.guard.js';
+import { LimitePorCuentaGuard } from '../../limites/limite-por-cuenta.guard.js';
+import { LIMITES } from '../../limites/limites.js';
 import { CodigoPedidoPipe } from '../pedidos/codigo-pedido.pipe.js';
 import { ConfirmarPagoDto } from './dto/confirmar-pago.dto.js';
 import {
@@ -48,11 +52,16 @@ const CODIGO_PEDIDO = new CodigoPedidoPipe();
 @ApiServiceUnavailableResponse({
   description: 'Mercado Pago no responde o no está configurado.',
 })
+@ApiTooManyRequestsResponse({
+  description: 'Más de 10 solicitudes por minuto de la misma cuenta.',
+})
 export class PagarPedidoController {
   constructor(private readonly pagos: PagarPedidoService) {}
 
   @Post(':codigoPedido/pago')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(LimitePorCuentaGuard)
+  @Throttle({ default: LIMITES.PAGAR_PEDIDO })
   @ApiOperation({
     summary: 'Ir a pagar un pedido en Mercado Pago (E6-H1)',
     description:
@@ -71,6 +80,8 @@ export class PagarPedidoController {
 
   @Post(':codigoPedido/pago/confirmar')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(LimitePorCuentaGuard)
+  @Throttle({ default: LIMITES.PAGAR_PEDIDO })
   @ApiOperation({
     summary: 'Confirmar el pago al volver de Mercado Pago (E6-H1)',
     description:

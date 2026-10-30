@@ -377,6 +377,21 @@ describe('Pagos · pagar el pedido en Mercado Pago (e2e)', () => {
     expect(pasarela.cobros).toEqual([]);
   });
 
+  it('RNF-09 · límite por cuenta: la undécima solicitud del minuto responde 429 y no afecta a otra cuenta', async () => {
+    const yo = await cuenta(ROLES.CLIENTE);
+    const otra = await cuenta(ROLES.CLIENTE);
+    const pedido = await nuevoPedido(yo.usuarioId);
+    const delOtro = await nuevoPedido(otra.usuarioId);
+    const irAPagar = (token: string, codigo: string) =>
+      servidor().post(`${RUTA}/${codigo}/pago`).auth(token, { type: 'bearer' });
+
+    for (let intento = 0; intento < 10; intento++) {
+      await irAPagar(yo.token, pedido.codigo).expect(200);
+    }
+    await irAPagar(yo.token, pedido.codigo).expect(429);
+    await irAPagar(otra.token, delOtro.codigo).expect(200);
+  });
+
   it('RNF-03 · sin sesión: 401; personal de tienda: 403', async () => {
     const yo = await cuenta(ROLES.CLIENTE);
     const pedido = await nuevoPedido(yo.usuarioId);
