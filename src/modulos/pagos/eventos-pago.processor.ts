@@ -13,7 +13,7 @@ import {
 } from '../../colas/colas.js';
 import { NotificacionPagoService } from './notificacion-pago.service.js';
 
-/** Cada cuánto se revisan los eventos pendientes (E6-H3 aplica los pagos antes de cancelar). */
+/** Cada cuánto se revisan los eventos pendientes. */
 const REVISION_CADA_MS = 60_000;
 
 /** Worker de la cola `eventos-pago` (E6-H2): la lógica vive en `NotificacionPagoService`. */
@@ -30,10 +30,11 @@ export class EventosPagoProcessor extends WorkerHost implements OnModuleInit {
 
   onModuleInit() {
     this.programarRevision();
+    // Si Redis volvió sin sus datos, la tarea se perdió con ellos (RNF-29). El `ready` del worker
+    // se emite una sola vez: el de la conexión de la cola avisa cada reconexión
+    this.eventos.getBackend().on('ready', () => this.programarRevision());
   }
 
-  // Al reconectar: si Redis volvió sin sus datos, la tarea se perdió con ellos (RNF-29)
-  @OnWorkerEvent('ready')
   programarRevision() {
     // Sin esperar: con Redis caído la app arranca igual y la tarea se crea al volver (RNF-32).
     // Un job repetible corre una sola vez aunque haya varias instancias (RNF-20)
