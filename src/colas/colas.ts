@@ -34,7 +34,21 @@ export const TRABAJOS_CORREO = {
   STOCK_BAJO: 'stock-bajo',
   /** Aviso al cliente de un cambio clave del estado de su pedido (E8-H2). */
   CAMBIO_ESTADO_PEDIDO: 'cambio-estado-pedido',
+  /** Confirmación al cliente de que se recibió el pago de su pedido (E6-H2). */
+  PAGO_CONFIRMADO: 'pago-confirmado',
 } as const;
+
+/** Nombres de los trabajos de la cola de eventos de pago (E6-H2). */
+export const TRABAJOS_EVENTO_PAGO = {
+  PROCESAR: 'procesar-evento',
+  /** Tarea repetible: reencola lo pendiente si Redis se cayó o se vació (RNF-29). */
+  REVISAR_PENDIENTES: 'revisar-pendientes',
+} as const;
+
+/** Datos de una notificación de Mercado Pago por procesar: el resto está en EVENTO_PAGO. */
+export interface TrabajoProcesarEventoPago {
+  eventoId: number;
+}
 
 /**
  * Datos de un correo con enlace de un uso: confirmación del correo (E1-H1),
@@ -73,6 +87,15 @@ export interface TrabajoCambioEstadoPedido {
   estado: string;
   /** `despacho` o `retiro` (`TIPOS_ENTREGA`). */
   tipoEntrega: string;
+}
+
+/** Datos del correo al cliente que confirma el pago de su pedido (E6-H2). */
+export interface TrabajoPagoConfirmado {
+  notificacionId: number;
+  destinatario: string;
+  nombre: string;
+  codigoPedido: string;
+  montoTotal: number;
 }
 
 /**

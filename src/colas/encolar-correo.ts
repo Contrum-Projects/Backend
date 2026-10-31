@@ -12,6 +12,22 @@ const OPCIONES_CORREO = {
   removeOnFail: true,
 } as const;
 
+/** Espera una operación de la cola, con un único plazo: Redis caído no deja la petición colgada. */
+export const conPlazoDeCola = async <T>(operacion: Promise<T>): Promise<T> => {
+  let temporizador: NodeJS.Timeout | undefined;
+  const limite = new Promise<never>((_, rechazar) => {
+    temporizador = setTimeout(
+      () => rechazar(new Error('Redis no respondió a tiempo')),
+      ESPERA_MAXIMA_COLA_MS,
+    );
+  });
+  try {
+    return await Promise.race([operacion, limite]);
+  } finally {
+    clearTimeout(temporizador);
+  }
+};
+
 /**
  * Encola uno o varios correos de pedido o cuenta en una sola operación, después del commit. Si
  * Redis no responde, las NOTIFICACION ya quedaron pendientes en la base y la petición no falla
@@ -24,15 +40,8 @@ export const encolarCorreos = async <T extends { notificacionId: number }>(
   logger: Logger,
 ): Promise<void> => {
   if (lista.length === 0) return;
-  let temporizador: NodeJS.Timeout | undefined;
-  const limite = new Promise<never>((_, rechazar) => {
-    temporizador = setTimeout(
-      () => rechazar(new Error('Redis no respondió a tiempo')),
-      ESPERA_MAXIMA_COLA_MS,
-    );
-  });
   try {
-    await Promise.race([
+    await conPlazoDeCola<unknown>(
       lista.length === 1
         ? correos.add(trabajo, lista[0], OPCIONES_CORREO)
         : correos.addBulk(
@@ -42,15 +51,12 @@ export const encolarCorreos = async <T extends { notificacionId: number }>(
               opts: OPCIONES_CORREO,
             })),
           ),
-      limite,
-    ]);
+    );
   } catch (error) {
     const ids = lista.map((datos) => datos.notificacionId).join(', ');
     logger.warn(
       `No se pudo encolar el correo ${trabajo} (notificación ${ids}): ${(error as Error).message}`,
     );
-  } finally {
-    clearTimeout(temporizador);
   }
 };
 

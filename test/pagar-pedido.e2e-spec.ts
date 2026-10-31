@@ -1,11 +1,14 @@
+import { getQueueToken } from '@nestjs/bullmq';
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import argon2 from 'argon2';
+import type { Job, Queue } from 'bullmq';
 import type { Redis } from 'ioredis';
 import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { App } from 'supertest/types.js';
 import { AppModule } from '../src/app.module.js';
+import { COLAS, type TrabajoPagoConfirmado } from '../src/colas/colas.js';
 import { ROLES, type Rol } from '../src/common/dominio/roles.js';
 import {
   ESTADOS_PAGO,
@@ -141,7 +144,19 @@ describe('Pagos · pagar el pedido en Mercado Pago (e2e)', () => {
       .send({ pagoId });
 
   const limpiar = async () => {
+    const correos = app.get<Queue>(getQueueToken(COLAS.CORREOS));
+    const trabajos: Job<TrabajoPagoConfirmado>[] = await correos.getJobs([
+      'prioritized',
+      'waiting',
+      'delayed',
+    ]);
+    await Promise.all(
+      trabajos
+        .filter((t) => t.data?.destinatario?.startsWith('e2e-pagos-'))
+        .map((t) => t.remove()),
+    );
     const donde = { usuario: { email: { startsWith: 'e2e-pagos-' } } };
+    await prisma.notificacion.deleteMany({ where: donde });
     await prisma.pago.deleteMany({ where: { pedido: donde } });
     await prisma.pedido.deleteMany({ where: donde });
   };
