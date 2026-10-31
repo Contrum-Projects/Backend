@@ -374,6 +374,91 @@ describe('Pedidos · crear el pedido desde el carrito (e2e)', () => {
     });
   });
 
+  it('E7-H1 · retiro en tienda: registra la forma de entrega y no suma costo de envío', async () => {
+    const comprador = await cuenta(ROLES.CLIENTE);
+    const formato = await nuevoFormato(5);
+    await llenarCarrito(comprador.id, [
+      { articuloId: formato.id, cantidad: 1 },
+    ]);
+    const direccion = await prisma.direccion.create({
+      data: {
+        usuarioId: comprador.id,
+        comunaId,
+        calle: 'Av. Prueba',
+        numero: '123',
+      },
+    });
+
+    await confirmar(comprador.token, { direccionId: direccion.id }).expect(400);
+    expect(await pedidosDe(comprador.id)).toBe(0);
+
+    const respuesta = await confirmar(comprador.token).expect(201);
+
+    const pedido = respuesta.body as Pedido;
+    expect(pedido.tipoEntrega).toBe('retiro');
+    expect(pedido.envio).toBeNull();
+    expect(pedido.montos).toEqual({ neto: 1003, iva: 191, total: 1194 });
+    const guardado = await prisma.pedido.findUniqueOrThrow({
+      where: { codigoPublico: pedido.codigoPublico },
+      select: { tipoEntrega: true, montoTotal: true, envio: true },
+    });
+    expect(guardado).toEqual({
+      tipoEntrega: 'retiro',
+      montoTotal: 1194,
+      envio: null,
+    });
+  });
+
+  it('E7-H1 · despacho a domicilio: exige una dirección de la cuenta y la copia en el envío', async () => {
+    const comprador = await cuenta(ROLES.CLIENTE);
+    const ajena = await cuenta(ROLES.CLIENTE);
+    const formato = await nuevoFormato(5);
+    await llenarCarrito(comprador.id, [
+      { articuloId: formato.id, cantidad: 1 },
+    ]);
+    const datosDireccion = {
+      comunaId,
+      calle: 'Av. Prueba',
+      numero: '123',
+      referencia: 'Depto. 45',
+    };
+    const propia = await prisma.direccion.create({
+      data: { usuarioId: comprador.id, ...datosDireccion },
+    });
+    const otra = await prisma.direccion.create({
+      data: { usuarioId: ajena.id, ...datosDireccion },
+    });
+
+    await confirmar(comprador.token, { tipoEntrega: 'despacho' }).expect(400);
+    await confirmar(comprador.token, {
+      tipoEntrega: 'despacho',
+      direccionId: otra.id,
+    }).expect(404);
+    expect(await pedidosDe(comprador.id)).toBe(0);
+
+    const respuesta = await confirmar(comprador.token, {
+      tipoEntrega: 'despacho',
+      direccionId: propia.id,
+    }).expect(201);
+
+    const pedido = respuesta.body as Pedido;
+    expect(pedido.tipoEntrega).toBe('despacho');
+    const envio = await prisma.envio.findFirstOrThrow({
+      where: { pedido: { codigoPublico: pedido.codigoPublico } },
+    });
+    expect(envio).toMatchObject(datosDireccion);
+
+    // El pedido conserva la dirección con que se creó aunque la cuenta la cambie después
+    await prisma.direccion.update({
+      where: { id: propia.id },
+      data: { calle: 'Otra calle' },
+    });
+    const copia = await prisma.envio.findUniqueOrThrow({
+      where: { id: envio.id },
+    });
+    expect(copia.calle).toBe('Av. Prueba');
+  });
+
   it('E5-H3 · pedido creado: la factura exige datos activos de la cuenta', async () => {
     const comprador = await cuenta(ROLES.CLIENTE);
     const formato = await nuevoFormato(5);
