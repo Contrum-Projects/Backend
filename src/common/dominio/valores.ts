@@ -34,12 +34,15 @@ export const ESTADOS_PAGO = {
 
 /**
  * EVENTO_PAGO.estado_procesamiento (E6-H2, decisión del 31 de octubre de 2026). `descartado`: lo
- * que reintentar no arregla (pago de otra tienda, otro monto, pedido cancelado o ya pagado).
+ * pago que no es de esta tienda o de un pedido inexistente. `revision_manual` (E6-H3): lo revisa
+ * una persona, porque agotó los reintentos o porque hay un pago aprobado que no se pudo aplicar
+ * (otro monto, pedido cancelado o ya pagado).
  */
 export const ESTADOS_EVENTO_PAGO = {
   PENDIENTE: 'pendiente',
   PROCESADO: 'procesado',
   DESCARTADO: 'descartado',
+  REVISION_MANUAL: 'revision_manual',
 } as const;
 
 /** PEDIDO.tipo_entrega (RF-07.01). */

@@ -25,7 +25,10 @@ import {
 } from '../../common/dominio/valores.js';
 import type { Entorno } from '../../config/entorno.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
-import { AplicarPagoService } from './aplicar-pago.service.js';
+import {
+  AplicarPagoService,
+  PAGO_NO_CORRESPONDE,
+} from './aplicar-pago.service.js';
 import { PasarelaPago } from './pasarela-pago.js';
 
 export const FIRMA_INVALIDA = 'La firma de la notificación no es válida.';
@@ -33,7 +36,7 @@ export const NOTIFICACION_INVALIDA = 'La notificación no es válida.';
 export const NOTIFICACIONES_NO_CONFIGURADAS =
   'Las notificaciones de Mercado Pago no están configuradas.';
 
-/** Veces que se intenta procesar un evento; después queda para revisión (E6-H3). */
+/** Veces que se intenta procesar un evento; después lo revisa una persona (E6-H3). */
 export const INTENTOS_EVENTO_PAGO = 5;
 
 const TIPO_PAGO = 'payment';
@@ -150,7 +153,8 @@ export class NotificacionPagoService {
   /**
    * E6-H2 · Lo hace el worker: consulta el pago a Mercado Pago y lo aplica. Si Mercado Pago no
    * responde o aún no conoce el pago, lanza el error para que BullMQ reintente. Lo que
-   * reintentar no arregla queda `descartado`.
+   * reintentar no arregla queda `descartado` si no es de esta tienda y, si hay un pago aprobado
+   * sin aplicar, en `revision_manual` (E6-H3).
    */
   async procesar(eventoId: number): Promise<void> {
     const reservado = await this.prisma.eventoPago.updateMany({
@@ -185,10 +189,14 @@ export class NotificacionPagoService {
       ) {
         throw error;
       }
+      // AplicarPagoService solo responde otra cosa ante un pago aprobado: Mercado Pago ya cobró
+      estado =
+        error.message === PAGO_NO_CORRESPONDE
+          ? ESTADOS_EVENTO_PAGO.DESCARTADO
+          : ESTADOS_EVENTO_PAGO.REVISION_MANUAL;
       this.logger.warn(
-        `Evento de pago ${eventoId} descartado (pago ${pago.idExterno}): ${error.message}`,
+        `Evento de pago ${eventoId} en ${estado} (pago ${pago.idExterno}): ${error.message}`,
       );
-      estado = ESTADOS_EVENTO_PAGO.DESCARTADO;
     }
 
     const registrado = await this.prisma.pago.findUnique({
@@ -208,9 +216,23 @@ export class NotificacionPagoService {
   /**
    * E6-H2 · Tarea periódica: vuelve a encolar los eventos que siguen pendientes porque Redis se
    * cayó o se vació después de responderle a Mercado Pago (RNF-29). El id del trabajo evita
-   * duplicar los que siguen en la cola.
+   * duplicar los que siguen en la cola. E6-H3 · Los que agotaron los reintentos quedan para que
+   * los revise una persona; si el último intento aún corre y termina bien, deja su estado final.
    */
   async revisarPendientes(): Promise<void> {
+    const agotados = await this.prisma.eventoPago.updateMany({
+      where: {
+        estadoProcesamiento: ESTADOS_EVENTO_PAGO.PENDIENTE,
+        intentos: { gte: INTENTOS_EVENTO_PAGO },
+      },
+      data: { estadoProcesamiento: ESTADOS_EVENTO_PAGO.REVISION_MANUAL },
+    });
+    if (agotados.count > 0) {
+      this.logger.warn(
+        `${agotados.count} evento(s) de pago agotaron los reintentos: quedan para revisión.`,
+      );
+    }
+
     const pendientes = await this.prisma.eventoPago.findMany({
       where: {
         estadoProcesamiento: ESTADOS_EVENTO_PAGO.PENDIENTE,
