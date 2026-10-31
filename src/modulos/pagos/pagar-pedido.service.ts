@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { pagarHastaDe } from '../../common/dominio/plazo-pago.js';
 import {
   ESTADOS_PAGO,
   ESTADOS_PEDIDO,
@@ -80,7 +81,8 @@ export class PagarPedidoService {
     if (pedido.estadoActual !== ESTADOS_PEDIDO.PENDIENTE_PAGO) {
       throw new ConflictException(PEDIDO_YA_PAGADO);
     }
-    if (pedido.fechaExpiracionPago.getTime() <= Date.now()) {
+    const pagarHasta = pagarHastaDe(pedido.fechaExpiracionPago);
+    if (pagarHasta.getTime() <= Date.now()) {
       throw new ConflictException(PLAZO_VENCIDO);
     }
 
@@ -88,10 +90,10 @@ export class PagarPedidoService {
     const urlPago = await this.pasarela.crearCobro({
       codigoPedido,
       montoTotal: pedido.montoTotal,
-      pagarHasta: pedido.fechaExpiracionPago,
+      pagarHasta,
       urlRegreso: `${tienda.replace(/\/+$/, '')}/pedidos/${codigoPedido}/pago`,
     });
-    return { urlPago, pagarHasta: pedido.fechaExpiracionPago };
+    return { urlPago, pagarHasta };
   }
 
   /**

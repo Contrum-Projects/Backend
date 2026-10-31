@@ -50,6 +50,10 @@ class PasarelaDePrueba extends PasarelaPago {
   consultarPago(idExterno: string): Promise<PagoPasarela | null> {
     return Promise.resolve(this.pagosMp.get(idExterno) ?? null);
   }
+
+  buscarPagosDePedido(): Promise<PagoPasarela[]> {
+    return Promise.resolve([]);
+  }
 }
 
 describe('Pagos · notificaciones de Mercado Pago (e2e)', () => {
@@ -406,13 +410,13 @@ describe('Pagos · notificaciones de Mercado Pago (e2e)', () => {
     expect(await correosDelPedido(pedido.codigo)).toHaveLength(0);
   });
 
-  it('E6-H2 · pago aprobado por otro monto: el evento queda descartado y el pedido no cambia', async () => {
+  it('E6-H3 · pago aprobado por otro monto: el evento queda para revisión y el pedido no cambia', async () => {
     const pedido = await nuevoPedido();
     const pagoId = pagoEnMp(pedido.codigo, { monto: 100 });
     const idEvento = nuevoIdEvento();
 
     await notificar(pagoId, idEvento).expect(200);
-    await eventoTerminado(idEvento, 'descartado');
+    await eventoTerminado(idEvento, 'revision_manual');
 
     expect(
       (await prisma.pedido.findUniqueOrThrow({ where: { id: pedido.id } }))

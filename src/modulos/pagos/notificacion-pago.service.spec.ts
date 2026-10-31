@@ -9,7 +9,13 @@ import type { Queue } from 'bullmq';
 import { createHmac } from 'node:crypto';
 import type { Entorno } from '../../config/entorno.js';
 import type { PrismaService } from '../../prisma/prisma.service.js';
-import type { AplicarPagoService } from './aplicar-pago.service.js';
+import {
+  type AplicarPagoService,
+  MONTO_NO_CORRESPONDE,
+  PAGO_NO_CORRESPONDE,
+  PEDIDO_CANCELADO,
+  PEDIDO_YA_PAGADO,
+} from './aplicar-pago.service.js';
 import {
   FIRMA_INVALIDA,
   INTENTOS_EVENTO_PAGO,
@@ -239,19 +245,33 @@ describe('NotificacionPagoService', () => {
       expect(aplicarPago.aplicar).not.toHaveBeenCalled();
     });
 
+    it('E6-H2 · pago que no es de esta tienda o de un pedido inexistente: queda descartado y no se reintenta', async () => {
+      aplicarPago.aplicar.mockRejectedValue(
+        new BadRequestException(PAGO_NO_CORRESPONDE),
+      );
+
+      await expect(servicio.procesar(7)).resolves.toBeUndefined();
+
+      expect(
+        db.eventoPago.update.mock.calls[0][0].data.estadoProcesamiento,
+      ).toBe('descartado');
+    });
+
     it.each([
-      ['otro monto', new BadRequestException('monto')],
-      ['pedido cancelado', new ConflictException('cancelado')],
+      ['otro monto', new BadRequestException(MONTO_NO_CORRESPONDE)],
+      ['pedido cancelado', new ConflictException(PEDIDO_CANCELADO)],
+      ['pedido ya pagado', new ConflictException(PEDIDO_YA_PAGADO)],
     ])(
-      'E6-H2 · pago que no se puede aplicar (%s): queda descartado y no se reintenta',
+      'E6-H3 · pago aprobado que no se puede aplicar (%s): queda para revisión y no se reintenta',
       async (_caso, error) => {
         aplicarPago.aplicar.mockRejectedValue(error);
 
         await expect(servicio.procesar(7)).resolves.toBeUndefined();
 
-        expect(
-          db.eventoPago.update.mock.calls[0][0].data.estadoProcesamiento,
-        ).toBe('descartado');
+        expect(db.eventoPago.update.mock.calls[0][0].data).toMatchObject({
+          estadoProcesamiento: 'revision_manual',
+          fechaProcesamiento: expect.any(Date),
+        });
       },
     );
 
@@ -291,6 +311,18 @@ describe('NotificacionPagoService', () => {
       expect(eventos.add).toHaveBeenCalledTimes(2);
       expect(eventos.add.mock.calls[1][2]).toMatchObject({
         jobId: 'evento-8',
+      });
+    });
+
+    it('E6-H3 · notificación con error: al agotar los reintentos la deja marcada para revisión', async () => {
+      await servicio.revisarPendientes();
+
+      expect(db.eventoPago.updateMany).toHaveBeenCalledWith({
+        where: {
+          estadoProcesamiento: 'pendiente',
+          intentos: { gte: INTENTOS_EVENTO_PAGO },
+        },
+        data: { estadoProcesamiento: 'revision_manual' },
       });
     });
   });

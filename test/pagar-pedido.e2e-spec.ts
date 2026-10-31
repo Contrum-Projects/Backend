@@ -22,6 +22,7 @@ import {
   type PagoPasarela,
   PasarelaPago,
 } from '../src/modulos/pagos/pasarela-pago.js';
+import { PlazosProcessor } from '../src/modulos/pagos/plazos.processor.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { REDIS } from '../src/redis/redis.module.js';
 
@@ -47,6 +48,10 @@ class PasarelaDePrueba extends PasarelaPago {
 
   consultarPago(idExterno: string): Promise<PagoPasarela | null> {
     return Promise.resolve(this.pagosMp.get(idExterno) ?? null);
+  }
+
+  buscarPagosDePedido(): Promise<PagoPasarela[]> {
+    return Promise.resolve([]);
   }
 }
 
@@ -165,6 +170,9 @@ describe('Pagos · pagar el pedido en Mercado Pago (e2e)', () => {
     const modulo = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(PasarelaPago)
       .useValue(pasarela)
+      // Sin el worker de plazos: estas pruebas crean pedidos vencidos que debe poder ver el pago
+      .overrideProvider(PlazosProcessor)
+      .useValue({})
       .compile();
     app = configurarApp(modulo.createNestApplication());
     await app.init();

@@ -298,8 +298,9 @@ describe('Pedidos · crear el pedido desde el carrito (e2e)', () => {
     expect(pedido.historial).toMatchObject([{ estado: 'pendiente_pago' }]);
     expect(pedido.envio).toBeNull();
     const plazo = new Date(pedido.pagarHasta).getTime() - antes;
-    expect(plazo).toBeGreaterThan(14 * 60_000);
-    expect(plazo).toBeLessThanOrEqual(15 * 60_000 + 5_000);
+    // El cobro cierra 2 minutos antes del plazo de 15 (E6-H3)
+    expect(plazo).toBeGreaterThan(12 * 60_000);
+    expect(plazo).toBeLessThanOrEqual(13 * 60_000 + 5_000);
 
     expect(await stockDe(formato.id)).toBe(2);
     const guardado = await prisma.pedido.findUniqueOrThrow({

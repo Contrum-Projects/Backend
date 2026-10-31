@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ESTADOS_PEDIDO } from '../../common/dominio/valores.js';
+import type { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { VentaStockService } from '../inventario/venta-stock.service.js';
 import type { CancelarPedidoDto } from './dto/cancelar-pedido.dto.js';
@@ -11,6 +12,7 @@ import type { CancelarPedidoDto } from './dto/cancelar-pedido.dto.js';
 export const PEDIDO_NO_EXISTE = 'El pedido no existe.';
 export const SOLO_PENDIENTE_DE_PAGO =
   'Solo se puede cancelar un pedido pendiente de pago.';
+export const COMENTARIO_IMPAGO = 'Plazo de pago vencido.';
 
 export interface PedidoCancelado {
   codigoPublico: string;
@@ -56,30 +58,63 @@ export class CancelarPedidoService {
         where: { codigoPublico: codigoPublicoPersonal },
         select: { id: true },
       });
-      await this.ventaStock.reingresarPorPedido(tx, pedido.id, personal.id);
-
-      const ultimo = await tx.historialEstadoPedido.aggregate({
-        where: { pedidoId: pedido.id },
-        _max: { correlativo: true },
-      });
-      await tx.historialEstadoPedido.create({
-        data: {
-          pedidoId: pedido.id,
-          correlativo: (ultimo._max.correlativo ?? 0) + 1,
-          usuarioId: personal.id,
-          estado: ESTADOS_PEDIDO.CANCELADO,
-          comentario: dto.comentario,
-        },
-      });
-      await tx.pedido.update({
-        where: { id: pedido.id },
-        data: { estadoActual: ESTADOS_PEDIDO.CANCELADO },
-      });
+      await this.registrarCancelacion(
+        tx,
+        pedido.id,
+        personal.id,
+        dto.comentario,
+      );
 
       return {
         codigoPublico: codigoPedido,
         estado: ESTADOS_PEDIDO.CANCELADO,
       };
+    });
+  }
+
+  /**
+   * E6-H3 · Cancela un pedido cuyo plazo de pago venció, sin usuario. Bloquea la fila antes de
+   * mirar su estado: un pedido que ya se pagó o se canceló no cambia y devuelve `false`.
+   */
+  cancelarPorImpago(pedidoId: number): Promise<boolean> {
+    return this.prisma.$transaction(async (tx) => {
+      const filas = await tx.$queryRaw<{ estado: string }[]>`
+        SELECT estado_actual AS estado
+        FROM pedido
+        WHERE id_pedido = ${pedidoId}
+        FOR NO KEY UPDATE`;
+      if (filas[0]?.estado !== ESTADOS_PEDIDO.PENDIENTE_PAGO) return false;
+
+      await this.registrarCancelacion(tx, pedidoId, null, COMENTARIO_IMPAGO);
+      return true;
+    });
+  }
+
+  /** Devuelve el stock, agrega el cambio al historial y deja el pedido cancelado (RNF-12). */
+  private async registrarCancelacion(
+    tx: Prisma.TransactionClient,
+    pedidoId: number,
+    usuarioId: number | null,
+    comentario: string | undefined,
+  ): Promise<void> {
+    await this.ventaStock.reingresarPorPedido(tx, pedidoId, usuarioId);
+
+    const ultimo = await tx.historialEstadoPedido.aggregate({
+      where: { pedidoId },
+      _max: { correlativo: true },
+    });
+    await tx.historialEstadoPedido.create({
+      data: {
+        pedidoId,
+        correlativo: (ultimo._max.correlativo ?? 0) + 1,
+        usuarioId,
+        estado: ESTADOS_PEDIDO.CANCELADO,
+        comentario,
+      },
+    });
+    await tx.pedido.update({
+      where: { id: pedidoId },
+      data: { estadoActual: ESTADOS_PEDIDO.CANCELADO },
     });
   }
 }

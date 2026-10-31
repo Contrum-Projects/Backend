@@ -43,7 +43,8 @@ describe('PagarPedidoService', () => {
   let aplicarPago: { aplicar: ReturnType<typeof vi.fn> };
   let misPedidos: { obtener: ReturnType<typeof vi.fn> };
   let servicio: PagarPedidoService;
-  const pagarHasta = enMinutos(10);
+  const fechaExpiracionPago = enMinutos(10);
+  const pagarHasta = new Date(fechaExpiracionPago.getTime() - 2 * 60_000);
 
   beforeEach(() => {
     db = {
@@ -52,7 +53,7 @@ describe('PagarPedidoService', () => {
           id: 40,
           estadoActual: 'pendiente_pago',
           montoTotal: TOTAL,
-          fechaExpiracionPago: pagarHasta,
+          fechaExpiracionPago,
         }),
       },
     };
@@ -77,7 +78,7 @@ describe('PagarPedidoService', () => {
   });
 
   describe('iniciar', () => {
-    it('E6-H1 · pedido pendiente y dentro del plazo: cobra el total y devuelve la URL de pago', async () => {
+    it('E6-H1 · pedido pendiente y dentro del plazo: cobra el total y devuelve la URL de pago; E6-H3 · el cobro cierra 2 minutos antes del plazo', async () => {
       const respuesta = await servicio.iniciar(USUARIO, CODIGO);
 
       expect(respuesta).toEqual({ urlPago: URL_PAGO, pagarHasta });
@@ -98,7 +99,7 @@ describe('PagarPedidoService', () => {
         db.pedido.findFirst.mockResolvedValue({
           estadoActual,
           montoTotal: TOTAL,
-          fechaExpiracionPago: pagarHasta,
+          fechaExpiracionPago,
         });
 
         await expect(servicio.iniciar(USUARIO, CODIGO)).rejects.toThrow(
@@ -121,11 +122,24 @@ describe('PagarPedidoService', () => {
       expect(pasarela.crearCobro).not.toHaveBeenCalled();
     });
 
+    it('E6-H3 · en los últimos 2 minutos del plazo: el cobro ya cerró y no prepara otro', async () => {
+      db.pedido.findFirst.mockResolvedValue({
+        estadoActual: 'pendiente_pago',
+        montoTotal: TOTAL,
+        fechaExpiracionPago: enMinutos(1),
+      });
+
+      await expect(servicio.iniciar(USUARIO, CODIGO)).rejects.toThrow(
+        new ConflictException(PLAZO_VENCIDO),
+      );
+      expect(pasarela.crearCobro).not.toHaveBeenCalled();
+    });
+
     it('pedido cancelado: 409', async () => {
       db.pedido.findFirst.mockResolvedValue({
         estadoActual: 'cancelado',
         montoTotal: TOTAL,
-        fechaExpiracionPago: pagarHasta,
+        fechaExpiracionPago,
       });
 
       await expect(servicio.iniciar(USUARIO, CODIGO)).rejects.toThrow(

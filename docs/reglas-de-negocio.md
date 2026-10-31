@@ -402,8 +402,8 @@ Una dirección o datos de otra cuenta responden 404. Responde 201 con la forma d
 repetir la clave devuelve el mismo pedido (201); el pedido **vacía el carrito** en la misma
 transacción. Contra agotar el stock con reservas sin pagar: **5 solicitudes por minuto por cuenta**
 (`LIMITES.CREAR_PEDIDO`, 429) y **un solo pedido `pendiente_pago` por cuenta**: con otra clave
-responde 409, también si su plazo ya venció y aún no se cancela (hasta E6-H3 solo lo libera el
-personal al cancelarlo). Correo sin confirmar: 403. Artículo que ya no se vende: 409 con su nombre. Sin stock: 409 de `VentaStockService`,
+responde 409, también si su plazo ya venció y aún no se cancela (lo libera E6-H3 o el personal al
+cancelarlo). Correo sin confirmar: 403. Artículo que ya no se vende: 409 con su nombre. Sin stock: 409 de `VentaStockService`,
 que suma formatos sueltos y en packs y nombra el formato (también si viene de un pack). Los montos se
 suman **por línea** (`montosPorLineas`): el total es el del carrito y el IVA puede diferir unos pesos
 de aplicar la tasa al neto total. La línea guarda el neto vigente y su tipo de precio. **Provisional
@@ -459,7 +459,8 @@ Se guarda un EVENTO_PAGO (`id_evento_externo` = `id` del cuerpo; `contenido_reci
 tipo, acción e id del pago) y se responde 200 aunque Redis no responda. El worker de `eventos-pago`
 consulta el pago a Mercado Pago y usa `AplicarPagoService`. `ESTADOS_EVENTO_PAGO`: `pendiente`,
 `procesado` y `descartado` (reintentar no lo arregla: pago de otra tienda, otro monto, pedido
-cancelado o ya pagado; queda la advertencia en el log y su revisión es de E6-H3). Hasta 5 intentos
+cancelado o ya pagado; queda la advertencia en el log; E6-H3 dejó en `revision_manual` los aprobados
+no aplicados). Hasta 5 intentos
 con espera exponencial desde 5 s (también si Mercado Pago aún no conoce el pago); al agotarlos sigue
 `pendiente` con `intentos = 5` y **marcarlo para revisión es de E6-H3**. Un job repetible cada minuto
 reencola los `pendiente` con menos de 5 intentos si Redis se cayó o se vació (RNF-29).
@@ -470,6 +471,31 @@ nombre, codigoPedido, montoTotal }`). Así sale una sola vez aunque Mercado Pago
 `id` del aviso. El texto y el envío son del worker de correos (E1-H6, SCRUM-78). Índice único parcial
 `pago(id_pedido) WHERE estado = 'aprobado'` como respaldo del bloqueo del pedido: solo vive en la
 migración, porque Prisma no lo declara en `schema.prisma`. Sin cambios a tablas ni columnas del MER.
+Decisiones del 31 oct (E6-H3): sin rutas. Un job repetible de la cola `plazos`, cada 30 s (RNF-31),
+toma los `pendiente_pago` con `fechaExpiracionPago` vencida, de a 100 y del más antiguo al más
+reciente. La fecha vive en la base: si Redis se cae, la pasada siguiente los alcanza. Por cada pedido
+**consulta a Mercado Pago** los pagos con su código (`external_reference`) y aplica los aprobados con
+`AplicarPagoService` (RNF-29); si el pedido sigue pendiente, lo cancela en una transacción con la fila
+bloqueada: reingreso sin usuario, historial sin usuario con el comentario «Plazo de pago vencido.» y
+`estado_actual`. Decididas por el responsable de la historia: (1) si Mercado Pago no responde, da una
+respuesta incompleta o no hay `MERCADOPAGO_ACCESS_TOKEN`, **no se cancela** y la pasada se corta hasta
+la siguiente, porque no hay reembolsos; mientras tanto el stock y el pedido pendiente de la cuenta
+siguen retenidos, igual que con Redis caído, porque la tarea no corre. **El cobro cierra 2 minutos
+antes del plazo** (`pagarHastaDe`, `MARGEN_CIERRE_COBRO_MINUTOS`): con el plazo de 15, Mercado Pago
+deja pagar hasta el minuto 13 (`expiration_date_to`), iniciar el pago responde 409 desde entonces y
+`pagarHasta` informa esa hora, para que un pago de último momento alcance a figurar en la búsqueda
+antes de cancelar; `fechaExpiracionPago` sigue siendo el minuto 15 y el atraso de RNF-31 corre desde
+ahí. Un aprobado que llega en esos 2 minutos se aplica. (2) El
+valor `ESTADOS_EVENTO_PAGO.REVISION_MANUAL` (`revision_manual`) marca lo que revisa una persona: el
+evento `pendiente` con 5 intentos, que la revisión de cada minuto marca, y el pago **aprobado** que no
+se pudo aplicar (otro monto, pedido cancelado o ya pagado). (3) Sigue `descartado` lo que no es de
+esta tienda: un pago sin código o de un pedido inexistente. Además: un aprobado que no se puede
+aplicar no impide cancelar, porque no cubre el pedido; si falla la cancelación de un pedido (por
+ejemplo, si la ubicación superaría el máximo), queda en el log, se sigue con los demás y se reintenta.
+**Pendiente:** el motivo solo queda en el log (guardarlo cambiaría el MER) y no hay pantalla ni ruta
+de revisión. Un aprobado no aplicado en el regreso del comprador o durante esta consulta no crea
+evento: se marca cuando llega su notificación; si no llega, solo queda la advertencia en el log. No
+envía correo al cliente y no restaura el carrito. Sin cambios al MER.
 
 **E7 Despacho.** Despacho a domicilio (cotiza Blue Express por comuna, peso y medidas; caché 15 min
 de la cotización repetida) o retiro en tienda (sin costo). Región y comuna de la lista oficial. Si

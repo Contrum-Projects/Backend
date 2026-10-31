@@ -248,12 +248,12 @@ describe('MisPedidosService', () => {
       });
     });
 
-    it('`pagarHasta` solo se informa mientras el pedido espera el pago', async () => {
+    it('`pagarHasta` solo se informa mientras el pedido espera el pago; E6-H3 · es 2 minutos antes del plazo', async () => {
       db.pedido.findFirst.mockResolvedValue(
         filaPedido({ estadoActual: 'pendiente_pago' }),
       );
       expect((await servicio.obtener(CUENTA, CODIGO)).pagarHasta).toEqual(
-        new Date('2026-10-20T15:15:00Z'),
+        new Date('2026-10-20T15:13:00Z'),
       );
 
       db.pedido.findFirst.mockResolvedValue(filaPedido());

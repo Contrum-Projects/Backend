@@ -1,4 +1,5 @@
 import type { Job, Queue } from 'bullmq';
+import { EventEmitter } from 'node:events';
 import type { TrabajoProcesarEventoPago } from '../../colas/colas.js';
 import { EventosPagoProcessor } from './eventos-pago.processor.js';
 import type { NotificacionPagoService } from './notificacion-pago.service.js';
@@ -8,7 +9,11 @@ describe('EventosPagoProcessor', () => {
     procesar: ReturnType<typeof vi.fn>;
     revisarPendientes: ReturnType<typeof vi.fn>;
   };
-  let eventos: { upsertJobScheduler: ReturnType<typeof vi.fn> };
+  let eventos: {
+    upsertJobScheduler: ReturnType<typeof vi.fn>;
+    getBackend: ReturnType<typeof vi.fn>;
+  };
+  let conexion: EventEmitter;
   let worker: EventosPagoProcessor;
 
   const trabajo = (name: string, data: unknown = {}) =>
@@ -19,7 +24,11 @@ describe('EventosPagoProcessor', () => {
       procesar: vi.fn().mockResolvedValue(undefined),
       revisarPendientes: vi.fn().mockResolvedValue(undefined),
     };
-    eventos = { upsertJobScheduler: vi.fn().mockResolvedValue({}) };
+    conexion = new EventEmitter();
+    eventos = {
+      upsertJobScheduler: vi.fn().mockResolvedValue({}),
+      getBackend: vi.fn(() => conexion),
+    };
     worker = new EventosPagoProcessor(
       notificaciones as unknown as NotificacionPagoService,
       eventos as unknown as Queue,
@@ -42,7 +51,7 @@ describe('EventosPagoProcessor', () => {
 
   it('E6-H2 · al arrancar y al reconectar con Redis: programa la revisión cada minuto (RNF-29)', () => {
     worker.onModuleInit();
-    worker.programarRevision();
+    conexion.emit('ready');
 
     expect(eventos.upsertJobScheduler).toHaveBeenCalledTimes(2);
     expect(eventos.upsertJobScheduler.mock.calls[0].slice(0, 2)).toEqual([

@@ -10,6 +10,7 @@ import {
 const sdk = vi.hoisted(() => ({
   crear: vi.fn(),
   consultar: vi.fn(),
+  buscar: vi.fn(),
 }));
 
 vi.mock('mercadopago', async (original) => ({
@@ -18,7 +19,7 @@ vi.mock('mercadopago', async (original) => ({
     return { create: sdk.crear };
   }),
   Payment: vi.fn(function () {
-    return { get: sdk.consultar };
+    return { get: sdk.consultar, search: sdk.buscar };
   }),
 }));
 
@@ -31,6 +32,7 @@ describe('PasarelaMercadoPago', () => {
   beforeEach(() => {
     sdk.crear.mockReset();
     sdk.consultar.mockReset();
+    sdk.buscar.mockReset();
     pasarela = new PasarelaMercadoPago('TEST-token');
   });
 
@@ -138,6 +140,75 @@ describe('PasarelaMercadoPago', () => {
       new ServiceUnavailableException(PASARELA_NO_RESPONDE),
     );
   });
+
+  it('E6-H3 · busca los pagos por el código del pedido y recorre todas las páginas', async () => {
+    sdk.buscar
+      .mockResolvedValueOnce({
+        paging: { total: 2 },
+        results: [{ id: 1, status: 'rejected', external_reference: CODIGO }],
+      })
+      .mockResolvedValueOnce({
+        paging: { total: 2 },
+        results: [
+          {
+            id: 2,
+            status: 'approved',
+            transaction_amount: 23800,
+            currency_id: 'CLP',
+            external_reference: CODIGO,
+            payment_method_id: 'visa',
+            date_approved: '2026-10-30T15:00:00.000-03:00',
+          },
+        ],
+      });
+
+    const pagos = await pasarela.buscarPagosDePedido(CODIGO);
+
+    expect(sdk.buscar.mock.calls.map((c) => c[0].options)).toEqual([
+      { external_reference: CODIGO, limit: 100, offset: 0 },
+      { external_reference: CODIGO, limit: 100, offset: 1 },
+    ]);
+    expect(pagos.map((p) => [p.idExterno, p.estado])).toEqual([
+      ['1', 'rechazado'],
+      ['2', 'aprobado'],
+    ]);
+    expect(pagos[1]).toMatchObject({
+      monto: 23800,
+      moneda: 'CLP',
+      codigoPedido: CODIGO,
+    });
+  });
+
+  it('E6-H3 · pedido sin pagos en Mercado Pago: lista vacía', async () => {
+    sdk.buscar.mockResolvedValue({ paging: { total: 0 }, results: [] });
+
+    await expect(pasarela.buscarPagosDePedido(CODIGO)).resolves.toEqual([]);
+  });
+
+  it.each([
+    ['sin la lista de resultados', { paging: { total: 0 } }],
+    [
+      'con un pago sin id',
+      { paging: { total: 1 }, results: [{ status: 'approved' }] },
+    ],
+  ])(
+    'E6-H3 · búsqueda incompleta (%s): 503 para no cancelar a ciegas',
+    async (_caso, respuesta) => {
+      sdk.buscar.mockResolvedValue(respuesta);
+
+      await expect(pasarela.buscarPagosDePedido(CODIGO)).rejects.toThrow(
+        new ServiceUnavailableException(PASARELA_NO_RESPONDE),
+      );
+    },
+  );
+
+  it('E6-H3 · Mercado Pago no responde al buscar: 503', async () => {
+    sdk.buscar.mockRejectedValue(new Error('ECONNRESET'));
+
+    await expect(pasarela.buscarPagosDePedido(CODIGO)).rejects.toThrow(
+      new ServiceUnavailableException(PASARELA_NO_RESPONDE),
+    );
+  });
 });
 
 describe('PasarelaNoConfigurada', () => {
@@ -150,5 +221,11 @@ describe('PasarelaNoConfigurada', () => {
     await expect(pasarela.crearCobro()).rejects.toThrow(
       new ServiceUnavailableException(PASARELA_NO_CONFIGURADA),
     );
+  });
+
+  it('E6-H3 · sin token de Mercado Pago: la búsqueda responde 503 para no cancelar a ciegas', async () => {
+    await expect(
+      new PasarelaNoConfigurada().buscarPagosDePedido(),
+    ).rejects.toThrow(new ServiceUnavailableException(PASARELA_NO_CONFIGURADA));
   });
 });
