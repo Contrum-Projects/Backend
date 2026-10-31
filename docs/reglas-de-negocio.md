@@ -497,9 +497,15 @@ de revisión. Un aprobado no aplicado en el regreso del comprador o durante esta
 evento: se marca cuando llega su notificación; si no llega, solo queda la advertencia en el log. No
 envía correo al cliente y no restaura el carrito. Sin cambios al MER.
 
-**E7 Despacho.** Despacho a domicilio (cotiza Blue Express por comuna, peso y medidas; caché 15 min
+**E7 Despacho.** Despacho a domicilio (cotiza Chilexpress por comuna, peso y medidas; caché 15 min
 de la cotización repetida) o retiro en tienda (sin costo). Región y comuna de la lista oficial. Si
-Blue Express no responde, se informa y se ofrece retiro. Costo del envío guardado neto.
+Chilexpress no responde, se informa y se ofrece retiro. Costo del envío guardado neto.
+Decisión del 26 oct: el courier es Chilexpress, no Blue Express (notas técnicas de E7-H2 y E7-H3).
+Decisiones del 31 oct (E7-H1): la forma de entrega se elige en `POST /api/pedidos` (E5-H3), sin
+endpoint propio. Retiro: sin `ENVIO` ni costo, y `direccionId` responde 400. Despacho: `direccionId`
+obligatoria y de la cuenta (400 sin ella, 404 si es de otra); `ENVIO` guarda una copia de la dirección.
+**La cotización del criterio 2 se entrega en E7-H2 (SCRUM-51)**: hasta entonces sigue el costo 0
+provisional de E5-H3, que no debe ir a producción. Sin cambios al MER.
 
 **E9 Facturación.** Boleta: el comprobante de Mercado Pago. Factura: el cliente elige uno de sus
 datos de facturación; el personal registra la factura emitida en el SII con folio (único por tipo)

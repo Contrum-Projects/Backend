@@ -1,8 +1,8 @@
 # Cabello Perfecto — Backend
 
 API REST de la tienda online de Cabello Perfecto (productos capilares): catálogo con precio
-minorista y mayorista según el rol, carrito y compra, pago con Mercado Pago, despacho con Blue
-Express, inventario, verificación de peluqueros y marketing por correo. Proyecto de título del
+minorista y mayorista según el rol, carrito y compra, pago con Mercado Pago, despacho con
+Chilexpress, inventario, verificación de peluqueros y marketing por correo. Proyecto de título del
 equipo Contrum-Projects (3 integrantes), con Scrumban y sprints quincenales en Jira.
 
 **Idioma:** responde, comenta y nombra en español. Identificadores sin tildes ni ñ

@@ -21,7 +21,7 @@ src/modulos/<modulo>/
 | `carrito` | E5 | Carrito y mínimo de compra del peluquero |
 | `pedidos` | E5, E8 | Creación del pedido, estados e historial |
 | `pagos` | E6 | Mercado Pago, notificaciones (webhook) y conciliación |
-| `despacho` | E7 | Retiro en tienda, cotización y envío con Blue Express |
+| `despacho` | E7 | Retiro en tienda, cotización y envío con Chilexpress |
 | `facturacion` | E9 | Datos de facturación y documentos tributarios |
 | `verificacion` | E10 | Verificación de profesionales, antecedentes y OCR |
 | `inventario` | E11 | Proveedores, entradas, salidas, ajustes, existencias y movimientos |
