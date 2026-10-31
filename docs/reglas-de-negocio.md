@@ -494,6 +494,32 @@ pago y cancelación no se pisen. PROPUESTA por confirmar: esta historia no enví
 el aviso por cambio de estado (RF-08.03) lo define E8-H2 (SCRUM-58), y la cancelación automática
 por impago (E6-H3) reutilizará este mismo reingreso. Sin cambios al MER.
 
+Decisiones del 29 oct (E8-H2): `POST /api/pedidos/:codigoPedido/estado` con `pedidos.gestionar`
+(administrador, bodeguero y vendedor); cliente y profesional reciben 403 y sin sesión 401. Cuerpo
+`{ estado, comentario? }` (el comentario, hasta 500 caracteres, se recorta). En **una transacción**:
+bloquea la fila del pedido (`FOR NO KEY UPDATE`) antes de mirar su estado, agrega al historial el
+cambio (siguiente correlativo, quién y comentario) y cambia `estado_actual`. Responde
+`{ codigoPublico, estado }`. Un código inexistente o mal formado, 404; un estado que no existe o un
+comentario inválido, 400; un cambio que la secuencia no permite, 409 «No se puede cambiar un pedido
+de «X» a «Y».». Dos cambios simultáneos: uno gana y el otro recibe 409. El equipo pidió **poder
+volver atrás** y **avisar por correo solo los cambios clave**, para no llenar de correos al cliente.
+PROPUESTAS por confirmar (la historia no define la secuencia): (1) Avanzar: pagado → en preparación
+→ despachado → entregado, o, si el pedido es retiro en tienda, en preparación → listo para retiro →
+retirado. (2) Volver atrás de a un paso por el mismo camino (en preparación → pagado, despachado →
+en preparación, entregado → despachado, listo para retiro → en preparación, retirado → listo para
+retiro) con comentario obligatorio (400 si falta); nunca a pendiente de pago ni desde cancelado.
+(3) Pasar a pagado es del pago (E6) y a cancelado de la cancelación (E8-H3): esta ruta no lo hace.
+(4) Avisan al cliente solo despachado, listo para retiro, entregado y retirado
+(`ESTADOS_CON_AVISO`; «en preparación» no), y solo al avanzar (el equipo lo confirmó el 30 oct).
+Se guarda la NOTIFICACION `cambio_estado_pedido` (pendiente, con `pedidoId` y la cuenta
+del comprador) en la misma transacción y el trabajo `cambio-estado-pedido` se encola en la cola
+`correos` después del commit (`{ notificacionId, destinatario, nombre, codigoPedido, estado,
+tipoEntrega }`); con Redis caído el cambio igual se guarda (RNF-32). El texto y el envío del correo
+son del worker de correos (E1-H6, SCRUM-78, a cargo de Ana). (5) El comentario es una nota interna:
+no va en el correo. (6) No se exige el código de seguimiento al despachar ni se toca el estado del
+envío: el código de seguimiento y el paso automático a entregado con Chilexpress son de E7-H3
+(SCRUM-52). Sin cambios al MER.
+
 **E4 IA.** Descripción sugerida e ingredientes desde la foto del reverso; nunca se publica sin
 revisión; se guarda el origen: manual, IA o IA editada. PENDIENTE: proveedor de IA.
 
