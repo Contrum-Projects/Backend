@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
+import type { Queue } from 'bullmq';
 import type { PrismaService } from '../../prisma/prisma.service.js';
 import {
   AplicarPagoService,
@@ -29,7 +30,7 @@ const crearDb = () => {
     $queryRaw: vi
       .fn()
       .mockResolvedValue([
-        { id: 40, estado: 'pendiente_pago', montoTotal: TOTAL },
+        { id: 40, estado: 'pendiente_pago', montoTotal: TOTAL, compradorId: 5 },
       ]),
     pago: {
       findUnique: vi.fn().mockResolvedValue(null),
@@ -41,6 +42,12 @@ const crearDb = () => {
       create: vi.fn().mockResolvedValue({}),
     },
     pedido: { update: vi.fn().mockResolvedValue({}) },
+    usuario: {
+      findUniqueOrThrow: vi
+        .fn()
+        .mockResolvedValue({ email: 'marcela@prueba.cl', nombre: 'Marcela' }),
+    },
+    notificacion: { create: vi.fn().mockResolvedValue({ id: 77 }) },
     $transaction: vi.fn(),
   };
   db.$transaction.mockImplementation((fn: (t: typeof db) => Promise<unknown>) =>
@@ -51,6 +58,7 @@ const crearDb = () => {
 
 describe('AplicarPagoService', () => {
   let db: ReturnType<typeof crearDb>;
+  let correos: { add: ReturnType<typeof vi.fn> };
   let servicio: AplicarPagoService;
 
   const sinCambios = () => {
@@ -58,11 +66,67 @@ describe('AplicarPagoService', () => {
     expect(db.pago.update).not.toHaveBeenCalled();
     expect(db.historialEstadoPedido.create).not.toHaveBeenCalled();
     expect(db.pedido.update).not.toHaveBeenCalled();
+    expect(db.notificacion.create).not.toHaveBeenCalled();
+    expect(correos.add).not.toHaveBeenCalled();
   };
 
   beforeEach(() => {
     db = crearDb();
-    servicio = new AplicarPagoService(db as unknown as PrismaService);
+    correos = { add: vi.fn().mockResolvedValue({}) };
+    servicio = new AplicarPagoService(
+      db as unknown as PrismaService,
+      correos as unknown as Queue,
+    );
+  });
+
+  it('E6-H2 · pago aprobado: deja la NOTIFICACION en la transacción y encola el correo después del commit', async () => {
+    let enTransaccion = false;
+    db.$transaction.mockImplementation(
+      async (fn: (t: typeof db) => Promise<unknown>) => {
+        enTransaccion = true;
+        const resultado = await fn(db);
+        enTransaccion = false;
+        return resultado;
+      },
+    );
+    correos.add.mockImplementation(() => {
+      expect(enTransaccion).toBe(false);
+      return Promise.resolve({});
+    });
+
+    await servicio.aplicar(pagoMp());
+
+    expect(db.notificacion.create.mock.calls[0][0].data).toEqual({
+      usuarioId: 5,
+      pedidoId: 40,
+      tipo: 'pago_confirmado',
+      asunto: `Recibimos el pago de tu pedido ${CODIGO}`,
+      estadoEnvio: 'pendiente',
+    });
+    expect(correos.add).toHaveBeenCalledTimes(1);
+    expect(correos.add.mock.calls[0].slice(0, 2)).toEqual([
+      'pago-confirmado',
+      {
+        notificacionId: 77,
+        destinatario: 'marcela@prueba.cl',
+        nombre: 'Marcela',
+        codigoPedido: CODIGO,
+        montoTotal: TOTAL,
+      },
+    ]);
+  });
+
+  it('E6-H2 · Redis no responde al encolar: el pago se aplica igual (RNF-32)', async () => {
+    correos.add.mockRejectedValue(new Error('Redis caído'));
+
+    await expect(servicio.aplicar(pagoMp())).resolves.toBe('aprobado');
+  });
+
+  it('E6-H2 · pago rechazado o pendiente: no hay correo de confirmación', async () => {
+    await servicio.aplicar(pagoMp({ estado: 'rechazado' }));
+
+    expect(db.notificacion.create).not.toHaveBeenCalled();
+    expect(correos.add).not.toHaveBeenCalled();
   });
 
   it('E6-H1 · pago aprobado: registra el pago por el total sin datos de la tarjeta y deja el pedido pagado', async () => {

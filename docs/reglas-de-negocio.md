@@ -448,9 +448,28 @@ recibidos); (2) un **segundo pago aprobado**, o uno de un pedido cancelado, **no
 y queda una advertencia en el log para revisarlo a mano (registrarlo para revisión es de E6-H3);
 (3) un aprobado por otro monto o moneda no se aplica (400). Límite (RNF-09): **10 solicitudes por
 minuto por cuenta** en cada ruta (`LIMITES.PAGAR_PEDIDO`, 429): cada una consulta a Mercado Pago y
-agotar la cuota del token dejaría sin pagar a todos. **Pendiente para E6-H2:** índice único parcial
-`pago(id_pedido) WHERE estado = 'aprobado'` como respaldo en la base cuando exista la segunda vía de
-escritura (el webhook); hoy lo garantiza el bloqueo de la fila del pedido. Sin cambios al MER.
+agotar la cuota del token dejaría sin pagar a todos. Sin cambios al MER.
+Decisiones del 31 oct (E6-H2): `POST /api/pagos/notificaciones` es pública y la protege la firma
+(`x-signature`, con `WebhookSignatureValidator` del SDK y `MERCADOPAGO_WEBHOOK_SECRET`). Sin firma
+válida responde 401 y no guarda nada; sin el secreto, 503 para que Mercado Pago reintente. No se
+limita la antigüedad de `ts`, porque Mercado Pago reintenta durante horas y repetir no tiene efecto.
+Un aviso firmado que no es de pago responde 200 sin guardarse; uno de pago sin sus identificadores,
+400. La URL y el secreto se configuran en el panel de Mercado Pago (sin `notification_url`).
+Se guarda un EVENTO_PAGO (`id_evento_externo` = `id` del cuerpo; `contenido_recibido` solo con id,
+tipo, acción e id del pago) y se responde 200 aunque Redis no responda. El worker de `eventos-pago`
+consulta el pago a Mercado Pago y usa `AplicarPagoService`. `ESTADOS_EVENTO_PAGO`: `pendiente`,
+`procesado` y `descartado` (reintentar no lo arregla: pago de otra tienda, otro monto, pedido
+cancelado o ya pagado; queda la advertencia en el log y su revisión es de E6-H3). Hasta 5 intentos
+con espera exponencial desde 5 s (también si Mercado Pago aún no conoce el pago); al agotarlos sigue
+`pendiente` con `intentos = 5` y **marcarlo para revisión es de E6-H3**. Un job repetible cada minuto
+reencola los `pendiente` con menos de 5 intentos si Redis se cayó o se vació (RNF-29).
+El correo nace en `AplicarPagoService`, cuando el pedido pasa a pagado, sea por el regreso del
+comprador o por la notificación: NOTIFICACION `pago_confirmado` (pendiente) en la misma transacción
+y trabajo `pago-confirmado` en la cola `correos` después del commit (`{ notificacionId, destinatario,
+nombre, codigoPedido, montoTotal }`). Así sale una sola vez aunque Mercado Pago repita o cambie el
+`id` del aviso. El texto y el envío son del worker de correos (E1-H6, SCRUM-78). Índice único parcial
+`pago(id_pedido) WHERE estado = 'aprobado'` como respaldo del bloqueo del pedido: solo vive en la
+migración, porque Prisma no lo declara en `schema.prisma`. Sin cambios a tablas ni columnas del MER.
 
 **E7 Despacho.** Despacho a domicilio (cotiza Blue Express por comuna, peso y medidas; caché 15 min
 de la cotización repetida) o retiro en tienda (sin costo). Región y comuna de la lista oficial. Si

@@ -32,6 +32,16 @@ export const ESTADOS_PAGO = {
   PENDIENTE: 'pendiente',
 } as const;
 
+/**
+ * EVENTO_PAGO.estado_procesamiento (E6-H2, decisión del 31 de octubre de 2026). `descartado`: lo
+ * que reintentar no arregla (pago de otra tienda, otro monto, pedido cancelado o ya pagado).
+ */
+export const ESTADOS_EVENTO_PAGO = {
+  PENDIENTE: 'pendiente',
+  PROCESADO: 'procesado',
+  DESCARTADO: 'descartado',
+} as const;
+
 /** PEDIDO.tipo_entrega (RF-07.01). */
 export const TIPOS_ENTREGA = {
   DESPACHO: 'despacho',
@@ -176,6 +186,8 @@ export const TIPOS_NOTIFICACION = {
   STOCK_BAJO: 'stock_bajo',
   /** E8-H2: aviso al cliente de un cambio clave del estado de su pedido (RF-08.03). */
   CAMBIO_ESTADO_PEDIDO: 'cambio_estado_pedido',
+  /** E6-H2, decisión del 31 de octubre de 2026: se recibió el pago del pedido (RF-06.06). */
+  PAGO_CONFIRMADO: 'pago_confirmado',
 } as const;
 
 /**

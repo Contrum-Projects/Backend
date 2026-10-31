@@ -1,12 +1,22 @@
+import { InjectQueue } from '@nestjs/bullmq';
 import {
   BadRequestException,
   ConflictException,
   Injectable,
   Logger,
 } from '@nestjs/common';
+import type { Queue } from 'bullmq';
 import {
+  COLAS,
+  TRABAJOS_CORREO,
+  type TrabajoPagoConfirmado,
+} from '../../colas/colas.js';
+import { encolarCorreos } from '../../colas/encolar-correo.js';
+import {
+  ESTADOS_NOTIFICACION,
   ESTADOS_PAGO,
   ESTADOS_PEDIDO,
+  TIPOS_NOTIFICACION,
   type Valor,
 } from '../../common/dominio/valores.js';
 import type { Prisma } from '../../generated/prisma/client.js';
@@ -24,16 +34,20 @@ export const PEDIDO_CANCELADO = 'El pedido fue cancelado.';
 const MONEDA = 'CLP';
 
 /**
- * Aplica al pedido un pago informado por Mercado Pago (E6-H1). Lo usa el regreso del comprador
- * y lo usará la notificación de E6-H2. Todo en una transacción con la fila del pedido bloqueada
- * (RNF-12): dos avisos del mismo pago, o un pago y la cancelación (E8-H3), se ordenan y el
- * segundo ve lo que dejó el primero.
+ * Aplica al pedido un pago informado por Mercado Pago (E6-H1). Lo usan el regreso del comprador
+ * y la notificación de E6-H2: el primero que llega deja el pedido pagado y el correo de
+ * confirmación, por eso el correo nace aquí y sale una sola vez. Todo en una transacción con la
+ * fila del pedido bloqueada (RNF-12): dos avisos del mismo pago, o un pago y la cancelación
+ * (E8-H3), se ordenan y el segundo ve lo que dejó el primero.
  */
 @Injectable()
 export class AplicarPagoService {
   private readonly logger = new Logger(AplicarPagoService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @InjectQueue(COLAS.CORREOS) private readonly correos: Queue,
+  ) {}
 
   /**
    * Registra el pago y devuelve su estado. Aprobado y por el total: el pedido queda pagado. El
@@ -44,11 +58,22 @@ export class AplicarPagoService {
     const codigoPedido = pago.codigoPedido;
     if (!codigoPedido) throw new BadRequestException(PAGO_NO_CORRESPONDE);
 
-    return this.prisma.$transaction(async (tx) => {
+    const { estado, aviso } = await this.prisma.$transaction<{
+      estado: Valor<typeof ESTADOS_PAGO>;
+      aviso?: TrabajoPagoConfirmado;
+    }>(async (tx) => {
       const [pedido] = await tx.$queryRaw<
-        { id: number; estado: string; montoTotal: number }[]
+        {
+          id: number;
+          estado: string;
+          montoTotal: number;
+          compradorId: number;
+        }[]
       >`
-        SELECT id_pedido AS id, estado_actual AS estado, monto_total AS "montoTotal"
+        SELECT id_pedido AS id,
+               estado_actual AS estado,
+               monto_total AS "montoTotal",
+               id_usuario AS "compradorId"
         FROM pedido
         WHERE codigo_publico = ${codigoPedido}
         FOR NO KEY UPDATE`;
@@ -63,13 +88,13 @@ export class AplicarPagoService {
       }
       // Ya aplicado: repetir el aviso no cambia nada
       if (registrado?.estado === ESTADOS_PAGO.APROBADO) {
-        return ESTADOS_PAGO.APROBADO;
+        return { estado: ESTADOS_PAGO.APROBADO };
       }
 
       if (pago.estado !== ESTADOS_PAGO.APROBADO) {
         // Rechazado o pendiente: queda el intento y el pedido sigue esperando el pago
         await this.guardar(tx, pedido.id, registrado?.id, pago);
-        return pago.estado;
+        return { estado: pago.estado };
       }
 
       if (pago.monto !== pedido.montoTotal || pago.moneda !== MONEDA) {
@@ -103,8 +128,49 @@ export class AplicarPagoService {
         where: { id: pedido.id },
         data: { estadoActual: ESTADOS_PEDIDO.PAGADO },
       });
-      return ESTADOS_PAGO.APROBADO;
+      const aviso = await this.registrarAviso(tx, codigoPedido, pedido);
+      return { estado: ESTADOS_PAGO.APROBADO, aviso };
     });
+
+    // Después del commit; con Redis caído la NOTIFICACION queda pendiente y el pago no falla
+    if (aviso) {
+      await encolarCorreos(
+        this.correos,
+        TRABAJOS_CORREO.PAGO_CONFIRMADO,
+        [aviso],
+        this.logger,
+      );
+    }
+    return estado;
+  }
+
+  /** Deja el correo de confirmación como NOTIFICACION pendiente, junto con el pago (RNF-12). */
+  private async registrarAviso(
+    tx: Tx,
+    codigoPedido: string,
+    pedido: { id: number; montoTotal: number; compradorId: number },
+  ): Promise<TrabajoPagoConfirmado> {
+    const comprador = await tx.usuario.findUniqueOrThrow({
+      where: { id: pedido.compradorId },
+      select: { email: true, nombre: true },
+    });
+    const notificacion = await tx.notificacion.create({
+      data: {
+        usuarioId: pedido.compradorId,
+        pedidoId: pedido.id,
+        tipo: TIPOS_NOTIFICACION.PAGO_CONFIRMADO,
+        asunto: `Recibimos el pago de tu pedido ${codigoPedido}`,
+        estadoEnvio: ESTADOS_NOTIFICACION.PENDIENTE,
+      },
+      select: { id: true },
+    });
+    return {
+      notificacionId: notificacion.id,
+      destinatario: comprador.email,
+      nombre: comprador.nombre,
+      codigoPedido,
+      montoTotal: pedido.montoTotal,
+    };
   }
 
   /** Crea el pago o actualiza el mismo intento (pasa de pendiente a rechazado o aprobado). */
