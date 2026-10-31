@@ -42,6 +42,8 @@ import { SaludController } from './salud/salud.controller.js';
             redact: [
               'req.headers.authorization',
               'req.headers.cookie',
+              // Con la firma de Mercado Pago se podría repetir una notificación (RNF-06)
+              'req.headers["x-signature"]',
               'req.body.contrasena',
               'req.body.password',
               'req.body.confirmacionContrasena',
