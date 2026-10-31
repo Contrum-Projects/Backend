@@ -228,7 +228,7 @@ describe('ImagenesService', () => {
     it('E3-H3 · almacén sin configurar: 503 y no toca la base', async () => {
       almacen.guardar.mockRejectedValue(
         new ServiceUnavailableException(
-          'El almacenamiento de imágenes no está configurado.',
+          'El almacenamiento de archivos no está configurado.',
         ),
       );
 

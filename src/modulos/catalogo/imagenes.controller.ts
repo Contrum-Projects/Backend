@@ -78,7 +78,7 @@ export class ImagenesController {
   @ApiPayloadTooLargeResponse({ description: 'La imagen supera los 5 MB.' })
   @ApiConflictResponse({ description: 'El artículo ya tiene 10 imágenes.' })
   @ApiServiceUnavailableResponse({
-    description: 'El almacenamiento de imágenes no está configurado.',
+    description: 'El almacenamiento de archivos no está configurado.',
   })
   subir(
     @Param('id', ID_ARTICULO) articuloId: number,
