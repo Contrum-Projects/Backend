@@ -32,6 +32,8 @@ export const TRABAJOS_CORREO = {
   RECUPERACION_CONTRASENA: 'recuperacion-contrasena',
   /** Aviso al personal de bodega y administración: un formato quedó bajo su mínimo (E11-H6). */
   STOCK_BAJO: 'stock-bajo',
+  /** Aviso al cliente de un cambio clave del estado de su pedido (E8-H2). */
+  CAMBIO_ESTADO_PEDIDO: 'cambio-estado-pedido',
 } as const;
 
 /**
@@ -59,6 +61,18 @@ export interface TrabajoStockBajo {
   formato: { id: number; sku: string; producto: string; nombreFormato: string };
   stockTotal: number;
   stockMinimo: number;
+}
+
+/** Datos del correo al cliente por un cambio clave del estado de su pedido (E8-H2). */
+export interface TrabajoCambioEstadoPedido {
+  notificacionId: number;
+  destinatario: string;
+  nombre: string;
+  codigoPedido: string;
+  /** Nuevo estado del pedido (`ESTADOS_PEDIDO`). */
+  estado: string;
+  /** `despacho` o `retiro` (`TIPOS_ENTREGA`). */
+  tipoEntrega: string;
 }
 
 /**

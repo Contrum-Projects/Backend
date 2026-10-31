@@ -174,6 +174,8 @@ export const TIPOS_NOTIFICACION = {
   RECUPERACION_CONTRASENA: 'recuperacion_contrasena',
   /** E11-H6, decisión del 28 de octubre de 2026: un formato quedó bajo su stock mínimo. */
   STOCK_BAJO: 'stock_bajo',
+  /** E8-H2: aviso al cliente de un cambio clave del estado de su pedido (RF-08.03). */
+  CAMBIO_ESTADO_PEDIDO: 'cambio_estado_pedido',
 } as const;
 
 /**
