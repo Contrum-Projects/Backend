@@ -4,7 +4,7 @@ import type { ESTADOS_PAGO, Valor } from '../../common/dominio/valores.js';
 export interface CobroPedido {
   codigoPedido: string;
   montoTotal: number;
-  /** Después de esta hora Mercado Pago ya no deja pagar (el plazo de E5). */
+  /** Después de esta hora Mercado Pago ya no deja pagar (antes del plazo de E5: `pagarHastaDe`). */
   pagarHasta: Date;
   /** Adonde vuelve el comprador al terminar, apruebe o no. */
   urlRegreso: string;
@@ -33,4 +33,7 @@ export abstract class PasarelaPago {
 
   /** Consulta un pago por su id; `null` si no existe. 503 si no responde. */
   abstract consultarPago(idExterno: string): Promise<PagoPasarela | null>;
+
+  /** Todos los pagos cobrados con el código del pedido, en cualquier estado. 503 si no responde. */
+  abstract buscarPagosDePedido(codigoPedido: string): Promise<PagoPasarela[]>;
 }

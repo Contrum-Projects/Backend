@@ -21,6 +21,7 @@ export const PASARELA_NO_CONFIGURADA =
 /** Si Mercado Pago no responde en este plazo, la petición falla con 503. */
 const PLAZO_RESPUESTA_MS = 10_000;
 const MONEDA = 'CLP';
+const PAGOS_POR_PAGINA = 100;
 
 /**
  * Estado de Mercado Pago → estado del pago. Solo `approved` aprueba: un estado desconocido nunca
@@ -35,6 +36,27 @@ const estadoDePago = (
   }
   return ESTADOS_PAGO.PENDIENTE;
 };
+
+/** Los campos de un pago que usa la tienda: la consulta y la búsqueda los traen igual. */
+interface PagoMercadoPago {
+  id?: string | number;
+  status?: string;
+  transaction_amount?: number;
+  currency_id?: string;
+  external_reference?: string;
+  payment_method_id?: string;
+  date_approved?: string;
+}
+
+const pagoDePasarela = (pago: PagoMercadoPago, id = ''): PagoPasarela => ({
+  idExterno: String(pago.id ?? id),
+  estado: estadoDePago(pago.status),
+  monto: pago.transaction_amount ?? 0,
+  moneda: pago.currency_id ?? '',
+  codigoPedido: pago.external_reference || null,
+  medioPago: pago.payment_method_id ?? null,
+  fechaAprobacion: pago.date_approved ? new Date(pago.date_approved) : null,
+});
 
 /** Mercado Pago con Checkout Pro: el comprador paga en su sitio y vuelve a la tienda. */
 export class PasarelaMercadoPago extends PasarelaPago {
@@ -94,17 +116,7 @@ export class PasarelaMercadoPago extends PasarelaPago {
   async consultarPago(idExterno: string): Promise<PagoPasarela | null> {
     try {
       const pago = await this.pagos.get({ id: idExterno });
-      return {
-        idExterno: String(pago.id ?? idExterno),
-        estado: estadoDePago(pago.status),
-        monto: pago.transaction_amount ?? 0,
-        moneda: pago.currency_id ?? '',
-        codigoPedido: pago.external_reference || null,
-        medioPago: pago.payment_method_id ?? null,
-        fechaAprobacion: pago.date_approved
-          ? new Date(pago.date_approved)
-          : null,
-      };
+      return pagoDePasarela(pago, idExterno);
     } catch (error) {
       if (error instanceof MPNotFoundError) return null;
       if (error instanceof MPBadRequestError) {
@@ -113,6 +125,36 @@ export class PasarelaMercadoPago extends PasarelaPago {
         return null;
       }
       this.registrarFalla('consultar el pago', error);
+      throw new ServiceUnavailableException(PASARELA_NO_RESPONDE);
+    }
+  }
+
+  async buscarPagosDePedido(codigoPedido: string): Promise<PagoPasarela[]> {
+    try {
+      const pagos: PagoPasarela[] = [];
+      for (;;) {
+        const pagina = await this.pagos.search({
+          options: {
+            external_reference: codigoPedido,
+            limit: PAGOS_POR_PAGINA,
+            offset: pagos.length,
+          },
+        });
+        const resultados = pagina.results;
+        // Una respuesta incompleta no significa «sin pagos»: nunca debe permitir cancelar
+        if (!Array.isArray(resultados) || resultados.some((pago) => !pago.id)) {
+          throw new Error('Mercado Pago devolvió una búsqueda incompleta.');
+        }
+        pagos.push(...resultados.map((pago) => pagoDePasarela(pago)));
+        if (
+          resultados.length === 0 ||
+          pagos.length >= (pagina.paging?.total ?? 0)
+        ) {
+          return pagos;
+        }
+      }
+    } catch (error) {
+      this.registrarFalla('buscar los pagos del pedido', error);
       throw new ServiceUnavailableException(PASARELA_NO_RESPONDE);
     }
   }
@@ -136,6 +178,13 @@ export class PasarelaNoConfigurada extends PasarelaPago {
   }
 
   consultarPago(): Promise<PagoPasarela | null> {
+    return Promise.reject(
+      new ServiceUnavailableException(PASARELA_NO_CONFIGURADA),
+    );
+  }
+
+  // Sin token no se sabe si el pedido se pagó: la cancelación por impago espera (E6-H3)
+  buscarPagosDePedido(): Promise<PagoPasarela[]> {
     return Promise.reject(
       new ServiceUnavailableException(PASARELA_NO_CONFIGURADA),
     );

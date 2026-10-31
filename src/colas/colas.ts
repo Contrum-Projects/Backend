@@ -45,6 +45,12 @@ export const TRABAJOS_EVENTO_PAGO = {
   REVISAR_PENDIENTES: 'revisar-pendientes',
 } as const;
 
+/** Nombres de los trabajos de la cola de plazos. */
+export const TRABAJOS_PLAZO = {
+  /** Tarea repetible: cancela los pedidos con el plazo de pago vencido (E6-H3). */
+  CANCELAR_IMPAGOS: 'cancelar-impagos',
+} as const;
+
 /** Datos de una notificación de Mercado Pago por procesar: el resto está en EVENTO_PAGO. */
 export interface TrabajoProcesarEventoPago {
   eventoId: number;

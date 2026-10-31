@@ -3,6 +3,7 @@ import { Logger, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { COLAS } from '../../colas/colas.js';
 import type { Entorno } from '../../config/entorno.js';
+import { CancelarPedidoModule } from '../pedidos/cancelar-pedido.module.js';
 import { MisPedidosModule } from '../pedidos/mis-pedidos.module.js';
 import { AplicarPagoService } from './aplicar-pago.service.js';
 import { EventosPagoProcessor } from './eventos-pago.processor.js';
@@ -15,6 +16,8 @@ import {
   PasarelaNoConfigurada,
 } from './pasarela-mercado-pago.js';
 import { PasarelaPago } from './pasarela-pago.js';
+import { PlazosProcessor } from './plazos.processor.js';
+import { VencimientoPagoService } from './vencimiento-pago.service.js';
 
 /**
  * Épica 6: pago con Mercado Pago (ver src/modulos/README.md). La pasarela se inyecta como
@@ -23,9 +26,11 @@ import { PasarelaPago } from './pasarela-pago.js';
 @Module({
   imports: [
     MisPedidosModule,
+    CancelarPedidoModule,
     BullModule.registerQueue(
       { name: COLAS.CORREOS },
       { name: COLAS.EVENTOS_PAGO },
+      { name: COLAS.PLAZOS },
     ),
   ],
   controllers: [PagarPedidoController, NotificacionPagoController],
@@ -48,6 +53,8 @@ import { PasarelaPago } from './pasarela-pago.js';
     PagarPedidoService,
     NotificacionPagoService,
     EventosPagoProcessor,
+    VencimientoPagoService,
+    PlazosProcessor,
   ],
   exports: [AplicarPagoService, PasarelaPago],
 })

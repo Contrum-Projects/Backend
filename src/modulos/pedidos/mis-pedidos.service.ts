@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { urlPublicaArchivo } from '../../almacen/almacen-archivos.js';
 import { precioConIva } from '../../common/dominio/montos.js';
+import { pagarHastaDe } from '../../common/dominio/plazo-pago.js';
 import {
   ESTADOS_PEDIDO,
   type TIPOS_ARTICULO,
@@ -209,7 +210,7 @@ export class MisPedidosService {
       estado: pedido.estadoActual,
       pagarHasta:
         pedido.estadoActual === ESTADOS_PEDIDO.PENDIENTE_PAGO
-          ? pedido.fechaExpiracionPago
+          ? pagarHastaDe(pedido.fechaExpiracionPago)
           : null,
       tipoEntrega: pedido.tipoEntrega as DetallePedidoCuenta['tipoEntrega'],
       tipoDocumento:

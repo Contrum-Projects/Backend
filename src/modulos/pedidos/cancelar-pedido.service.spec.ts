@@ -3,6 +3,7 @@ import type { PrismaService } from '../../prisma/prisma.service.js';
 import type { VentaStockService } from '../inventario/venta-stock.service.js';
 import {
   CancelarPedidoService,
+  COMENTARIO_IMPAGO,
   SOLO_PENDIENTE_DE_PAGO,
 } from './cancelar-pedido.service.js';
 
@@ -109,5 +110,48 @@ describe('CancelarPedidoService', () => {
     );
     expect(db.historialEstadoPedido.create).not.toHaveBeenCalled();
     expect(db.pedido.update).not.toHaveBeenCalled();
+  });
+
+  describe('cancelarPorImpago', () => {
+    it('E6-H3 · plazo vencido: devuelve el stock sin usuario y deja el pedido cancelado', async () => {
+      await expect(servicio.cancelarPorImpago(40)).resolves.toBe(true);
+
+      expect(ventaStock.reingresarPorPedido).toHaveBeenCalledWith(db, 40, null);
+      expect(db.historialEstadoPedido.create.mock.calls[0][0].data).toEqual({
+        pedidoId: 40,
+        correlativo: 2,
+        usuarioId: null,
+        estado: 'cancelado',
+        comentario: COMENTARIO_IMPAGO,
+      });
+      expect(db.pedido.update.mock.calls[0][0]).toEqual({
+        where: { id: 40 },
+        data: { estadoActual: 'cancelado' },
+      });
+    });
+
+    it.each(['pagado', 'cancelado'])(
+      'E6-H3 · pago dentro del plazo: un pedido %s con la fila ya bloqueada no cambia',
+      async (estado) => {
+        db.$queryRaw.mockResolvedValue([{ estado }]);
+
+        await expect(servicio.cancelarPorImpago(40)).resolves.toBe(false);
+
+        expect(ventaStock.reingresarPorPedido).not.toHaveBeenCalled();
+        expect(db.historialEstadoPedido.create).not.toHaveBeenCalled();
+        expect(db.pedido.update).not.toHaveBeenCalled();
+      },
+    );
+
+    it('RNF-12 · si el reingreso falla, lanza el error y no cambia el pedido', async () => {
+      ventaStock.reingresarPorPedido.mockRejectedValue(
+        new ConflictException('No se pudo devolver el stock del pedido.'),
+      );
+
+      await expect(servicio.cancelarPorImpago(40)).rejects.toThrow(
+        ConflictException,
+      );
+      expect(db.pedido.update).not.toHaveBeenCalled();
+    });
   });
 });
