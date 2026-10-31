@@ -13,7 +13,6 @@ import { ROLES, type Rol } from '../../common/dominio/roles.js';
 import {
   ESTADOS_ENVIO,
   ESTADOS_PEDIDO,
-  SERVICIOS_ENVIO,
   TIPOS_DOCUMENTO,
   TIPOS_ENTREGA,
   TIPOS_PRECIO,
@@ -27,6 +26,11 @@ import {
   bajoMinimoProfesional,
   CarritoService,
 } from '../carrito/carrito.service.js';
+import type { Bulto } from '../despacho/cotizador-envio.js';
+import {
+  CotizarEnvioService,
+  type EnvioCotizado,
+} from '../despacho/cotizar-envio.service.js';
 import { VentaStockService } from '../inventario/venta-stock.service.js';
 import type { CrearPedidoDto } from './dto/crear-pedido.dto.js';
 import {
@@ -42,8 +46,22 @@ export const CARRITO_VACIO = 'El carrito está vacío.';
 export const PEDIDO_PENDIENTE =
   'Ya tienes un pedido pendiente de pago: págalo o espera a que se cancele antes de crear otro.';
 
-/** Costo neto del despacho mientras no exista la cotización con el courier (E7-H2). */
-const COSTO_DESPACHO_POR_COTIZAR = 0;
+export const CARRITO_CAMBIADO =
+  'Tu carrito o tu dirección cambiaron mientras cotizábamos el despacho. Intenta de nuevo.';
+
+/** El despacho ya cotizado y lo que se cotizó, para comprobarlo dentro de la transacción. */
+interface EnvioPorCrear extends EnvioCotizado {
+  comunaId: number;
+  bulto: Bulto;
+}
+
+const mismoBulto = (a: Bulto, b: Bulto | null): boolean =>
+  b !== null &&
+  a.pesoGramos === b.pesoGramos &&
+  a.altoCm === b.altoCm &&
+  a.anchoCm === b.anchoCm &&
+  a.largoCm === b.largoCm;
+
 const LARGO_DESTINATARIO = 150;
 const LARGO_CODIGO = 12;
 // 32 símbolos sin los que se confunden (0/O, 1/I): cada byte se reduce sin sesgo
@@ -78,23 +96,64 @@ export class CrearPedidoService {
     private readonly carrito: CarritoService,
     private readonly ventaStock: VentaStockService,
     private readonly misPedidos: MisPedidosService,
+    private readonly envios: CotizarEnvioService,
   ) {}
 
   /**
    * E5-H3 · Confirma el carrito. Los precios se recalculan aquí (nunca llegan del navegador) y el
    * stock se reserva descontándolo con un movimiento de venta. Repetir la clave de idempotencia
-   * devuelve el mismo pedido. El profesional debe cumplir el mínimo por formato (E5-H4).
+   * devuelve el mismo pedido. El profesional debe cumplir el mínimo por formato (E5-H4). El despacho
+   * se cotiza antes de abrir la transacción, para no retener la cuenta durante la llamada (E7-H2).
    */
   async crear(
     codigoPublico: string,
     rol: Rol,
     dto: CrearPedidoDto,
   ): Promise<DetallePedidoCuenta> {
+    const envio = await this.cotizarDespacho(codigoPublico, dto);
     const { codigoPedido, avisos } = await this.prisma.$transaction((tx) =>
-      this.crearEnTransaccion(tx, codigoPublico, rol, dto),
+      this.crearEnTransaccion(tx, codigoPublico, rol, dto, envio),
     );
     await this.ventaStock.encolarAvisos(avisos);
     return this.misPedidos.obtener(codigoPublico, codigoPedido);
+  }
+
+  /**
+   * E7-H2 · Cotiza el despacho si el pedido puede crearse. `null` si no corresponde cotizar: retiro,
+   * o un caso que la transacción resuelve con su propia respuesta (clave repetida, correo sin
+   * confirmar, pedido pendiente, dirección ajena o carrito vacío), sin gastar una consulta al courier.
+   */
+  private async cotizarDespacho(
+    codigoPublico: string,
+    dto: CrearPedidoDto,
+  ): Promise<EnvioPorCrear | null> {
+    if (dto.tipoEntrega !== TIPOS_ENTREGA.DESPACHO) return null;
+    const cuenta = await this.prisma.usuario.findUnique({
+      where: { codigoPublico },
+      select: { id: true, fechaVerificacionCorreo: true },
+    });
+    if (!cuenta?.fechaVerificacionCorreo) return null;
+    const anterior = await this.prisma.pedido.findFirst({
+      where: {
+        usuarioId: cuenta.id,
+        OR: [
+          { claveIdempotencia: dto.claveIdempotencia },
+          { estadoActual: ESTADOS_PEDIDO.PENDIENTE_PAGO },
+        ],
+      },
+      select: { id: true },
+    });
+    if (anterior) return null;
+    const direccion = await this.prisma.direccion.findFirst({
+      where: { id: dto.direccionId, usuarioId: cuenta.id },
+      select: { comunaId: true, comuna: { select: { codigoCut: true } } },
+    });
+    if (!direccion) return null;
+    const bulto = await this.envios.bultoDelCarrito(this.prisma, cuenta.id);
+    if (!bulto) return null;
+
+    const envio = await this.envios.cotizar(direccion.comuna.codigoCut, bulto);
+    return { ...envio, comunaId: direccion.comunaId, bulto };
   }
 
   private async crearEnTransaccion(
@@ -102,6 +161,7 @@ export class CrearPedidoService {
     codigoPublico: string,
     rol: Rol,
     dto: CrearPedidoDto,
+    envioCotizado: EnvioPorCrear | null,
   ): Promise<{ codigoPedido: string; avisos: TrabajoStockBajo[] }> {
     const usuarioId = await bloquearCuenta(tx, codigoPublico);
     const repetido = await tx.pedido.findUnique({
@@ -172,6 +232,17 @@ export class CrearPedidoService {
       dto,
     );
     const direccion = await this.exigirDireccion(tx, usuarioId, dto);
+    if (direccion) {
+      // Con la cuenta bloqueada: lo que se cotizó debe ser lo que se va a despachar
+      const bulto = await this.envios.bultoDelCarrito(tx, usuarioId);
+      if (
+        !envioCotizado ||
+        envioCotizado.comunaId !== direccion.comunaId ||
+        !mismoBulto(envioCotizado.bulto, bulto)
+      ) {
+        throw new ConflictException(CARRITO_CAMBIADO);
+      }
+    }
 
     const aLaVenta = await this.carrito.articulosALaVenta(
       tx,
@@ -217,8 +288,8 @@ export class CrearPedidoService {
     }));
     const porcentajeIva = this.config.get('IVA_PORCENTAJE', { infer: true });
     const montos = montosPorLineas(
-      direccion
-        ? [...lineas, { netoGuardado: COSTO_DESPACHO_POR_COTIZAR, cantidad: 1 }]
+      envioCotizado
+        ? [...lineas, { netoGuardado: envioCotizado.costoNeto, cantidad: 1 }]
         : lineas,
       porcentajeIva,
     );
@@ -262,24 +333,25 @@ export class CrearPedidoService {
             estado: ESTADOS_PEDIDO.PENDIENTE_PAGO,
           },
         },
-        envio: direccion
-          ? {
-              create: {
-                comunaId: direccion.comunaId,
-                servicioEnvio: SERVICIOS_ENVIO.POR_COTIZAR,
-                costoNeto: COSTO_DESPACHO_POR_COTIZAR,
-                estadoEnvio: ESTADOS_ENVIO.PENDIENTE,
-                destinatario: `${cuenta.nombre} ${cuenta.apellido}`.slice(
-                  0,
-                  LARGO_DESTINATARIO,
-                ),
-                telefonoContacto: cuenta.telefono,
-                calle: direccion.calle,
-                numero: direccion.numero,
-                referencia: direccion.referencia,
-              },
-            }
-          : undefined,
+        envio:
+          direccion && envioCotizado
+            ? {
+                create: {
+                  comunaId: direccion.comunaId,
+                  servicioEnvio: envioCotizado.servicio,
+                  costoNeto: envioCotizado.costoNeto,
+                  estadoEnvio: ESTADOS_ENVIO.PENDIENTE,
+                  destinatario: `${cuenta.nombre} ${cuenta.apellido}`.slice(
+                    0,
+                    LARGO_DESTINATARIO,
+                  ),
+                  telefonoContacto: cuenta.telefono,
+                  calle: direccion.calle,
+                  numero: direccion.numero,
+                  referencia: direccion.referencia,
+                },
+              }
+            : undefined,
       },
       select: { id: true, codigoPublico: true },
     });

@@ -14,6 +14,7 @@ import {
   TIPOS_MOVIMIENTO,
 } from '../src/common/dominio/valores.js';
 import { configurarApp } from '../src/configurar-app.js';
+import { CotizadorEnvio } from '../src/modulos/despacho/cotizador-envio.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { REDIS } from '../src/redis/redis.module.js';
 
@@ -214,7 +215,12 @@ describe('Pedidos · crear el pedido desde el carrito (e2e)', () => {
   beforeAll(async () => {
     const modulo = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(CotizadorEnvio)
+      .useValue({
+        cotizar: () => Promise.resolve({ servicio: 'EXPRESS', tarifa: 7310 }),
+      })
+      .compile();
     app = configurarApp(modulo.createNestApplication());
     await app.init();
     prisma = app.get(PrismaService);
@@ -332,7 +338,7 @@ describe('Pedidos · crear el pedido desde el carrito (e2e)', () => {
     expect(await pedidosDe(comprador.id)).toBe(0);
   });
 
-  it('E5-H3 · pedido creado: el despacho exige dirección de la cuenta y queda con costo 0 provisional', async () => {
+  it('E5-H3 · pedido creado: el despacho exige dirección de la cuenta y suma el costo cotizado', async () => {
     const comprador = await cuenta(ROLES.CLIENTE);
     const ajena = await cuenta(ROLES.CLIENTE);
     const formato = await nuevoFormato(5);
@@ -364,10 +370,10 @@ describe('Pedidos · crear el pedido desde el carrito (e2e)', () => {
 
     const pedido = respuesta.body as Pedido;
     expect(pedido.tipoEntrega).toBe('despacho');
-    expect(pedido.montos.total).toBe(1194);
+    expect(pedido.montos.total).toBe(8504);
     expect(pedido.envio).toMatchObject({
-      servicio: 'por_cotizar',
-      costo: 0,
+      servicio: 'EXPRESS',
+      costo: 7310,
       estado: 'pendiente',
       destinatario: 'Marcela Soto',
       calle: 'Av. Prueba',

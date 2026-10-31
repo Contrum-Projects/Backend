@@ -406,9 +406,8 @@ responde 409, también si su plazo ya venció y aún no se cancela (lo libera E6
 cancelarlo). Correo sin confirmar: 403. Artículo que ya no se vende: 409 con su nombre. Sin stock: 409 de `VentaStockService`,
 que suma formatos sueltos y en packs y nombra el formato (también si viene de un pack). Los montos se
 suman **por línea** (`montosPorLineas`): el total es el del carrito y el IVA puede diferir unos pesos
-de aplicar la tasa al neto total. La línea guarda el neto vigente y su tipo de precio. **Provisional
-hasta E7-H2 (SCRUM-51):** el despacho se crea con costo 0, `servicio_envio = por_cotizar` y
-`estado_envio = pendiente`; no debe ir a producción así. **Pendiente de otras historias:** la
+de aplicar la tasa al neto total. La línea guarda el neto vigente y su tipo de precio. El despacho se
+crea con `estado_envio = pendiente` y el costo que cotiza E7-H2 (SCRUM-51). **Pendiente de otras historias:** la
 cancelación por impago es de E6-H3 (SCRUM-49), que toma el plazo desde `fechaExpiracionPago`: esta
 historia no encola el trabajo. No envía correo al cliente.
 Decisiones del 30 oct (E5-H4): el mínimo (`MINIMO_UNIDADES_PELUQUERO`, 3) se exige solo a las líneas
@@ -504,8 +503,30 @@ Decisión del 26 oct: el courier es Chilexpress, no Blue Express (notas técnica
 Decisiones del 31 oct (E7-H1): la forma de entrega se elige en `POST /api/pedidos` (E5-H3), sin
 endpoint propio. Retiro: sin `ENVIO` ni costo, y `direccionId` responde 400. Despacho: `direccionId`
 obligatoria y de la cuenta (400 sin ella, 404 si es de otra); `ENVIO` guarda una copia de la dirección.
-**La cotización del criterio 2 se entrega en E7-H2 (SCRUM-51)**: hasta entonces sigue el costo 0
-provisional de E5-H3, que no debe ir a producción. Sin cambios al MER.
+La cotización del criterio 2 se entrega en E7-H2 (SCRUM-51). Sin cambios al MER.
+Decisiones del 31 oct (E7-H2): `GET /api/despacho/cotizacion?direccionId=` (cliente y profesional;
+personal 403; 10 por minuto por cuenta, `LIMITES.COTIZAR_ENVIO`) responde `{ costo, totalCarrito,
+total }` con IVA, **sin informar el servicio**. `POST /api/pedidos` vuelve a cotizar con el carrito de
+la cuenta antes de abrir la transacción; con la cuenta bloqueada comprueba que la comuna y el bulto
+sean los cotizados (409 si cambiaron). No consulta al courier con clave repetida, correo sin
+confirmar, pedido pendiente, dirección ajena o carrito vacío. **Origen:** la primera bodega (por id)
+activa con `abasteceVentaOnline`, hoy la central de Concepción; sin bodega responde 503. **Servicio:**
+el más barato entre Prioritario, Express, Extendido, Extremos y Encomiendas Grandes (códigos 2, 3, 4,
+5 y 41); Chilexpress lista al mismo precio servicios de logística de devolución, que no se cobran.
+`envio.servicio` sí sale en el pedido, porque E7-H3 lo exige. **Bulto:** una unidad, con sus medidas
+reales; varias, peso total y un cubo con el volumen total, redondeando el lado hacia arriba; un pack
+va por sus formatos (comentario en SCRUM-51: si causa múltiples errores al comprar, se pide cambiarla
+en un ticket nuevo). **Costo:** la tarifa se trata como IVA incluido; `costo_neto = tarifa / (1 + IVA)`
+redondeado (`netoDesdeConIva`), y por el redondeo el cliente puede pagar un peso de diferencia.
+**Sin respuesta** (error, plazo de 10 s, 5xx, sin `CHILEXPRESS_CLAVE_COTIZACION`): 503. **Sin
+cobertura** (ningún servicio para esa comuna y bulto): 409. En ambos casos el mensaje ofrece retiro, no
+se crea el pedido y el carrito no cambia. **Comunas:** `ineCountyCode` de Chilexpress no es el CUT; el
+cruce se hizo por nombre y región y está en `codigos-chilexpress.ts`, así que la API de Cobertura no se
+consulta al vender y su clave no es una variable de entorno. Con un artículo que ya no se vende, cotizar
+responde 409, igual que crear el pedido. La región no se recibe en la API:
+la indica el código CUT. **Caché:** 15 min en Redis por origen, destino, peso y medidas; solo la tarifa
+del courier, sin precios de productos ni datos de cuentas; sin Redis se consulta directo. Se envía
+`declaredWorth: 0`: es obligatorio y en el sandbox no cambió la tarifa. Sin cambios al MER.
 
 **E9 Facturación.** Boleta: el comprobante de Mercado Pago. Factura: el cliente elige uno de sus
 datos de facturación; el personal registra la factura emitida en el SII con folio (único por tipo)
