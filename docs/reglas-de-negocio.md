@@ -529,7 +529,8 @@ la indica el código CUT. **Caché:** 15 min en Redis por origen, destino, peso 
 del courier, sin precios de productos ni datos de cuentas; sin Redis se consulta directo. Se envía
 `declaredWorth: 0`: es obligatorio y en el sandbox no cambió la tarifa. Sin cambios al MER.
 Decisiones del 1 nov (E7-H3): la orden de transporte se crea fuera de la API y **el personal ingresa su
-número** en `POST /api/pedidos/:codigoPedido/estado` (`codigoSeguimiento`, letras y números, hasta 100).
+número** en `POST /api/pedidos/:codigoPedido/estado` (`codigoSeguimiento`, solo dígitos, hasta 15, porque
+Chilexpress lo recibe como número JSON).
 Es obligatorio al pasar a despachado y en otro cambio responde 400; esto reemplaza lo que E8-H2 dejó sin
 exigir. `ESTADOS_ENVIO`: `pendiente`, `en_transito`, `en_reparto`, `entregado`, `con_problema`. Al
 despachar queda `en_transito`; el pedido lo devuelve en `envio` (E8-H1). **Consulta:** un job repetible
@@ -541,8 +542,15 @@ historial sin usuario y la NOTIFICACION; el correo se encola después. **Correcc
 a en preparación borra el código y deja el envío `pendiente`; marcar entregado a mano deja el envío
 `entregado`; volver de entregado a despachado lo deja `con_problema`. Un pedido que ya estuvo entregado no
 se vuelve a consultar, aunque se le ingrese otro código: lo cierra el personal. Sin cambios al MER.
-**PENDIENTE:** el adaptador de la API Envíos de Chilexpress y la traducción de sus estados, a la espera
-del contrato de tracking del portal; hasta entonces los envíos conservan el último estado.
+**Tracking:** `POST /transport-orders/api/v1.0/tracking` con `CHILEXPRESS_CLAVE_ENVIOS` y
+`CHILEXPRESS_RUT_EMPRESA`; sin alguna de las dos, los envíos conservan el último estado. Se usa el evento
+conocido más reciente por `code.eventCode`: 4 y 11 `en_transito`, 13 `en_reparto`, 14 `entregado`. Son los
+únicos códigos que muestra la documentación. **`statusCode` -41** (OT no disponible): sigue con el siguiente
+envío; otro rechazo o una falla corta la pasada.
+**PENDIENTE:** (1) `con_problema` no tiene código de Chilexpress conocido, así que hoy solo lo asigna la
+corrección del personal. (2) `reference` es obligatoria según el portal: se envía el código público del
+pedido, y falta confirmar si Chilexpress exige que coincida con la referencia de la OT. (3) Falta probar
+contra el sandbox con una OT real.
 
 **E9 Facturación.** Boleta: el comprobante de Mercado Pago. Factura: el cliente elige uno de sus
 datos de facturación; el personal registra la factura emitida en el SII con folio (único por tipo)
