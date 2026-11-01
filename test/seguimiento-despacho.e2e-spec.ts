@@ -24,7 +24,10 @@ import {
 } from '../src/common/dominio/valores.js';
 import { configurarApp } from '../src/configurar-app.js';
 import { ActualizarEnviosService } from '../src/modulos/despacho/actualizar-envios.service.js';
-import { SeguimientoEnvio } from '../src/modulos/despacho/seguimiento-envio.js';
+import {
+  type ConsultaSeguimiento,
+  SeguimientoEnvio,
+} from '../src/modulos/despacho/seguimiento-envio.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { REDIS } from '../src/redis/redis.module.js';
 
@@ -43,9 +46,11 @@ class SeguimientoDePrueba extends SeguimientoEnvio {
   readonly estados = new Map<string, EstadoEnvio>();
   readonly consultados: string[] = [];
 
-  consultar(codigo: string): Promise<EstadoEnvio | null> {
-    this.consultados.push(codigo);
-    return Promise.resolve(this.estados.get(codigo) ?? null);
+  consultar({
+    codigoSeguimiento,
+  }: ConsultaSeguimiento): Promise<EstadoEnvio | null> {
+    this.consultados.push(codigoSeguimiento);
+    return Promise.resolve(this.estados.get(codigoSeguimiento) ?? null);
   }
 }
 

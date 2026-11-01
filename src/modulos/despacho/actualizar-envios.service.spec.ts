@@ -9,6 +9,7 @@ const envio = (id: number, estadoEnvio = 'en_transito') => ({
   pedidoId: id + 100,
   codigoSeguimiento: `OT${id}`,
   estadoEnvio,
+  pedido: { codigoPublico: `PEDIDO${id}` },
 });
 
 describe('ActualizarEnviosService', () => {
@@ -43,7 +44,10 @@ describe('ActualizarEnviosService', () => {
   it('E7-H3 · estado actualizado: guarda el nuevo estado que informa el courier', async () => {
     await servicio.actualizar();
 
-    expect(seguimiento.consultar).toHaveBeenCalledWith('OT1');
+    expect(seguimiento.consultar).toHaveBeenCalledWith({
+      codigoSeguimiento: 'OT1',
+      referencia: 'PEDIDO1',
+    });
     expect(db.envio.updateMany).toHaveBeenCalledWith({
       where: {
         id: 1,

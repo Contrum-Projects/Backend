@@ -76,6 +76,15 @@ export const esquemaEntorno = z
     MERCADOPAGO_WEBHOOK_SECRET: z.string().optional(),
     /** Clave de la API Cotizador (E7-H2). Sin ella la app arranca, pero cotizar responde 503. */
     CHILEXPRESS_CLAVE_COTIZACION: opcional(z.string()),
+    /** Clave de la API Envíos (E7-H3). Sin ella o sin el RUT, los envíos conservan su último estado. */
+    CHILEXPRESS_CLAVE_ENVIOS: opcional(z.string()),
+    /** RUT de la empresa dueña de las OT, sin puntos ni dígito verificador (E7-H3). */
+    CHILEXPRESS_RUT_EMPRESA: opcional(
+      z
+        .string()
+        .regex(/^\d{7,8}$/)
+        .transform(Number),
+    ),
     /** Sin ella se usa el sandbox, salvo en producción con clave: ahí la app no arranca. */
     CHILEXPRESS_URL_BASE: opcional(
       z.url({ protocol: /^https$/ }).transform((v) => v.replace(/\/+$/, '')),
@@ -87,7 +96,8 @@ export const esquemaEntorno = z
     // Nunca cobrar tarifas de prueba a clientes reales por olvidar la URL (E7-H2)
     if (
       entorno.NODE_ENV === 'production' &&
-      entorno.CHILEXPRESS_CLAVE_COTIZACION &&
+      (entorno.CHILEXPRESS_CLAVE_COTIZACION ||
+        entorno.CHILEXPRESS_CLAVE_ENVIOS) &&
       !entorno.CHILEXPRESS_URL_BASE
     ) {
       contexto.addIssue({

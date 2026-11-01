@@ -59,7 +59,7 @@ describe('CambiarEstadoPedidoDto', () => {
     ).toEqual(['El comentario debe ser un texto.']);
   });
 
-  it('E7-H3 · envío registrado: recorta el código de seguimiento y solo admite letras y números hasta 100 caracteres', async () => {
+  it('E7-H3 · envío registrado: recorta el código de seguimiento y solo admite números hasta 15 dígitos', async () => {
     const { dto, mensajes } = await probar({
       estado: 'despachado',
       codigoSeguimiento: ' 990000000001 ',
@@ -68,9 +68,9 @@ describe('CambiarEstadoPedidoDto', () => {
     expect(dto.codigoSeguimiento).toBe('990000000001');
 
     expect(
-      (await probar({ estado: 'despachado', codigoSeguimiento: '99-00 1' }))
+      (await probar({ estado: 'despachado', codigoSeguimiento: 'OT99001' }))
         .mensajes,
-    ).toEqual(['El código de seguimiento solo admite letras y números.']);
+    ).toEqual(['El código de seguimiento solo admite números.']);
     expect(
       (
         await probar({

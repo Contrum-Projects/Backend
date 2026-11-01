@@ -15,6 +15,7 @@ interface EnvioEnCamino {
   pedidoId: number;
   codigoSeguimiento: string | null;
   estadoEnvio: string;
+  pedido: { codigoPublico: string };
 }
 
 /**
@@ -55,6 +56,7 @@ export class ActualizarEnviosService {
           pedidoId: true,
           codigoSeguimiento: true,
           estadoEnvio: true,
+          pedido: { select: { codigoPublico: true } },
         },
       });
 
@@ -81,7 +83,10 @@ export class ActualizarEnviosService {
     const codigo = envio.codigoSeguimiento;
     if (!codigo) return;
 
-    const estado = await this.seguimiento.consultar(codigo);
+    const estado = await this.seguimiento.consultar({
+      codigoSeguimiento: codigo,
+      referencia: envio.pedido.codigoPublico,
+    });
     if (!estado) {
       this.logger.warn(
         `El courier no informó un estado reconocido para el envío ${envio.id}.`,

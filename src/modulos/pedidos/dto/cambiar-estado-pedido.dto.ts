@@ -7,20 +7,19 @@ import { TextoOpcional } from '../../../common/validacion/texto-opcional.js';
 /** Largo máximo del comentario con que el personal cambia el estado de un pedido. */
 export const MAXIMO_COMENTARIO_ESTADO = 500;
 
-/** Largo de la columna ENVIO.codigo_seguimiento. */
-export const MAXIMO_CODIGO_SEGUIMIENTO = 100;
+/** La API de Chilexpress recibe la OT como número JSON: más dígitos perderían precisión. */
+export const MAXIMO_CODIGO_SEGUIMIENTO = 15;
 
 const ESTADOS = Object.values(ESTADOS_PEDIDO);
 
-/** Letras y números; el largo y el tipo los revisa `TextoOpcional`. */
+/** Solo dígitos; el largo y el tipo los revisa `TextoOpcional`. */
 const FormatoCodigoSeguimiento = () =>
   ValidateBy({
     name: 'formatoCodigoSeguimiento',
     validator: {
       validate: (valor: unknown) =>
-        typeof valor !== 'string' || /^[A-Za-z0-9]*$/.test(valor),
-      defaultMessage: () =>
-        'El código de seguimiento solo admite letras y números.',
+        typeof valor !== 'string' || /^\d*$/.test(valor),
+      defaultMessage: () => 'El código de seguimiento solo admite números.',
     },
   });
 
