@@ -55,10 +55,18 @@ describe('CrearPedidoDto', () => {
     ]);
   });
 
+  it('E9-H1 · factura sin indicar datos: pasa al servicio, que revisa si la cuenta los tiene', async () => {
+    expect(await mensajes({ ...base(), tipoDocumento: 'factura' })).toEqual([]);
+    expect(
+      await mensajes({
+        ...base(),
+        tipoDocumento: 'factura',
+        datosFacturacionId: null,
+      }),
+    ).toEqual([]);
+  });
+
   it('la factura exige datos de facturación válidos y la boleta no los admite', async () => {
-    expect(await mensajes({ ...base(), tipoDocumento: 'factura' })).toEqual([
-      'Los datos de facturación son obligatorios para la factura.',
-    ]);
     expect(
       await mensajes({
         ...base(),

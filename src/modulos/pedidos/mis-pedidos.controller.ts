@@ -54,9 +54,9 @@ export class MisPedidosController {
 
   @Get(':codigoPedido')
   @ApiOperation({
-    summary: 'Ver el detalle de un pedido mío (E8-H1)',
+    summary: 'Ver el detalle de un pedido mío (E8-H1, E9-H1)',
     description:
-      'Artículos con su precio con IVA, montos, forma de entrega (con la dirección y el seguimiento si es despacho) y cambios de estado con su fecha. Un pedido de otra cuenta responde 404, igual que uno que no existe.',
+      'Artículos con su precio con IVA, montos, forma de entrega (con la dirección y el seguimiento si es despacho) y cambios de estado con su fecha. Con boleta y pago aprobado, `idTransaccionPago` es la referencia del comprobante de Mercado Pago. Un pedido de otra cuenta responde 404, igual que uno que no existe.',
   })
   @ApiOkResponse({ description: 'Detalle del pedido.' })
   @ApiNotFoundResponse({

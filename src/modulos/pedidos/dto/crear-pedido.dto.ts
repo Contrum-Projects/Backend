@@ -18,7 +18,8 @@ interface OpcionesReferencia {
   /** Campo del que depende y el valor con que este dato se exige. */
   campo: 'tipoEntrega' | 'tipoDocumento';
   valor: string;
-  faltante: string;
+  /** Mensaje si falta. Sin él puede faltar: lo resuelve el servicio, que conoce la cuenta. */
+  faltante?: string;
   invalido: string;
   /** Mensaje cuando llega sin que corresponda. */
   sobra: string;
@@ -28,6 +29,8 @@ const esId = (valor: unknown) =>
   Number.isInteger(valor) &&
   (valor as number) >= 1 &&
   (valor as number) <= MAXIMO_INT4;
+
+const estaAusente = (valor: unknown) => valor === undefined || valor === null;
 
 /** Id que se exige con un valor de otro campo y se rechaza con los demás. */
 const IdSegun = ({
@@ -42,13 +45,13 @@ const IdSegun = ({
   return ValidateBy({
     name: 'idSegun',
     validator: {
-      validate: (valor: unknown, argumentos?: ValidationArguments) =>
-        exigido(argumentos) ? esId(valor) : valor === undefined,
+      validate: (valor: unknown, argumentos?: ValidationArguments) => {
+        if (!exigido(argumentos)) return valor === undefined;
+        return esId(valor) || (!faltante && estaAusente(valor));
+      },
       defaultMessage: (argumentos?: ValidationArguments) => {
         if (!exigido(argumentos)) return sobra;
-        return argumentos?.value === undefined || argumentos.value === null
-          ? faltante
-          : invalido;
+        return faltante && estaAusente(argumentos?.value) ? faltante : invalido;
       },
     },
   });
@@ -94,12 +97,11 @@ export class CrearPedidoDto {
   @ApiPropertyOptional({
     example: 3,
     description:
-      'Id de los datos de facturación de la cuenta; solo con factura.',
+      'Id de los datos de facturación de la cuenta; obligatorio con factura si la cuenta tiene datos, y solo se indica con factura.',
   })
   @IdSegun({
     campo: 'tipoDocumento',
     valor: TIPOS_DOCUMENTO.FACTURA,
-    faltante: 'Los datos de facturación son obligatorios para la factura.',
     invalido: 'Los datos de facturación indicados no son válidos.',
     sobra: 'Los datos de facturación solo se indican con factura.',
   })
