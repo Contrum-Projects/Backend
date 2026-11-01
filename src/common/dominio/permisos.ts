@@ -16,6 +16,7 @@ export const PERMISOS = {
   CATALOGO_GESTIONAR: 'catalogo.gestionar',
   PRECIOS_GESTIONAR: 'precios.gestionar',
   PEDIDOS_GESTIONAR: 'pedidos.gestionar',
+  FACTURACION_GESTIONAR: 'facturacion.gestionar',
   VERIFICACION_GESTIONAR: 'verificacion.gestionar',
   CAMPANAS_GESTIONAR: 'campanas.gestionar',
   REPORTES_VER: 'reportes.ver',
@@ -38,6 +39,7 @@ export const PERMISOS_POR_ROL: Readonly<Record<Rol, readonly Permiso[]>> =
       PERMISOS.CATALOGO_GESTIONAR,
       PERMISOS.INVENTARIO_CONSULTAR,
       PERMISOS.PEDIDOS_GESTIONAR,
+      PERMISOS.FACTURACION_GESTIONAR,
     ]),
     /* Cliente: no tiene permisos asignados */
     [ROLES.CLIENTE]: Object.freeze([]),

@@ -29,15 +29,23 @@ export class AlmacenR2 extends AlmacenArchivos {
     });
   }
 
-  async guardar(clave: string, contenido: Buffer, tipoContenido: string) {
+  async guardar(
+    clave: string,
+    contenido: Buffer,
+    tipoContenido: string,
+    privado = false,
+  ) {
     await this.cliente.send(
       new PutObjectCommand({
         Bucket: this.configuracion.bucket,
         Key: clave,
         Body: contenido,
         ContentType: tipoContenido,
-        // La clave es única por archivo y nunca se reescribe: se puede guardar en caché
-        CacheControl: 'public, max-age=31536000, immutable',
+        // La clave es única por archivo y nunca se reescribe: se puede guardar en caché, salvo
+        // un archivo privado (una factura), que no debe quedar en cachés compartidas
+        CacheControl: privado
+          ? 'private, no-store'
+          : 'public, max-age=31536000, immutable',
       }),
     );
   }
@@ -57,7 +65,7 @@ export class AlmacenNoConfigurado extends AlmacenArchivos {
   guardar(): Promise<void> {
     return Promise.reject(
       new ServiceUnavailableException(
-        'El almacenamiento de imágenes no está configurado.',
+        'El almacenamiento de archivos no está configurado.',
       ),
     );
   }

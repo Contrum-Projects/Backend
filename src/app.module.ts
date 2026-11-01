@@ -10,6 +10,7 @@ import { LimitesModule } from './limites/limites.module.js';
 import { CarritoModule } from './modulos/carrito/carrito.module.js';
 import { CatalogoModule } from './modulos/catalogo/catalogo.module.js';
 import { CuentasModule } from './modulos/cuentas/cuentas.module.js';
+import { RegistrarFacturaModule } from './modulos/facturacion/registrar-factura.module.js';
 import { InventarioModule } from './modulos/inventario/inventario.module.js';
 import { CambiarEstadoPedidoModule } from './modulos/pedidos/cambiar-estado-pedido.module.js';
 import { CancelarPedidoModule } from './modulos/pedidos/cancelar-pedido.module.js';
@@ -80,6 +81,7 @@ import { SaludController } from './salud/salud.controller.js';
     PersonalModule,
     InventarioModule,
     CatalogoModule,
+    RegistrarFacturaModule,
     CarritoModule,
     MisPedidosModule,
     CrearPedidoModule,
