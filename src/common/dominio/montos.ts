@@ -34,6 +34,15 @@ export const precioConIva = (
 ): number => calcularMontos(Math.round(netoGuardado), porcentajeIva).total;
 
 /**
+ * Neto en pesos de un monto que ya trae el IVA (E7-H2, decisión del 31 de octubre de 2026: la tarifa
+ * del courier). Por el redondeo, `precioConIva` del resultado puede diferir en un peso del monto.
+ */
+export const netoDesdeConIva = (
+  conIva: number,
+  porcentajeIva: number,
+): number => Math.round(conIva / (1 + porcentajeIva / 100));
+
+/**
  * Montos del pedido, sumados por línea (decisión del 30 de octubre de 2026, E5-H3): el total es la
  * suma de `precioConIva` × cantidad, el mismo que muestran el carrito y el detalle del pedido. Por
  * eso el IVA puede diferir unos pesos de aplicar la tasa al neto total; total === neto + iva.

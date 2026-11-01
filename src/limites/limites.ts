@@ -41,6 +41,11 @@ export const LIMITES = {
    * del token de la tienda, que dejaría sin pagar a todos los compradores.
    */
   PAGAR_PEDIDO: { limit: 10, ttl: 60_000 },
+  /**
+   * Cotizar el despacho (E7-H2, decisión del 31 oct 2026): 10/min por cuenta, con
+   * `LimitePorCuentaGuard`. Cada cotización nueva consulta a Chilexpress: frena agotar su cuota.
+   */
+  COTIZAR_ENVIO: { limit: 10, ttl: 60_000 },
 } as const;
 
 /**

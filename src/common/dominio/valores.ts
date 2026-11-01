@@ -52,19 +52,11 @@ export const TIPOS_ENTREGA = {
 } as const;
 
 /**
- * ENVIO.estado_envio (E5-H3, decisión del 30 de octubre de 2026): valor provisional de un despacho
- * recién creado. La lista la completan E7-H2 y E7-H3.
+ * ENVIO.estado_envio (E5-H3, decisión del 30 de octubre de 2026): valor de un despacho recién
+ * creado. La lista la completa E7-H3.
  */
 export const ESTADOS_ENVIO = {
   PENDIENTE: 'pendiente',
-} as const;
-
-/**
- * ENVIO.servicio_envio (E5-H3, decisión del 30 de octubre de 2026): valor provisional hasta que
- * E7-H2 cotice con el courier.
- */
-export const SERVICIOS_ENVIO = {
-  POR_COTIZAR: 'por_cotizar',
 } as const;
 
 /** PEDIDO.tipo_documento_solicitado (RF-09.01). */

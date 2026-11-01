@@ -1,4 +1,16 @@
-import { calcularMontos, montosPorLineas, precioConIva } from './montos.js';
+import {
+  calcularMontos,
+  montosPorLineas,
+  netoDesdeConIva,
+  precioConIva,
+} from './montos.js';
+
+describe('netoDesdeConIva', () => {
+  it('E7-H2 · cotización obtenida: divide la tarifa por el IVA, y al sumarlo vuelve a la tarifa', () => {
+    expect(netoDesdeConIva(7310, 19)).toBe(6143);
+    expect(precioConIva(6143, 19)).toBe(7310);
+  });
+});
 
 describe('montosPorLineas', () => {
   it('E5-H3 · pedido creado: el total es la suma de precioConIva × cantidad, igual que el carrito', () => {

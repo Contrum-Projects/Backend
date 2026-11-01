@@ -8,6 +8,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
 import { RedisModule } from './redis/redis.module.js';
 import { LimitesModule } from './limites/limites.module.js';
 import { CarritoModule } from './modulos/carrito/carrito.module.js';
+import { DespachoModule } from './modulos/despacho/despacho.module.js';
 import { CatalogoModule } from './modulos/catalogo/catalogo.module.js';
 import { CuentasModule } from './modulos/cuentas/cuentas.module.js';
 import { RegistrarFacturaModule } from './modulos/facturacion/registrar-factura.module.js';
@@ -83,6 +84,7 @@ import { SaludController } from './salud/salud.controller.js';
     CatalogoModule,
     RegistrarFacturaModule,
     CarritoModule,
+    DespachoModule,
     MisPedidosModule,
     CrearPedidoModule,
     CancelarPedidoModule,
