@@ -11,6 +11,7 @@ import { CarritoModule } from './modulos/carrito/carrito.module.js';
 import { DespachoModule } from './modulos/despacho/despacho.module.js';
 import { CatalogoModule } from './modulos/catalogo/catalogo.module.js';
 import { CuentasModule } from './modulos/cuentas/cuentas.module.js';
+import { DescargarDocumentoModule } from './modulos/facturacion/descargar-documento.module.js';
 import { RegistrarFacturaModule } from './modulos/facturacion/registrar-factura.module.js';
 import { InventarioModule } from './modulos/inventario/inventario.module.js';
 import { CambiarEstadoPedidoModule } from './modulos/pedidos/cambiar-estado-pedido.module.js';
@@ -83,6 +84,7 @@ import { SaludController } from './salud/salud.controller.js';
     InventarioModule,
     CatalogoModule,
     RegistrarFacturaModule,
+    DescargarDocumentoModule,
     CarritoModule,
     DespachoModule,
     MisPedidosModule,
