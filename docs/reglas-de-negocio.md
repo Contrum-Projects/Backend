@@ -549,10 +549,12 @@ conocido más reciente por `code.eventCode`: 4 y 11 `en_transito`, 13 `en_repart
 únicos códigos que muestra la documentación. **`statusCode` -41** (OT no disponible): sigue con el siguiente
 envío. Otro rechazo de esa OT o una respuesta ilegible queda en el log y también sigue con el siguiente; la
 pasada se corta solo ante una falla general (red, plazo, 5xx, 401, 403, 429). El código no puede ser cero.
+**OT:** cada una es de un solo pedido (`envio.codigo_seguimiento` es único; el equipo lo pidió el 1 nov):
+repetirla responde 409 y volver el pedido a en preparación la libera. Sin ceros a la izquierda, porque `0123`
+y `123` serían la misma OT. **Referencia:** el personal crea la OT con `pedido.codigo_publico` como
+referencia, y ese valor se envía como `reference`. Cambia el MER: agrega la restricción de unicidad.
 **PENDIENTE:** (1) `con_problema` no tiene código de Chilexpress conocido, así que hoy solo lo asigna la
-corrección del personal. (2) `reference` es obligatoria según el portal: se envía el código público del
-pedido, y falta confirmar si Chilexpress exige que coincida con la referencia de la OT. (3) Falta probar
-contra el sandbox con una OT real.
+corrección del personal. (2) Falta probar contra el sandbox con una OT real.
 
 **E9 Facturación.** Boleta: el comprobante de Mercado Pago. Factura: el cliente elige uno de sus
 datos de facturación; el personal registra la factura emitida en el SII con folio (único por tipo)

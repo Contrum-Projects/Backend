@@ -12,15 +12,18 @@ export const MAXIMO_CODIGO_SEGUIMIENTO = 15;
 
 const ESTADOS = Object.values(ESTADOS_PEDIDO);
 
-/** Solo dígitos y distinto de cero; el largo y el tipo los revisa `TextoOpcional`. */
+/**
+ * Número sin ceros a la izquierda: `0123` y `123` son la misma OT y burlarían la restricción
+ * UNIQUE. El largo y el tipo los revisa `TextoOpcional`.
+ */
 const FormatoCodigoSeguimiento = () =>
   ValidateBy({
     name: 'formatoCodigoSeguimiento',
     validator: {
       validate: (valor: unknown) =>
-        typeof valor !== 'string' || valor === '' || /^0*[1-9]\d*$/.test(valor),
+        typeof valor !== 'string' || valor === '' || /^[1-9]\d*$/.test(valor),
       defaultMessage: () =>
-        'El código de seguimiento debe ser un número mayor que cero.',
+        'El código de seguimiento debe ser un número sin ceros a la izquierda.',
     },
   });
 
@@ -58,7 +61,7 @@ export class CambiarEstadoPedidoDto {
     example: '990000000001',
     maxLength: MAXIMO_CODIGO_SEGUIMIENTO,
     description:
-      'Número de la orden de transporte de Chilexpress. Es obligatorio al pasar a despachado y no se admite en otro cambio.',
+      'Número de la orden de transporte de Chilexpress, única por pedido. La OT debe crearse con el código público del pedido como referencia. Es obligatorio al pasar a despachado y no se admite en otro cambio.',
   })
   @TextoOpcional({
     etiqueta: 'El código de seguimiento',

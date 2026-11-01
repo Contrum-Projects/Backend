@@ -497,7 +497,7 @@ model Envio {
   comunaId          Int       @map("id_comuna")
   servicioEnvio     String    @map("servicio_envio") @db.VarChar(50)
   costoNeto         Decimal   @map("costo_neto") @db.Decimal(12, 2)
-  codigoSeguimiento String?   @map("codigo_seguimiento") @db.VarChar(100)
+  codigoSeguimiento String?   @unique @map("codigo_seguimiento") @db.VarChar(100)
   fechaEstimada     DateTime? @map("fecha_estimada") @db.Date
   estadoEnvio       String    @map("estado_envio") @db.VarChar(30)
   destinatario      String    @db.VarChar(150)

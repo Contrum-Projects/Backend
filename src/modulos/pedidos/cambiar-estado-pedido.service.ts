@@ -20,7 +20,7 @@ import {
   TIPOS_ENTREGA,
   TIPOS_NOTIFICACION,
 } from '../../common/dominio/valores.js';
-import type { Prisma } from '../../generated/prisma/client.js';
+import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { PEDIDO_NO_EXISTE } from './cancelar-pedido.service.js';
 import type { CambiarEstadoPedidoDto } from './dto/cambiar-estado-pedido.dto.js';
@@ -38,6 +38,8 @@ export const CODIGO_AL_DESPACHAR =
 export const CODIGO_SOLO_AL_DESPACHAR =
   'El código de seguimiento solo se indica al despachar el pedido.';
 export const PEDIDO_SIN_ENVIO = 'El pedido no tiene los datos del envío.';
+export const OT_YA_REGISTRADA =
+  'Ese código de seguimiento ya está registrado en otro pedido.';
 export const COMENTARIO_ENTREGA_COURIER = 'Chilexpress informó la entrega.';
 
 const LARGO_ASUNTO = 200;
@@ -114,7 +116,7 @@ export class CambiarEstadoPedidoService {
     codigoPedido: string,
     dto: CambiarEstadoPedidoDto,
   ): Promise<PedidoConNuevoEstado> {
-    const { respuesta, aviso } = await this.prisma.$transaction(async (tx) => {
+    const transaccion = this.prisma.$transaction(async (tx) => {
       const filas = await tx.$queryRaw<
         Omit<PedidoBloqueado, 'codigoPublico'>[]
       >`
@@ -183,6 +185,18 @@ export class CambiarEstadoPedidoService {
         respuesta: { codigoPublico: codigoPedido, estado: dto.estado },
         aviso,
       };
+    });
+
+    // La restricción UNIQUE decide también entre dos despachos simultáneos con la misma OT
+    const { respuesta, aviso } = await transaccion.catch((error: unknown) => {
+      if (
+        dto.codigoSeguimiento &&
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException(OT_YA_REGISTRADA);
+      }
+      throw error;
     });
 
     await this.encolarAviso(aviso);

@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { Queue } from 'bullmq';
+import { Prisma } from '../../generated/prisma/client.js';
 import type { PrismaService } from '../../prisma/prisma.service.js';
 import {
   CambiarEstadoPedidoService,
@@ -12,6 +13,7 @@ import {
   COMENTARIO_AL_RETROCEDER,
   COMENTARIO_ENTREGA_COURIER,
   estadoNoPermitido,
+  OT_YA_REGISTRADA,
   PEDIDO_SIN_ENVIO,
 } from './cambiar-estado-pedido.service.js';
 
@@ -249,6 +251,24 @@ describe('CambiarEstadoPedidoService', () => {
       }),
     ).rejects.toThrow(new ConflictException(PEDIDO_SIN_ENVIO));
     expect(db.pedido.update).not.toHaveBeenCalled();
+  });
+
+  it('E7-H3 · OT ya registrada en otro pedido: 409 y no encola ningún correo', async () => {
+    pedidoEn('en_preparacion');
+    db.envio.updateMany.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('único', {
+        code: 'P2002',
+        clientVersion: 'test',
+      }),
+    );
+
+    await expect(
+      servicio.cambiar(PERSONAL, CODIGO, {
+        estado: 'despachado',
+        codigoSeguimiento: '123',
+      }),
+    ).rejects.toThrow(new ConflictException(OT_YA_REGISTRADA));
+    expect(correos.add).not.toHaveBeenCalled();
   });
 
   it('E7-H3 · el personal marca entregado: el envío queda entregado', async () => {

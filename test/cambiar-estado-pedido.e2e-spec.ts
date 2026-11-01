@@ -275,7 +275,7 @@ describe('Pedidos · cambiar el estado desde el panel (e2e)', () => {
 
     await cambiar(personal.token, pedido.codigo, {
       estado: 'despachado',
-      codigoSeguimiento: '990000000001',
+      codigoSeguimiento: '880000000001',
     }).expect(200);
     await cambiar(personal.token, pedido.codigo, {
       estado: 'entregado',
@@ -486,11 +486,11 @@ describe('Pedidos · cambiar el estado desde el panel (e2e)', () => {
     const respuestas = await Promise.all([
       cambiar(personal.token, pedido.codigo, {
         estado: 'despachado',
-        codigoSeguimiento: '990000000001',
+        codigoSeguimiento: '880000000002',
       }),
       cambiar(personal.token, pedido.codigo, {
         estado: 'despachado',
-        codigoSeguimiento: '990000000001',
+        codigoSeguimiento: '880000000002',
       }),
     ]);
 

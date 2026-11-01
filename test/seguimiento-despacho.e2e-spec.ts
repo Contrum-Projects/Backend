@@ -272,6 +272,53 @@ describe('Despacho · estado y código de seguimiento (e2e)', () => {
     });
   });
 
+  it('E7-H3 · cada OT es de un solo pedido: repetirla responde 409, y se libera al quitarla del primero', async () => {
+    const ot = '990000000006';
+    const { comprador, personal, pedido } = await pedidoDespachado(ot);
+    const otro = await nuevoPedido(comprador.usuarioId);
+
+    const repetida = await cambiar(personal.token, otro.codigo, {
+      estado: 'despachado',
+      codigoSeguimiento: ot,
+    }).expect(409);
+    expect(repetida.body).toMatchObject({
+      message: 'Ese código de seguimiento ya está registrado en otro pedido.',
+    });
+    expect(await envioDe(comprador.token, otro.codigo)).toMatchObject({
+      estado: ESTADOS_PEDIDO.EN_PREPARACION,
+      envio: { codigoSeguimiento: null, estado: ESTADOS_ENVIO.PENDIENTE },
+    });
+
+    await cambiar(personal.token, pedido.codigo, {
+      estado: 'en_preparacion',
+      comentario: 'La OT era del otro pedido.',
+    }).expect(200);
+    await cambiar(personal.token, otro.codigo, {
+      estado: 'despachado',
+      codigoSeguimiento: ot,
+    }).expect(200);
+  });
+
+  it('E7-H3 · dos pedidos despachados a la vez con la misma OT: uno gana y el otro recibe 409', async () => {
+    const comprador = await cuenta(ROLES.CLIENTE);
+    const personal = await cuenta(ROLES.BODEGUERO);
+    const pedidos = await Promise.all([
+      nuevoPedido(comprador.usuarioId),
+      nuevoPedido(comprador.usuarioId),
+    ]);
+
+    const respuestas = await Promise.all(
+      pedidos.map((pedido) =>
+        cambiar(personal.token, pedido.codigo, {
+          estado: 'despachado',
+          codigoSeguimiento: '990000000007',
+        }),
+      ),
+    );
+
+    expect(respuestas.map((r) => r.status).sort()).toEqual([200, 409]);
+  });
+
   it('E7-H3 · cliente y profesional no pueden registrar el código (403), ni sin sesión (401)', async () => {
     const comprador = await cuenta(ROLES.CLIENTE);
     const pedido = await nuevoPedido(comprador.usuarioId);
