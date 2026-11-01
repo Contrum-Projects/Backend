@@ -41,6 +41,8 @@ export const TRABAJOS_CORREO = {
   CAMBIO_ESTADO_PEDIDO: 'cambio-estado-pedido',
   /** Confirmación al cliente de que se recibió el pago de su pedido (E6-H2). */
   PAGO_CONFIRMADO: 'pago-confirmado',
+  /** Tarea repetible: reencola los correos pendientes si Redis se cayó o se vació (RNF-29). */
+  REVISAR_PENDIENTES: 'revisar-pendientes',
 } as const;
 
 /** Nombres de los trabajos de la cola de eventos de pago (E6-H2). */
@@ -114,6 +116,24 @@ export interface TrabajoPagoConfirmado {
   codigoPedido: string;
   montoTotal: number;
 }
+
+/**
+ * Stock bajo reencolado por la revisión (RNF-29): NOTIFICACION no guarda el formato, así que el
+ * correo sale sin sus cifras y remite al panel.
+ */
+export interface TrabajoStockBajoRecuperado {
+  notificacionId: number;
+  destinatario: string;
+  nombre: string;
+}
+
+/** Lo que puede traer un trabajo de envío de la cola de correos. */
+export type TrabajoCorreo =
+  | TrabajoCorreoConEnlace
+  | TrabajoStockBajo
+  | TrabajoStockBajoRecuperado
+  | TrabajoCambioEstadoPedido
+  | TrabajoPagoConfirmado;
 
 /**
  * Prioridad de los correos (RNF-16): en BullMQ, número menor = sale antes.

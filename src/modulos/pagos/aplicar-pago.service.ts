@@ -159,7 +159,7 @@ export class AplicarPagoService {
         usuarioId: pedido.compradorId,
         pedidoId: pedido.id,
         tipo: TIPOS_NOTIFICACION.PAGO_CONFIRMADO,
-        asunto: `Recibimos el pago de tu pedido ${codigoPedido}`,
+        asunto: `Recibimos tu pago · Pedido ${codigoPedido}`,
         estadoEnvio: ESTADOS_NOTIFICACION.PENDIENTE,
       },
       select: { id: true },

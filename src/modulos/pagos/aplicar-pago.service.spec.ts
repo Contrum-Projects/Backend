@@ -100,7 +100,7 @@ describe('AplicarPagoService', () => {
       usuarioId: 5,
       pedidoId: 40,
       tipo: 'pago_confirmado',
-      asunto: `Recibimos el pago de tu pedido ${CODIGO}`,
+      asunto: `Recibimos tu pago · Pedido ${CODIGO}`,
       estadoEnvio: 'pendiente',
     });
     expect(correos.add).toHaveBeenCalledTimes(1);

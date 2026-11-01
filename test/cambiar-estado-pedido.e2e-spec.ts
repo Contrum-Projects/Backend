@@ -294,13 +294,13 @@ describe('Pedidos · cambiar el estado desde el panel (e2e)', () => {
       {
         usuarioId: compradorId,
         tipo: TIPOS_NOTIFICACION.CAMBIO_ESTADO_PEDIDO,
-        asunto: `Tu pedido ${pedido.codigo} está despachado`,
+        asunto: `Tu pedido ${pedido.codigo} va en camino`,
         estadoEnvio: ESTADOS_NOTIFICACION.PENDIENTE,
       },
       {
         usuarioId: compradorId,
         tipo: TIPOS_NOTIFICACION.CAMBIO_ESTADO_PEDIDO,
-        asunto: `Tu pedido ${pedido.codigo} está entregado`,
+        asunto: `Tu pedido ${pedido.codigo} fue entregado`,
         estadoEnvio: ESTADOS_NOTIFICACION.PENDIENTE,
       },
     ]);

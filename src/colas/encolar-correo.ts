@@ -5,21 +5,31 @@ import { PRIORIDAD_CORREO, type TrabajoCorreoConEnlace } from './colas.js';
 /** Si Redis no responde en este plazo, la petición sigue sin esperar la cola. */
 const ESPERA_MAXIMA_COLA_MS = 2_000;
 
+/** Envíos que se prueban por trabajo antes de dejar la notificación `fallida` (E1-H6). */
+export const INTENTOS_CORREO = 5;
+
 // El estado del envío vive en NOTIFICACION: el trabajo se borra de Redis al terminar (bien o mal)
 const OPCIONES_CORREO = {
   priority: PRIORIDAD_CORREO.PEDIDO_Y_CUENTA,
+  attempts: INTENTOS_CORREO,
+  backoff: { type: 'exponential', delay: 5_000 },
   removeOnComplete: true,
   removeOnFail: true,
 } as const;
 
-/** Espera una operación de la cola, con un único plazo: Redis caído no deja la petición colgada. */
-export const conPlazoDeCola = async <T>(operacion: Promise<T>): Promise<T> => {
+/** Id del trabajo de una notificación: la revisión periódica lo busca para no duplicarlo. */
+export const idTrabajoCorreo = (notificacionId: number): string =>
+  `correo-${notificacionId}`;
+
+/** Espera una operación, y falla con ese mensaje si no termina dentro del plazo. */
+export const conPlazo = async <T>(
+  operacion: Promise<T>,
+  plazoMs: number,
+  mensaje: string,
+): Promise<T> => {
   let temporizador: NodeJS.Timeout | undefined;
   const limite = new Promise<never>((_, rechazar) => {
-    temporizador = setTimeout(
-      () => rechazar(new Error('Redis no respondió a tiempo')),
-      ESPERA_MAXIMA_COLA_MS,
-    );
+    temporizador = setTimeout(() => rechazar(new Error(mensaje)), plazoMs);
   });
   try {
     return await Promise.race([operacion, limite]);
@@ -27,6 +37,15 @@ export const conPlazoDeCola = async <T>(operacion: Promise<T>): Promise<T> => {
     clearTimeout(temporizador);
   }
 };
+
+/** Espera una operación de la cola, con un único plazo: Redis caído no deja la petición colgada. */
+export const conPlazoDeCola = <T>(operacion: Promise<T>): Promise<T> =>
+  conPlazo(operacion, ESPERA_MAXIMA_COLA_MS, 'Redis no respondió a tiempo');
+
+const opcionesDe = ({ notificacionId }: { notificacionId: number }) => ({
+  ...OPCIONES_CORREO,
+  jobId: idTrabajoCorreo(notificacionId),
+});
 
 /**
  * Encola uno o varios correos de pedido o cuenta en una sola operación, después del commit. Si
@@ -43,12 +62,12 @@ export const encolarCorreos = async <T extends { notificacionId: number }>(
   try {
     await conPlazoDeCola<unknown>(
       lista.length === 1
-        ? correos.add(trabajo, lista[0], OPCIONES_CORREO)
+        ? correos.add(trabajo, lista[0], opcionesDe(lista[0]))
         : correos.addBulk(
             lista.map((datos) => ({
               name: trabajo,
               data: datos,
-              opts: OPCIONES_CORREO,
+              opts: opcionesDe(datos),
             })),
           ),
     );

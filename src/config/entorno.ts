@@ -89,10 +89,35 @@ export const esquemaEntorno = z
     CHILEXPRESS_URL_BASE: opcional(
       z.url({ protocol: /^https$/ }).transform((v) => v.replace(/\/+$/, '')),
     ),
-    SMTP_URL: z.string().optional(),
-    CORREO_REMITENTE: z.string().optional(),
+    /**
+     * Clave de la API de Resend (E1-H6). Sin ella, fuera de producción, los correos se simulan: no
+     * sale nada. En producción la app no arranca sin ella.
+     */
+    RESEND_API_KEY: opcional(z.string()),
+    /** Obligatorio con la clave de Resend. Su dominio debe estar verificado allá. */
+    CORREO_REMITENTE: opcional(z.string()),
+    /** `false` apaga el envío en esta instancia: los e2e leen los trabajos de la cola. */
+    CORREOS_WORKER_ACTIVO: z
+      .enum(['true', 'false'])
+      .default('true')
+      .transform((v) => v === 'true'),
   })
   .superRefine((entorno, contexto) => {
+    // En producción un correo sin enviar deja a la persona sin poder activar su cuenta (E1-H6)
+    if (entorno.NODE_ENV === 'production' && !entorno.RESEND_API_KEY) {
+      contexto.addIssue({
+        code: 'custom',
+        path: ['RESEND_API_KEY'],
+        message: 'es obligatoria en producción',
+      });
+    }
+    if (entorno.RESEND_API_KEY && !entorno.CORREO_REMITENTE) {
+      contexto.addIssue({
+        code: 'custom',
+        path: ['CORREO_REMITENTE'],
+        message: 'es obligatorio si hay clave de Resend',
+      });
+    }
     // Nunca cobrar tarifas de prueba a clientes reales por olvidar la URL (E7-H2)
     if (
       entorno.NODE_ENV === 'production' &&

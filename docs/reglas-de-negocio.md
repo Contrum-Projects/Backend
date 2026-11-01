@@ -124,6 +124,30 @@ otra cuenta responde 404), sin `codigoPublico` ni cambio al MER; la comuna se in
 CUT. La primera dirección queda como principal; al borrar la principal pasa a serlo la más
 reciente de las que quedan. Una sola principal se garantiza con la misma transacción con
 `bloquearCuenta` (`SELECT ... FOR UPDATE`), sin índice parcial.
+Decisiones del 1 nov (E1-H6, SCRUM-78): el worker de la cola `correos` (módulo `notificaciones`) envía
+por Resend los **6 tipos** de correo que ya se encolan (confirmación, recuperación, invitación, pago
+confirmado, cambio de estado y stock bajo), con las plantillas de la página «Correos» de Figma, en
+TypeScript. Recuperación e invitación no tienen diseño propio: usan la base de confirmación. El correo
+de pago **no adjunta el PDF** (Figma lo mostraba): dice que se descarga desde el detalle del pedido.
+Confirmación y recuperación **no llevan el nombre** (Figma lo mostraba): la dirección aún no está
+confirmada, y un nombre inventado serviría para enviar texto engañoso a un correo ajeno.
+Los datos del pedido y del stock se leen de la base al enviar. Un rechazo de Resend o su silencio por
+15 s se reintenta (5 intentos, espera exponencial desde 5 s) y al agotarlos la NOTIFICACION queda
+`fallida`, sin tocar la cuenta; `intentos` cuenta cada envío probado. Cada trabajo se llama
+`correo-<id de la notificación>` y lleva una clave de idempotencia, para no duplicar el correo.
+**Revisión de pendientes:** cada minuto toma las `pendiente` de más de 2 min que no estén en la cola y
+las reencola. Las de 5 o más intentos quedan `fallida`. Como solo se guarda el hash del token, un
+correo con enlace recibe un **token nuevo en la misma fila, con el vencimiento original** (el enlace
+anterior deja de servir); queda `fallida` si no hay enlace vigente, la cuenta está desactivada, el
+correo ya se confirmó o hay un correo más nuevo del mismo tipo. NOTIFICACION no guarda el formato, así
+que un stock bajo reencolado sale sin cifras y remite al panel, y ningún stock bajo se envía a una
+cuenta desactivada o sin rol de bodega o administración; un cambio de estado reencolado avisa el
+estado actual del pedido, con el asunto de ese estado, y queda `fallida` si ese estado no lleva aviso. **Entorno:**
+`RESEND_API_KEY` reemplaza a `SMTP_URL`; sin ella, fuera de producción, los correos se simulan y solo
+se registra el id de la notificación; en producción la app no arranca sin ella, y con ella
+`CORREO_REMITENTE` es obligatorio. `CORREOS_WORKER_ACTIVO=false` apaga el worker (los e2e leen los
+enlaces desde la cola). Sin cambios al MER. **PROPUESTA por confirmar con frontend:** las rutas
+`/ayuda`, `/terminos`, `/privacidad`, `/mis-pedidos/<código>` y `/panel/inventario` de los correos.
 
 **E13 Personal y acceso.** El administrador crea y desactiva cuentas del personal; la desactivada
 pierde el acceso de inmediato. Cada acción del panel exige un permiso del rol (guard en backend).

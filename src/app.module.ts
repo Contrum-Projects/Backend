@@ -18,6 +18,7 @@ import { CambiarEstadoPedidoModule } from './modulos/pedidos/cambiar-estado-pedi
 import { CancelarPedidoModule } from './modulos/pedidos/cancelar-pedido.module.js';
 import { CrearPedidoModule } from './modulos/pedidos/crear-pedido.module.js';
 import { MisPedidosModule } from './modulos/pedidos/mis-pedidos.module.js';
+import { NotificacionesModule } from './modulos/notificaciones/notificaciones.module.js';
 import { PagosModule } from './modulos/pagos/pagos.module.js';
 import { PersonalModule } from './modulos/personal/personal.module.js';
 import { TerritorioModule } from './modulos/territorio/territorio.module.js';
@@ -93,6 +94,7 @@ import { SaludController } from './salud/salud.controller.js';
     CambiarEstadoPedidoModule,
     PagosModule,
     TerritorioModule,
+    NotificacionesModule,
   ],
   controllers: [SaludController],
 })
