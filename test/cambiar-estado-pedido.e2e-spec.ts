@@ -15,6 +15,7 @@ import {
 } from '../src/colas/colas.js';
 import { ROLES, type Rol } from '../src/common/dominio/roles.js';
 import {
+  ESTADOS_ENVIO,
   ESTADOS_NOTIFICACION,
   ESTADOS_PEDIDO,
   TIPOS_DOCUMENTO,
@@ -30,6 +31,9 @@ import { REDIS } from '../src/redis/redis.module.js';
 const CONTRASENA = 'Secreta123';
 // Todo lo que crean estas pruebas lleva este prefijo, para borrarlo al terminar
 const PREFIJO_CORREO = 'e2e-cambiar-estado-pedido-';
+// Región y comuna de prueba (códigos que no usa el CUT ni otra prueba); se borran al terminar
+const REGION = '94';
+const COMUNA = '94001';
 
 describe('Pedidos · cambiar el estado desde el panel (e2e)', () => {
   let app: INestApplication<App>;
@@ -38,6 +42,7 @@ describe('Pedidos · cambiar el estado desde el panel (e2e)', () => {
   let correos: Queue;
   let hashContrasena: string;
   let compradorId: number;
+  let comunaId: number;
   const correoComprador = `${PREFIJO_CORREO}comprador-${randomUUID()}@prueba.cl`;
   const correosCreados: string[] = [correoComprador];
 
@@ -86,6 +91,19 @@ describe('Pedidos · cambiar el estado desde el panel (e2e)', () => {
         montoIva: 0,
         montoTotal: 0,
         historial: { create: [{ correlativo: 1, estado }] },
+        ...(tipoEntrega === TIPOS_ENTREGA.DESPACHO && {
+          envio: {
+            create: {
+              comunaId,
+              servicioEnvio: 'EXPRESS',
+              costoNeto: 3000,
+              estadoEnvio: ESTADOS_ENVIO.PENDIENTE,
+              destinatario: 'Camila Rojas',
+              calle: 'Av. Prueba',
+              numero: '123',
+            },
+          },
+        }),
       },
     });
     return { id: pedido.id, codigo: codigoPublico };
@@ -158,6 +176,23 @@ describe('Pedidos · cambiar el estado desde el panel (e2e)', () => {
     hashContrasena = await argon2.hash(CONTRASENA);
     await limpiar();
 
+    const region = await prisma.region.upsert({
+      where: { codigoCut: REGION },
+      update: {},
+      create: { codigoCut: REGION, nombre: 'Región de prueba cambio estado' },
+    });
+    comunaId = (
+      await prisma.comuna.upsert({
+        where: { codigoCut: COMUNA },
+        update: {},
+        create: {
+          codigoCut: COMUNA,
+          nombre: 'Comuna de prueba cambio estado',
+          regionId: region.id,
+        },
+      })
+    ).id;
+
     compradorId = (
       await prisma.usuario.create({
         data: {
@@ -184,6 +219,8 @@ describe('Pedidos · cambiar el estado desde el panel (e2e)', () => {
     await prisma.usuario.deleteMany({
       where: { email: { in: correosCreados } },
     });
+    await prisma.comuna.deleteMany({ where: { codigoCut: COMUNA } });
+    await prisma.region.deleteMany({ where: { codigoCut: REGION } });
     await app.close();
   });
 
@@ -238,6 +275,7 @@ describe('Pedidos · cambiar el estado desde el panel (e2e)', () => {
 
     await cambiar(personal.token, pedido.codigo, {
       estado: 'despachado',
+      codigoSeguimiento: '990000000001',
     }).expect(200);
     await cambiar(personal.token, pedido.codigo, {
       estado: 'entregado',
@@ -446,8 +484,14 @@ describe('Pedidos · cambiar el estado desde el panel (e2e)', () => {
     const pedido = await nuevoPedido(ESTADOS_PEDIDO.EN_PREPARACION);
 
     const respuestas = await Promise.all([
-      cambiar(personal.token, pedido.codigo, { estado: 'despachado' }),
-      cambiar(personal.token, pedido.codigo, { estado: 'despachado' }),
+      cambiar(personal.token, pedido.codigo, {
+        estado: 'despachado',
+        codigoSeguimiento: '990000000001',
+      }),
+      cambiar(personal.token, pedido.codigo, {
+        estado: 'despachado',
+        codigoSeguimiento: '990000000001',
+      }),
     ]);
 
     expect(respuestas.map((r) => r.status).sort()).toEqual([200, 409]);

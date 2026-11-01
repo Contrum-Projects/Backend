@@ -1,13 +1,28 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsIn } from 'class-validator';
+import { IsIn, ValidateBy } from 'class-validator';
 import { ESTADOS_PEDIDO } from '../../../common/dominio/valores.js';
 import { TextoOpcional } from '../../../common/validacion/texto-opcional.js';
 
 /** Largo máximo del comentario con que el personal cambia el estado de un pedido. */
 export const MAXIMO_COMENTARIO_ESTADO = 500;
 
+/** Largo de la columna ENVIO.codigo_seguimiento. */
+export const MAXIMO_CODIGO_SEGUIMIENTO = 100;
+
 const ESTADOS = Object.values(ESTADOS_PEDIDO);
+
+/** Letras y números; el largo y el tipo los revisa `TextoOpcional`. */
+const FormatoCodigoSeguimiento = () =>
+  ValidateBy({
+    name: 'formatoCodigoSeguimiento',
+    validator: {
+      validate: (valor: unknown) =>
+        typeof valor !== 'string' || /^[A-Za-z0-9]*$/.test(valor),
+      defaultMessage: () =>
+        'El código de seguimiento solo admite letras y números.',
+    },
+  });
 
 /** Cambio del estado de un pedido por el personal (E8-H2, RF-08.02). */
 export class CambiarEstadoPedidoDto {
@@ -38,4 +53,17 @@ export class CambiarEstadoPedidoDto {
     maximo: MAXIMO_COMENTARIO_ESTADO,
   })
   comentario?: string;
+
+  @ApiPropertyOptional({
+    example: '990000000001',
+    maxLength: MAXIMO_CODIGO_SEGUIMIENTO,
+    description:
+      'Número de la orden de transporte de Chilexpress. Es obligatorio al pasar a despachado y no se admite en otro cambio.',
+  })
+  @TextoOpcional({
+    etiqueta: 'El código de seguimiento',
+    maximo: MAXIMO_CODIGO_SEGUIMIENTO,
+  })
+  @FormatoCodigoSeguimiento()
+  codigoSeguimiento?: string;
 }

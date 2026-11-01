@@ -3,6 +3,7 @@ import { validate } from 'class-validator';
 import { mensajesValidacion } from '../../../common/validacion/mensajes-validacion.js';
 import {
   CambiarEstadoPedidoDto,
+  MAXIMO_CODIGO_SEGUIMIENTO,
   MAXIMO_COMENTARIO_ESTADO,
 } from './cambiar-estado-pedido.dto.js';
 
@@ -56,6 +57,33 @@ describe('CambiarEstadoPedidoDto', () => {
     expect(
       (await probar({ estado: 'pagado', comentario: 123 })).mensajes,
     ).toEqual(['El comentario debe ser un texto.']);
+  });
+
+  it('E7-H3 · envío registrado: recorta el código de seguimiento y solo admite letras y números hasta 100 caracteres', async () => {
+    const { dto, mensajes } = await probar({
+      estado: 'despachado',
+      codigoSeguimiento: ' 990000000001 ',
+    });
+    expect(mensajes).toEqual([]);
+    expect(dto.codigoSeguimiento).toBe('990000000001');
+
+    expect(
+      (await probar({ estado: 'despachado', codigoSeguimiento: '99-00 1' }))
+        .mensajes,
+    ).toEqual(['El código de seguimiento solo admite letras y números.']);
+    expect(
+      (
+        await probar({
+          estado: 'despachado',
+          codigoSeguimiento: '9'.repeat(MAXIMO_CODIGO_SEGUIMIENTO + 1),
+        })
+      ).mensajes,
+    ).toEqual([
+      `El código de seguimiento no puede superar los ${MAXIMO_CODIGO_SEGUIMIENTO} caracteres.`,
+    ]);
+    expect(
+      (await probar({ estado: 'despachado', codigoSeguimiento: 123 })).mensajes,
+    ).toEqual(['El código de seguimiento debe ser un texto.']);
   });
 
   it('no admite campos de más', async () => {

@@ -53,17 +53,17 @@ export class CambiarEstadoPedidoController {
   @ApiOperation({
     summary: 'Cambiar el estado de un pedido (E8-H2)',
     description:
-      'Avanza el pedido por su secuencia (pagado → en preparación → despachado → entregado, o en preparación → listo para retiro → retirado si es retiro en tienda) o lo devuelve un paso con un comentario obligatorio. Guarda el cambio en el historial con fecha, quién lo hizo y el comentario, y en los cambios clave (despachado, listo para retiro, entregado) deja encolado el correo al cliente. La cancelación tiene su propia ruta.',
+      'Avanza el pedido por su secuencia (pagado → en preparación → despachado → entregado, o en preparación → listo para retiro → retirado si es retiro en tienda) o lo devuelve un paso con un comentario obligatorio. Al pasar a despachado exige el código de seguimiento de Chilexpress (E7-H3). Guarda el cambio en el historial con fecha, quién lo hizo y el comentario, y en los cambios clave (despachado, listo para retiro, entregado) deja encolado el correo al cliente. La cancelación tiene su propia ruta.',
   })
   @ApiOkResponse({ description: 'Pedido con su nuevo estado.' })
   @ApiBadRequestResponse({
     description:
-      'Estado inválido, comentario demasiado largo o falta el comentario al volver a un estado anterior.',
+      'Estado inválido, comentario demasiado largo, falta el comentario al volver a un estado anterior, o el código de seguimiento falta al despachar, es inválido o se envía en otro cambio.',
   })
   @ApiNotFoundResponse({ description: 'El pedido no existe.' })
   @ApiConflictResponse({
     description:
-      'El cambio no está permitido desde el estado actual del pedido.',
+      'El cambio no está permitido desde el estado actual del pedido, o el pedido no tiene los datos del envío.',
   })
   cambiar(
     @UsuarioActual() usuario: UsuarioAutenticado,
