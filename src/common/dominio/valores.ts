@@ -65,6 +65,15 @@ export const TIPOS_DOCUMENTO = {
   FACTURA: 'factura',
 } as const;
 
+/**
+ * DOCUMENTO_TRIBUTARIO.estado (E9-H3, confirmado por el equipo el 31 de octubre de 2026): el MER
+ * no define los valores. Por ahora solo `emitido`, el documento registrado y vigente; el equipo
+ * podría fijar más después.
+ */
+export const ESTADOS_DOCUMENTO = {
+  EMITIDO: 'emitido',
+} as const;
+
 /** ARTICULO_VENTA.tipo: discriminador del supertipo. */
 export const TIPOS_ARTICULO = {
   FORMATO: 'formato',

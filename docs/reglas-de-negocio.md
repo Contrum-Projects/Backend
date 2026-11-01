@@ -142,6 +142,7 @@ ninguno. El administrador tiene todos, también los que se agreguen.
 | `catalogo.gestionar` | Productos, formatos, imágenes, marcas, categorías y packs (E3, E4) | ✅ | ✅ | |
 | `precios.gestionar` | Precio minorista y mayorista (E3-H5) | ✅ | | |
 | `pedidos.gestionar` | Ver pedidos y cambiar su estado en el panel (E8-H2) | ✅ | ✅ | ✅ |
+| `facturacion.gestionar` | Registrar la factura emitida en el SII (E9-H3) | ✅ | ✅ | |
 | `verificacion.gestionar` | Revisión manual de profesionales (E10-H3) | ✅ | | |
 | `campanas.gestionar` | Campañas de correo (E12-H3) | ✅ | | |
 | `reportes.ver` | Indicadores y reportes (E14) | ✅ | | |
@@ -496,7 +497,7 @@ de revisión. Un aprobado no aplicado en el regreso del comprador o durante esta
 evento: se marca cuando llega su notificación; si no llega, solo queda la advertencia en el log. No
 envía correo al cliente y no restaura el carrito. Sin cambios al MER.
 
-**E7 Despacho.** Despacho a domicilio (cotiza Chilexpress por comuna, peso y medidas; caché 15 min
+**E7 Despacho.** Despacho a domicilio (cotiza Blue Express por comuna, peso y medidas; caché 15 min
 de la cotización repetida) o retiro en tienda (sin costo). Región y comuna de la lista oficial. Si
 Chilexpress no responde, se informa y se ofrece retiro. Costo del envío guardado neto.
 Decisión del 26 oct: el courier es Chilexpress, no Blue Express (notas técnicas de E7-H2 y E7-H3).
@@ -545,6 +546,31 @@ PROPUESTAS por confirmar: (1) la historia solo pide guardar y consultar; editar 
 agregaron porque en el RF-09.02 dice administrar. (2) El mismo RUT puede repetirse en varios
 registros de la cuenta (una empresa con sucursales); no hay límite de registros. (3) El RUT de
 facturación puede ser distinto del RUT personal de la cuenta (E1-H5) y no se compara con él.
+Decisiones del 31 oct (E9-H3): `POST /api/pedidos/:codigoPedido/factura` con `facturacion.gestionar`
+(permiso nuevo, solo administrador y vendedor; bodeguero, cliente y profesional reciben 403 y sin
+sesión 401). El equipo lo confirmó el 31 oct, junto con el PDF de hasta 5 MB, la fecha de emisión
+opcional, el archivo privado y el estado `emitido`. Es
+`multipart/form-data`: el PDF en el campo `archivo`, el `folio` (entero positivo que cabe en la
+base) y, opcional, la `fechaEmision` (AAAA-MM-DD, no futura; sin ella, hoy en la zona horaria de la
+tienda). El PDF se reconoce por su contenido, no por la extensión. Un código inexistente o mal
+formado, 404; sin PDF, un archivo que no es PDF, folio o fecha inválidos o campos de más, 400; un
+PDF de más de 5 MB, 413; el almacén sin configurar o caído, 503. 409 si el pedido pidió boleta,
+no está pagado (pendiente de pago o cancelado; cualquier estado posterior sirve), ya tiene una
+factura vigente (`id_documento_anulador` nulo) o el folio ya existe entre las facturas. En **una
+transacción** bloquea la fila del pedido (`FOR NO KEY UPDATE`) y crea el `DOCUMENTO_TRIBUTARIO`
+(`tipo` factura, `estado` `emitido`) con una copia de los datos del receptor (RUT, razón social,
+giro, dirección y nombre de la comuna) y de los montos del pedido: no cambian si después se
+edita o se desactiva el dato de facturación. El PDF se sube **antes** de la transacción, en la
+clave `facturas/<id del pedido>/<uuid>.pdf`, y se borra si la base no lo registra (folio repetido
+a la vez, error). Responde 201 `{ codigoPedido, tipo, folio, fechaEmision, estado }` y no revela
+la clave del archivo. El PDF es privado (`Cache-Control: private, no-store`): no se publica con URL;
+lo entregará solo la API al dueño del pedido (E9-H4). El MER no define los valores de `estado` del
+documento: por ahora solo `emitido` (`ESTADOS_DOCUMENTO`), y más adelante se podrían fijar más.
+PROPUESTAS por confirmar (se las presentó al equipo sin objeciones): (1) Un pedido tiene una sola
+factura vigente; reemplazarla o anularla (nota de crédito) queda fuera de la historia. (2) Se puede
+registrar con el pedido en cualquier estado posterior a pagado. (3) La boleta no se registra aquí:
+es el comprobante de Mercado Pago (E9-H1). Cambio a la matriz de permisos del 19 oct (E13-H2): se
+agrega `facturacion.gestionar` para vendedor y administrador. Sin cambios al MER.
 
 **E8 Pedidos.** Estados: pendiente de pago, pagado, en preparación, despachado, entregado, listo
 para retiro, retirado, cancelado (`ESTADOS_PEDIDO`). Cada cambio guarda fecha, quién y comentario,

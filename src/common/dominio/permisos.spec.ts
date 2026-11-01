@@ -44,6 +44,7 @@ describe('tienePermiso', () => {
       'catalogo.gestionar',
       'inventario.consultar',
       'pedidos.gestionar',
+      'facturacion.gestionar',
     ];
     const bodeguero = [
       'proveedores.gestionar',
@@ -59,7 +60,7 @@ describe('tienePermiso', () => {
         bodeguero.includes(permiso),
       );
     }
-    expect(Object.values(PERMISOS)).toHaveLength(10);
+    expect(Object.values(PERMISOS)).toHaveLength(11);
   });
 
   it('RNF-03 · la matriz no se puede ampliar en ejecución', () => {
