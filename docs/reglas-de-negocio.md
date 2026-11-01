@@ -528,6 +528,21 @@ responde 409, igual que crear el pedido. La región no se recibe en la API:
 la indica el código CUT. **Caché:** 15 min en Redis por origen, destino, peso y medidas; solo la tarifa
 del courier, sin precios de productos ni datos de cuentas; sin Redis se consulta directo. Se envía
 `declaredWorth: 0`: es obligatorio y en el sandbox no cambió la tarifa. Sin cambios al MER.
+Decisiones del 1 nov (E7-H3): la orden de transporte se crea fuera de la API y **el personal ingresa su
+número** en `POST /api/pedidos/:codigoPedido/estado` (`codigoSeguimiento`, letras y números, hasta 100).
+Es obligatorio al pasar a despachado y en otro cambio responde 400; esto reemplaza lo que E8-H2 dejó sin
+exigir. `ESTADOS_ENVIO`: `pendiente`, `en_transito`, `en_reparto`, `entregado`, `con_problema`. Al
+despachar queda `en_transito`; el pedido lo devuelve en `envio` (E8-H1). **Consulta:** un job repetible
+cada 30 min en su propia cola, `seguimiento-envios`, para que un courier lento no atrase la cancelación
+por impago (RNF-31). Revisa los pedidos despachados con código; un estado desconocido no cambia el valor
+y queda en el log, y si Chilexpress no responde se corta la pasada y se conserva el último estado.
+**Entrega:** si Chilexpress la informa, en una transacción quedan entregados el envío y el pedido, el
+historial sin usuario y la NOTIFICACION; el correo se encola después. **Correcciones:** volver de despachado
+a en preparación borra el código y deja el envío `pendiente`; marcar entregado a mano deja el envío
+`entregado`; volver de entregado a despachado lo deja `con_problema`. Un pedido que ya estuvo entregado no
+se vuelve a consultar, aunque se le ingrese otro código: lo cierra el personal. Sin cambios al MER.
+**PENDIENTE:** el adaptador de la API Envíos de Chilexpress y la traducción de sus estados, a la espera
+del contrato de tracking del portal; hasta entonces los envíos conservan el último estado.
 
 **E9 Facturación.** Boleta: el comprobante de Mercado Pago. Factura: el cliente elige uno de sus
 datos de facturación; el personal registra la factura emitida en el SII con folio (único por tipo)
