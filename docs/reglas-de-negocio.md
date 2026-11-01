@@ -536,7 +536,8 @@ exigir. `ESTADOS_ENVIO`: `pendiente`, `en_transito`, `en_reparto`, `entregado`, 
 despachar queda `en_transito`; el pedido lo devuelve en `envio` (E8-H1). **Consulta:** un job repetible
 cada 30 min en su propia cola, `seguimiento-envios`, para que un courier lento no atrase la cancelación
 por impago (RNF-31). Revisa los pedidos despachados con código; un estado desconocido no cambia el valor
-y queda en el log, y si Chilexpress no responde se corta la pasada y se conserva el último estado.
+y queda en el log, y si Chilexpress no responde se conserva el último estado. Cada actualización bloquea
+la fila del pedido, igual que los cambios del personal.
 **Entrega:** si Chilexpress la informa, en una transacción quedan entregados el envío y el pedido, el
 historial sin usuario y la NOTIFICACION; el correo se encola después. **Correcciones:** volver de despachado
 a en preparación borra el código y deja el envío `pendiente`; marcar entregado a mano deja el envío
@@ -546,7 +547,8 @@ se vuelve a consultar, aunque se le ingrese otro código: lo cierra el personal.
 `CHILEXPRESS_RUT_EMPRESA`; sin alguna de las dos, los envíos conservan el último estado. Se usa el evento
 conocido más reciente por `code.eventCode`: 4 y 11 `en_transito`, 13 `en_reparto`, 14 `entregado`. Son los
 únicos códigos que muestra la documentación. **`statusCode` -41** (OT no disponible): sigue con el siguiente
-envío; otro rechazo o una falla corta la pasada.
+envío. Otro rechazo de esa OT o una respuesta ilegible queda en el log y también sigue con el siguiente; la
+pasada se corta solo ante una falla general (red, plazo, 5xx, 401, 403, 429). El código no puede ser cero.
 **PENDIENTE:** (1) `con_problema` no tiene código de Chilexpress conocido, así que hoy solo lo asigna la
 corrección del personal. (2) `reference` es obligatoria según el portal: se envía el código público del
 pedido, y falta confirmar si Chilexpress exige que coincida con la referencia de la OT. (3) Falta probar
