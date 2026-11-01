@@ -38,22 +38,26 @@ export class CrearPedidoController {
   @UseGuards(LimitePorCuentaGuard)
   @Throttle({ default: LIMITES.CREAR_PEDIDO })
   @ApiOperation({
-    summary: 'Crear mi pedido desde el carrito (E5-H3, E5-H4)',
+    summary: 'Crear mi pedido desde el carrito (E5-H3, E5-H4, E9-H1)',
     description:
       'Recalcula precios, IVA y total, crea el pedido, reserva el stock, vacía el carrito y da el plazo para pagar. Repetir la misma `claveIdempotencia` devuelve el mismo pedido. El profesional debe llevar el mínimo de unidades de cada formato (los packs no tienen mínimo). El despacho a domicilio se cotiza con Chilexpress y su costo se suma al total (E7-H2).',
   })
   @ApiCreatedResponse({ description: 'Detalle del pedido.' })
-  @ApiBadRequestResponse({ description: 'Datos del pedido inválidos.' })
+  @ApiBadRequestResponse({
+    description:
+      'Datos del pedido inválidos, o factura sin indicar cuáles datos de facturación usar.',
+  })
   @ApiForbiddenResponse({
     description:
       'Cuenta del personal de tienda, o cuenta sin el correo confirmado.',
   })
   @ApiNotFoundResponse({
-    description: 'La dirección o los datos de facturación no son de la cuenta.',
+    description:
+      'La dirección no es de la cuenta, o los datos de facturación no son de la cuenta o están desactivados.',
   })
   @ApiConflictResponse({
     description:
-      'Ya hay un pedido pendiente de pago, carrito vacío o cambiado mientras se cotizaba, artículo que ya no se vende, sin stock, formatos bajo el mínimo del profesional, o despacho sin cobertura de Chilexpress.',
+      'Ya hay un pedido pendiente de pago, carrito vacío o cambiado mientras se cotizaba, artículo que ya no se vende, sin stock, formatos bajo el mínimo del profesional, despacho sin cobertura de Chilexpress, o factura sin datos de facturación registrados (E9-H1).',
   })
   @ApiServiceUnavailableResponse({
     description:

@@ -9,6 +9,7 @@ import { AppModule } from '../src/app.module.js';
 import { ROLES, type Rol } from '../src/common/dominio/roles.js';
 import {
   CANALES_VENTA,
+  ESTADOS_PAGO,
   ORIGENES_DESCRIPCION,
   TIPOS_ARTICULO,
   TIPOS_MOVIMIENTO,
@@ -181,6 +182,9 @@ describe('Pedidos · crear el pedido desde el carrito (e2e)', () => {
     });
     await prisma.existencia.deleteMany({
       where: { formato: { articulo: { sku: { startsWith: PREFIJO } } } },
+    });
+    await prisma.pago.deleteMany({
+      where: { pedido: { usuario: { email: correo } } },
     });
     // El detalle, el historial y el envío se borran en cascada con el pedido
     await prisma.pedido.deleteMany({ where: { usuario: { email: correo } } });
@@ -495,6 +499,177 @@ describe('Pedidos · crear el pedido desde el carrito (e2e)', () => {
     }).expect(201);
 
     expect((respuesta.body as Pedido).tipoDocumento).toBe('factura');
+  });
+
+  it('E9-H1 · boleta: registra la elección y el comprobante de Mercado Pago queda como su referencia, sin documento tributario', async () => {
+    const comprador = await cuenta(ROLES.CLIENTE);
+    const formato = await nuevoFormato(5);
+    await llenarCarrito(comprador.id, [
+      { articuloId: formato.id, cantidad: 1 },
+    ]);
+
+    const creado = (await confirmar(comprador.token).expect(201))
+      .body as Pedido & { idTransaccionPago: string | null };
+    expect(creado.tipoDocumento).toBe('boleta');
+    expect(creado.idTransaccionPago).toBeNull();
+
+    const pedido = await prisma.pedido.findUniqueOrThrow({
+      where: { codigoPublico: creado.codigoPublico },
+    });
+    expect(pedido.tipoDocumentoSolicitado).toBe('boleta');
+    expect(pedido.datosFacturacionId).toBeNull();
+
+    const idTransaccion = `e2e-${randomUUID()}`;
+    await prisma.pago.createMany({
+      data: [
+        {
+          pedidoId: pedido.id,
+          idTransaccionExterna: `e2e-${randomUUID()}`,
+          monto: pedido.montoTotal,
+          estado: ESTADOS_PAGO.RECHAZADO,
+        },
+        {
+          pedidoId: pedido.id,
+          idTransaccionExterna: idTransaccion,
+          monto: pedido.montoTotal,
+          estado: ESTADOS_PAGO.APROBADO,
+        },
+      ],
+    });
+
+    const detalle = await servidor()
+      .get(`${RUTA}/${creado.codigoPublico}`)
+      .auth(comprador.token, { type: 'bearer' })
+      .expect(200);
+
+    expect(detalle.body).toMatchObject({
+      tipoDocumento: 'boleta',
+      idTransaccionPago: idTransaccion,
+      documento: null,
+    });
+    expect(
+      await prisma.documentoTributario.count({
+        where: { pedidoId: pedido.id },
+      }),
+    ).toBe(0);
+  });
+
+  it('E9-H1 · factura con datos guardados: asocia al pedido los que indicó', async () => {
+    const comprador = await cuenta(ROLES.CLIENTE);
+    const formato = await nuevoFormato(5);
+    await llenarCarrito(comprador.id, [
+      { articuloId: formato.id, cantidad: 1 },
+    ]);
+    const datos = {
+      usuarioId: comprador.id,
+      comunaId,
+      rut: '11111111-1',
+      razonSocial: 'Peluquería de Prueba',
+      giro: 'Peluquería',
+      direccion: 'Av. Prueba 123',
+    };
+    await prisma.datosFacturacion.create({ data: datos });
+    const elegidos = await prisma.datosFacturacion.create({ data: datos });
+
+    const creado = (
+      await confirmar(comprador.token, {
+        tipoDocumento: 'factura',
+        datosFacturacionId: elegidos.id,
+      }).expect(201)
+    ).body as Pedido;
+
+    const pedido = await prisma.pedido.findUniqueOrThrow({
+      where: { codigoPublico: creado.codigoPublico },
+    });
+    expect(pedido.tipoDocumentoSolicitado).toBe('factura');
+    expect(pedido.datosFacturacionId).toBe(elegidos.id);
+  });
+
+  it('E9-H1 · factura con datos guardados sin indicar cuál: 400 y no crea el pedido', async () => {
+    const comprador = await cuenta(ROLES.CLIENTE);
+    const formato = await nuevoFormato(5);
+    await llenarCarrito(comprador.id, [
+      { articuloId: formato.id, cantidad: 1 },
+    ]);
+    await prisma.datosFacturacion.create({
+      data: {
+        usuarioId: comprador.id,
+        comunaId,
+        rut: '11111111-1',
+        razonSocial: 'Peluquería de Prueba',
+        giro: 'Peluquería',
+        direccion: 'Av. Prueba 123',
+      },
+    });
+
+    await confirmar(comprador.token, { tipoDocumento: 'factura' }).expect(400);
+
+    expect(await pedidosDe(comprador.id)).toBe(0);
+  });
+
+  it('RNF-07 · factura con datos de otra cuenta: 404, no crea el pedido y deja stock y carrito intactos', async () => {
+    const comprador = await cuenta(ROLES.CLIENTE);
+    const otra = await cuenta(ROLES.CLIENTE);
+    const formato = await nuevoFormato(5);
+    await llenarCarrito(comprador.id, [
+      { articuloId: formato.id, cantidad: 2 },
+    ]);
+    const datos = {
+      comunaId,
+      rut: '11111111-1',
+      razonSocial: 'Peluquería de Prueba',
+      giro: 'Peluquería',
+      direccion: 'Av. Prueba 123',
+    };
+    await prisma.datosFacturacion.create({
+      data: { ...datos, usuarioId: comprador.id },
+    });
+    const ajenos = await prisma.datosFacturacion.create({
+      data: { ...datos, usuarioId: otra.id },
+    });
+
+    await confirmar(comprador.token, {
+      tipoDocumento: 'factura',
+      datosFacturacionId: ajenos.id,
+    }).expect(404);
+
+    expect(await pedidosDe(comprador.id)).toBe(0);
+    expect(await stockDe(formato.id)).toBe(5);
+    expect(await itemsDelCarrito(comprador.id)).toBe(1);
+  });
+
+  it('E9-H1 · factura sin datos: rechaza el pedido, indica registrarlos primero y deja stock y carrito intactos', async () => {
+    const comprador = await cuenta(ROLES.CLIENTE);
+    const formato = await nuevoFormato(5);
+    await llenarCarrito(comprador.id, [
+      { articuloId: formato.id, cantidad: 2 },
+    ]);
+    // Los datos desactivados cuentan como no tenerlos
+    const inactivos = await prisma.datosFacturacion.create({
+      data: {
+        usuarioId: comprador.id,
+        comunaId,
+        rut: '11111111-1',
+        razonSocial: 'Peluquería de Prueba',
+        giro: 'Peluquería',
+        direccion: 'Av. Prueba 123',
+        activo: false,
+      },
+    });
+
+    for (const elegido of [{}, { datosFacturacionId: inactivos.id }]) {
+      const respuesta = await confirmar(comprador.token, {
+        tipoDocumento: 'factura',
+        ...elegido,
+      }).expect(409);
+      expect((respuesta.body as { message: string }).message).toBe(
+        'Debes registrar tus datos de facturación antes de pedir factura.',
+      );
+    }
+
+    expect(await pedidosDe(comprador.id)).toBe(0);
+    expect(await stockDe(formato.id)).toBe(5);
+    expect(await itemsDelCarrito(comprador.id)).toBe(1);
   });
 
   it('E5-H3 · stock insuficiente: no crea el pedido, nombra el artículo y deja stock y carrito intactos', async () => {

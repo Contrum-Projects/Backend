@@ -58,6 +58,7 @@ const filaPedido = (cambios: Record<string, unknown> = {}) => ({
     { estado: 'pagado', fechaHora: new Date('2026-10-20T15:05:00Z') },
   ],
   documentos: [],
+  pagos: [],
   ...cambios,
 });
 
@@ -225,6 +226,38 @@ describe('MisPedidosService', () => {
         }),
       );
       expect((await servicio.obtener(CUENTA, CODIGO)).documento).toBeNull();
+    });
+
+    it('E9-H1 · boleta: el detalle entrega el id de transacción del pago aprobado como referencia del comprobante', async () => {
+      db.pedido.findFirst.mockResolvedValue(
+        filaPedido({ pagos: [{ idTransaccionExterna: '1234567890' }] }),
+      );
+
+      const detalle = await servicio.obtener(CUENTA, CODIGO);
+
+      expect(detalle.tipoDocumento).toBe('boleta');
+      expect(detalle.idTransaccionPago).toBe('1234567890');
+      expect(detalle.documento).toBeNull();
+      const consulta = db.pedido.findFirst.mock.calls[0][0].select.pagos;
+      expect(consulta.where).toEqual({ estado: 'aprobado' });
+      expect(consulta.select).toEqual({ idTransaccionExterna: true });
+    });
+
+    it('E9-H1 · sin pago aprobado, o con factura, no hay comprobante que mostrar', async () => {
+      db.pedido.findFirst.mockResolvedValue(filaPedido());
+      expect(
+        (await servicio.obtener(CUENTA, CODIGO)).idTransaccionPago,
+      ).toBeNull();
+
+      db.pedido.findFirst.mockResolvedValue(
+        filaPedido({
+          tipoDocumentoSolicitado: 'factura',
+          pagos: [{ idTransaccionExterna: '1234567890' }],
+        }),
+      );
+      expect(
+        (await servicio.obtener(CUENTA, CODIGO)).idTransaccionPago,
+      ).toBeNull();
     });
 
     it('el comentario y el autor de un cambio de estado no se leen (son del personal)', async () => {

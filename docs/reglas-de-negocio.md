@@ -397,7 +397,7 @@ minuto por IP (`LIMITES.COTIZAR_CARRITO`, RNF-09): frena sondear el stock proban
 cuenta. Sin cambios al MER.
 Decisiones del 30 oct (E5-H3): `POST /api/pedidos` (cliente y profesional; personal 403) recibe
 `claveIdempotencia` (UUID), `tipoEntrega`, `tipoDocumento`, `direccionId` (obligatoria con despacho,
-rechazada con retiro) y `datosFacturacionId` (obligatorio con factura, rechazado con boleta; activo).
+rechazada con retiro) y `datosFacturacionId` (con factura, ver E9-H1; rechazado con boleta; activo).
 Una dirección o datos de otra cuenta responden 404. Responde 201 con la forma del detalle de E8-H1.
 **Cambio al MER:** `pedido.clave_idempotencia` (nullable), única por cuenta. Con la cuenta bloqueada,
 repetir la clave devuelve el mismo pedido (201); el pedido **vacía el carrito** en la misma
@@ -620,6 +620,19 @@ es parte de esta historia ni de E9-H3, y queda como posible mejora junto al work
 PROPUESTAS por confirmar: (1) Los valores `pendiente` y `disponible` (la historia solo pide
 «indicar que está pendiente»). (2) La boleta no se descarga aquí: es el comprobante de Mercado Pago
 (E9-H1) y su presentación se decide allí. Sin cambios al MER.
+Decisiones del 1 nov (E9-H1): se elige en `POST /api/pedidos` (E5-H3). **Boleta:** no crea
+`DOCUMENTO_TRIBUTARIO`; el comprobante lo emite Mercado Pago y la API guarda su referencia,
+`pago.id_transaccion_externa`, que ya registra E6-H1. El detalle del pedido suma
+`idTransaccionPago`: ese id con boleta y pago aprobado; `null` si pidió factura o aún no hay pago
+aprobado. No se guarda archivo ni URL del comprobante. **Factura:** con `datosFacturacionId` de un
+registro activo de la cuenta, lo asocia al pedido. Sin ningún registro activo en la cuenta (también
+si todos están desactivados), con o sin id, 409 «Debes registrar tus datos de facturación antes de
+pedir factura.». Con registros activos: sin id, 400; con un id ajeno o desactivado, 404. Por eso el
+DTO deja pasar la factura sin id: solo el servicio conoce la cuenta, y lo revisa con ella bloqueada.
+Con despacho, la cotización va antes de la transacción: si Chilexpress no responde, el 503 llega
+antes que este 409. PROPUESTAS por confirmar: (1) Mostrar solo el id de transacción como
+presentación de la boleta, que E9-H4 dejó para esta historia. (2) El código 409, que la historia no
+define. Sin cambios al MER.
 
 **E8 Pedidos.** Estados: pendiente de pago, pagado, en preparación, despachado, entregado, listo
 para retiro, retirado, cancelado (`ESTADOS_PEDIDO`). Cada cambio guarda fecha, quién y comentario,

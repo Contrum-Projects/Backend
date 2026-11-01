@@ -49,6 +49,11 @@ export const PEDIDO_PENDIENTE =
 export const CARRITO_CAMBIADO =
   'Tu carrito o tu dirección cambiaron mientras cotizábamos el despacho. Intenta de nuevo.';
 
+export const SIN_DATOS_FACTURACION =
+  'Debes registrar tus datos de facturación antes de pedir factura.';
+export const FALTA_ELEGIR_DATOS_FACTURACION =
+  'Los datos de facturación son obligatorios para la factura.';
+
 /** El despacho ya cotizado y lo que se cotizó, para comprobarlo dentro de la transacción. */
 interface EnvioPorCrear extends EnvioCotizado {
   comunaId: number;
@@ -371,21 +376,32 @@ export class CrearPedidoService {
     return { codigoPedido: pedido.codigoPublico, avisos };
   }
 
-  /** Id de los datos de facturación si el documento es factura; 404 si no son de la cuenta. */
+  /**
+   * E9-H1 · Id de los datos de facturación si el documento es factura. Sin datos activos en la
+   * cuenta, 409: primero debe registrarlos. Con datos, 400 si no indicó cuáles y 404 si los que
+   * indicó no son de la cuenta o están desactivados.
+   */
   private async exigirDatosFacturacion(
     tx: Tx,
     usuarioId: number,
     dto: CrearPedidoDto,
   ): Promise<number | null> {
     if (dto.tipoDocumento !== TIPOS_DOCUMENTO.FACTURA) return null;
-    const datos = await tx.datosFacturacion.findFirst({
-      where: { id: dto.datosFacturacionId, usuarioId, activo: true },
+    const activos = await tx.datosFacturacion.findMany({
+      where: { usuarioId, activo: true },
       select: { id: true },
     });
-    if (!datos) {
+    if (activos.length === 0) {
+      throw new ConflictException(SIN_DATOS_FACTURACION);
+    }
+    const elegido = dto.datosFacturacionId;
+    if (!elegido) {
+      throw new BadRequestException(FALTA_ELEGIR_DATOS_FACTURACION);
+    }
+    if (!activos.some(({ id }) => id === elegido)) {
       throw new NotFoundException('Los datos de facturación no existen.');
     }
-    return datos.id;
+    return elegido;
   }
 
   /** La dirección si la entrega es despacho; 404 si no es de la cuenta. */

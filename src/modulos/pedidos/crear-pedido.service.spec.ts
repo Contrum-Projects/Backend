@@ -17,7 +17,9 @@ import {
   CARRITO_VACIO,
   CORREO_SIN_CONFIRMAR,
   CrearPedidoService,
+  FALTA_ELEGIR_DATOS_FACTURACION,
   PEDIDO_PENDIENTE,
+  SIN_DATOS_FACTURACION,
 } from './crear-pedido.service.js';
 import type { CrearPedidoDto } from './dto/crear-pedido.dto.js';
 import type { MisPedidosService } from './mis-pedidos.service.js';
@@ -75,7 +77,7 @@ const crearDb = () => {
         .mockResolvedValue({ id: 40, codigoPublico: 'AB12CD34EF56' }),
     },
     direccion: { findFirst: vi.fn() },
-    datosFacturacion: { findFirst: vi.fn() },
+    datosFacturacion: { findMany: vi.fn().mockResolvedValue([]) },
     $transaction: vi.fn(),
   };
   db.$transaction.mockImplementation((fn: (t: typeof db) => Promise<unknown>) =>
@@ -392,8 +394,8 @@ describe('CrearPedidoService', () => {
     });
   });
 
-  it('E5-H3 · pedido creado: la factura usa los datos activos de la cuenta', async () => {
-    db.datosFacturacion.findFirst.mockResolvedValue({ id: 3 });
+  it('E9-H1 · factura con datos guardados: asocia al pedido los que indicó, buscando solo los activos de la cuenta', async () => {
+    db.datosFacturacion.findMany.mockResolvedValue([{ id: 2 }, { id: 3 }]);
 
     await servicio.crear(
       CUENTA,
@@ -401,12 +403,48 @@ describe('CrearPedidoService', () => {
       dtoRetiro({ tipoDocumento: 'factura', datosFacturacionId: 3 }),
     );
 
-    expect(db.datosFacturacion.findFirst.mock.calls[0][0].where).toEqual({
-      id: 3,
+    expect(db.datosFacturacion.findMany.mock.calls[0][0].where).toEqual({
       usuarioId: 7,
       activo: true,
     });
     expect(datosPedido().datosFacturacionId).toBe(3);
+    expect(datosPedido().tipoDocumentoSolicitado).toBe('factura');
+  });
+
+  it('E9-H1 · boleta: registra la elección sin datos de facturación y sin consultarlos', async () => {
+    await servicio.crear(CUENTA, ROLES.CLIENTE, dtoRetiro());
+
+    expect(datosPedido().tipoDocumentoSolicitado).toBe('boleta');
+    expect(datosPedido().datosFacturacionId).toBeNull();
+    expect(db.datosFacturacion.findMany).not.toHaveBeenCalled();
+  });
+
+  it('E9-H1 · factura sin datos: rechaza el pedido e indica registrarlos primero, aunque mande un id', async () => {
+    for (const elegido of [{}, { datosFacturacionId: 3 }]) {
+      const intento = servicio.crear(
+        CUENTA,
+        ROLES.CLIENTE,
+        dtoRetiro({ tipoDocumento: 'factura', ...elegido }),
+      );
+      await expect(intento).rejects.toBeInstanceOf(ConflictException);
+      await expect(intento).rejects.toThrow(SIN_DATOS_FACTURACION);
+    }
+    expect(db.pedido.create).not.toHaveBeenCalled();
+    expect(ventaStock.descontarPorPedido).not.toHaveBeenCalled();
+  });
+
+  it('E9-H1 · factura con datos guardados sin indicar cuál: 400 que pide elegirlos', async () => {
+    db.datosFacturacion.findMany.mockResolvedValue([{ id: 3 }]);
+
+    const intento = servicio.crear(
+      CUENTA,
+      ROLES.CLIENTE,
+      dtoRetiro({ tipoDocumento: 'factura' }),
+    );
+
+    await expect(intento).rejects.toBeInstanceOf(BadRequestException);
+    await expect(intento).rejects.toThrow(FALTA_ELEGIR_DATOS_FACTURACION);
+    expect(db.pedido.create).not.toHaveBeenCalled();
   });
 
   it('E5-H3 · stock insuficiente: propaga el 409 que nombra el artículo y no vacía el carrito', async () => {
@@ -605,7 +643,7 @@ describe('CrearPedidoService', () => {
 
   it('la dirección o los datos de facturación de otra cuenta responden 404', async () => {
     db.direccion.findFirst.mockResolvedValue(null);
-    db.datosFacturacion.findFirst.mockResolvedValue(null);
+    db.datosFacturacion.findMany.mockResolvedValue([{ id: 8 }]);
 
     await expect(
       servicio.crear(

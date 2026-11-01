@@ -5,6 +5,7 @@ import { precioConIva } from '../../common/dominio/montos.js';
 import { pagarHastaDe } from '../../common/dominio/plazo-pago.js';
 import { deFechaSinHora } from '../../common/dominio/fechas.js';
 import {
+  ESTADOS_PAGO,
   ESTADOS_PEDIDO,
   TIPOS_DOCUMENTO,
   type TIPOS_ARTICULO,
@@ -93,6 +94,11 @@ export interface DetallePedidoCuenta {
    * puede descargar (E9-H4). `null` si el pedido pidió boleta o está cancelado.
    */
   documento: DocumentoPedido | null;
+  /**
+   * Con boleta, la referencia del comprobante de Mercado Pago, que es la boleta del pedido (E9-H1).
+   * `null` si pidió factura o aún no tiene un pago aprobado.
+   */
+  idTransaccionPago: string | null;
   /** Cambios de estado, del primero al último. */
   historial: CambioEstadoPedido[];
 }
@@ -215,6 +221,12 @@ export class MisPedidosService {
           orderBy: { id: 'desc' },
           take: 1,
         },
+        // Un pedido tiene un solo pago aprobado (E6)
+        pagos: {
+          where: { estado: ESTADOS_PAGO.APROBADO },
+          select: { idTransaccionExterna: true },
+          take: 1,
+        },
       },
     });
     if (!pedido) throw new NotFoundException(PEDIDO_NO_EXISTE);
@@ -279,6 +291,10 @@ export class MisPedidosService {
         fecha: cambio.fechaHora,
       })),
       documento: documentoDe(pedido),
+      idTransaccionPago:
+        pedido.tipoDocumentoSolicitado === TIPOS_DOCUMENTO.BOLETA
+          ? (pedido.pagos[0]?.idTransaccionExterna ?? null)
+          : null,
     };
   }
 }
