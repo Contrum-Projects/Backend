@@ -113,7 +113,7 @@ export class StockBajoService {
     }
 
     const asunto =
-      `Stock bajo el mínimo: ${formato.producto.nombre} ${formato.nombreFormato}`.slice(
+      `Stock bajo: ${formato.producto.nombre} · ${formato.nombreFormato}`.slice(
         0,
         LARGO_ASUNTO,
       );

@@ -57,6 +57,22 @@ export const ESTADOS_CON_AVISO: readonly string[] = [
   ESTADOS_PEDIDO.RETIRADO,
 ];
 
+/** Asunto del correo de cada estado con aviso (página «Correos» de Figma). */
+export const asuntoCambioEstado = (codigo: string, estado: string): string => {
+  switch (estado) {
+    case ESTADOS_PEDIDO.DESPACHADO:
+      return `Tu pedido ${codigo} va en camino`;
+    case ESTADOS_PEDIDO.ENTREGADO:
+      return `Tu pedido ${codigo} fue entregado`;
+    case ESTADOS_PEDIDO.LISTO_PARA_RETIRO:
+      return `Tu pedido ${codigo} está listo para retiro`;
+    case ESTADOS_PEDIDO.RETIRADO:
+      return `Retiraste tu pedido ${codigo}`;
+    default:
+      return `Tu pedido ${codigo} cambió de estado`;
+  }
+};
+
 /**
  * Si pasar de `actual` a `destino` es un cambio permitido y en qué sentido va; `null` si no lo
  * es (incluye pedir el mismo estado, saltarse pasos o un estado que no corresponde a la entrega).

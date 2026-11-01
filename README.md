@@ -24,7 +24,8 @@ pnpm start:dev                # http://localhost:3000/api  ·  docs en /api/docs
 La cuenta de desarrollo es `admin@cabelloperfecto.local` / `Cambiar.123456` (se cambian con
 `SEED_ADMIN_EMAIL` y `SEED_ADMIN_PASSWORD`). Solo para desarrollo.
 
-Para levantar todo en contenedores, como en el servidor (RNF-24):
+Para levantar todo en contenedores, como en el servidor (RNF-24). Corre en modo producción, así que
+antes de levantarlo completa `RESEND_API_KEY` en `.env`: sin ella la API no arranca.
 
 ```bash
 cp .env.example .env

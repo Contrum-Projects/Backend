@@ -91,7 +91,7 @@ describe('StockBajoService', () => {
       data: [1, 2].map((usuarioId) => ({
         usuarioId,
         tipo: 'stock_bajo',
-        asunto: 'Stock bajo el mínimo: Shampoo Reparador 300 ml',
+        asunto: 'Stock bajo: Shampoo Reparador · 300 ml',
         estadoEnvio: 'pendiente',
       })),
       select: { id: true, usuarioId: true },

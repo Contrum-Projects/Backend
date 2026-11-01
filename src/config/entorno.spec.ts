@@ -7,6 +7,11 @@ const BASE = {
   JWT_REFRESH_SECRET: 'b'.repeat(32),
 };
 
+const CORREO = {
+  RESEND_API_KEY: 're_clave',
+  CORREO_REMITENTE: 'Cabello Perfecto <no-responder@correo.cl>',
+};
+
 describe('validarEntorno · Chilexpress', () => {
   it('E7-H2 · en producción con clave exige la URL: no cobra tarifas de sandbox por olvido', () => {
     expect(() =>
@@ -42,13 +47,14 @@ describe('validarEntorno · Chilexpress', () => {
     expect(
       validarEntorno({
         ...BASE,
+        ...CORREO,
         NODE_ENV: 'production',
         CHILEXPRESS_CLAVE_COTIZACION: 'clave',
         CHILEXPRESS_URL_BASE: 'https://services.wschilexpress.com/',
       }).CHILEXPRESS_URL_BASE,
     ).toBe('https://services.wschilexpress.com');
     expect(() =>
-      validarEntorno({ ...BASE, NODE_ENV: 'production' }),
+      validarEntorno({ ...BASE, ...CORREO, NODE_ENV: 'production' }),
     ).not.toThrow();
   });
 
@@ -60,5 +66,30 @@ describe('validarEntorno · Chilexpress', () => {
         CHILEXPRESS_CLAVE_COTIZACION: 'clave',
       }),
     ).not.toThrow();
+  });
+});
+
+describe('validarEntorno · correos', () => {
+  const PRODUCCION = { ...BASE, NODE_ENV: 'production' };
+
+  it('E1-H6 · en producción exige la clave de Resend: sin ella nadie podría activar su cuenta', () => {
+    expect(() => validarEntorno(PRODUCCION)).toThrow('RESEND_API_KEY');
+  });
+
+  it('E1-H6 · con la clave de Resend exige el remitente', () => {
+    expect(() =>
+      validarEntorno({ ...BASE, RESEND_API_KEY: 're_clave' }),
+    ).toThrow('CORREO_REMITENTE');
+  });
+
+  it('E1-H6 · fuera de producción arranca sin clave, con el worker encendido por defecto', () => {
+    const entorno = validarEntorno({ ...BASE, RESEND_API_KEY: '' });
+
+    expect(entorno.RESEND_API_KEY).toBeUndefined();
+    expect(entorno.CORREOS_WORKER_ACTIVO).toBe(true);
+    expect(
+      validarEntorno({ ...BASE, CORREOS_WORKER_ACTIVO: 'false' })
+        .CORREOS_WORKER_ACTIVO,
+    ).toBe(false);
   });
 });

@@ -25,6 +25,7 @@ import { PrismaService } from '../../prisma/prisma.service.js';
 import { PEDIDO_NO_EXISTE } from './cancelar-pedido.service.js';
 import type { CambiarEstadoPedidoDto } from './dto/cambiar-estado-pedido.dto.js';
 import {
+  asuntoCambioEstado,
   ESTADOS_CON_AVISO,
   ETIQUETAS_ESTADO,
   type SentidoCambio,
@@ -316,11 +317,10 @@ export class CambiarEstadoPedidoService {
         usuarioId: pedido.compradorId,
         pedidoId: pedido.id,
         tipo: TIPOS_NOTIFICACION.CAMBIO_ESTADO_PEDIDO,
-        asunto:
-          `Tu pedido ${pedido.codigoPublico} está ${etiqueta(estado)}`.slice(
-            0,
-            LARGO_ASUNTO,
-          ),
+        asunto: asuntoCambioEstado(pedido.codigoPublico, estado).slice(
+          0,
+          LARGO_ASUNTO,
+        ),
         estadoEnvio: ESTADOS_NOTIFICACION.PENDIENTE,
       },
       select: { id: true },

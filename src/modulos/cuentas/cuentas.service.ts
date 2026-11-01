@@ -23,7 +23,7 @@ import { PrismaService } from '../../prisma/prisma.service.js';
 import type { RegistrarCuentaDto } from './dto/registrar-cuenta.dto.js';
 import { generarTokenCorreo, hashearTokenCorreo } from './tokens.js';
 
-const ASUNTO_CONFIRMACION = 'Confirma tu correo en Cabello Perfecto';
+const ASUNTO_CONFIRMACION = 'Confirma tu correo';
 
 export interface Mensaje {
   mensaje: string;

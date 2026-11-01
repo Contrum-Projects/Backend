@@ -129,7 +129,7 @@ describe('CambiarEstadoPedidoService', () => {
       usuarioId: 9,
       pedidoId: 40,
       tipo: 'cambio_estado_pedido',
-      asunto: `Tu pedido ${CODIGO} está despachado`,
+      asunto: `Tu pedido ${CODIGO} va en camino`,
       estadoEnvio: 'pendiente',
     });
     expect(correos.add).toHaveBeenCalledTimes(1);
