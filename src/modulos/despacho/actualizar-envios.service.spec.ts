@@ -14,25 +14,23 @@ const envio = (id: number, estadoEnvio = 'en_transito') => ({
 
 describe('ActualizarEnviosService', () => {
   let db: {
-    envio: {
-      findMany: ReturnType<typeof vi.fn>;
-      updateMany: ReturnType<typeof vi.fn>;
-    };
+    envio: { findMany: ReturnType<typeof vi.fn> };
   };
   let seguimiento: { consultar: ReturnType<typeof vi.fn> };
-  let cambioEstado: { registrarEntregaDelCourier: ReturnType<typeof vi.fn> };
+  let cambioEstado: {
+    registrarEntregaDelCourier: ReturnType<typeof vi.fn>;
+    actualizarEstadoDelEnvio: ReturnType<typeof vi.fn>;
+  };
   let servicio: ActualizarEnviosService;
 
   beforeEach(() => {
     db = {
-      envio: {
-        findMany: vi.fn().mockResolvedValue([envio(1)]),
-        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
-      },
+      envio: { findMany: vi.fn().mockResolvedValue([envio(1)]) },
     };
     seguimiento = { consultar: vi.fn().mockResolvedValue('en_reparto') };
     cambioEstado = {
       registrarEntregaDelCourier: vi.fn().mockResolvedValue(undefined),
+      actualizarEstadoDelEnvio: vi.fn().mockResolvedValue(undefined),
     };
     servicio = new ActualizarEnviosService(
       db as unknown as PrismaService,
@@ -48,14 +46,11 @@ describe('ActualizarEnviosService', () => {
       codigoSeguimiento: 'OT1',
       referencia: 'PEDIDO1',
     });
-    expect(db.envio.updateMany).toHaveBeenCalledWith({
-      where: {
-        id: 1,
-        codigoSeguimiento: 'OT1',
-        pedido: { estadoActual: 'despachado' },
-      },
-      data: { estadoEnvio: 'en_reparto' },
-    });
+    expect(cambioEstado.actualizarEstadoDelEnvio).toHaveBeenCalledWith(
+      101,
+      'OT1',
+      'en_reparto',
+    );
     expect(cambioEstado.registrarEntregaDelCourier).not.toHaveBeenCalled();
   });
 
@@ -81,7 +76,7 @@ describe('ActualizarEnviosService', () => {
       101,
       'OT1',
     );
-    expect(db.envio.updateMany).not.toHaveBeenCalled();
+    expect(cambioEstado.actualizarEstadoDelEnvio).not.toHaveBeenCalled();
   });
 
   it('el mismo estado de antes o uno sin traducción no escribe nada', async () => {
@@ -91,7 +86,7 @@ describe('ActualizarEnviosService', () => {
     seguimiento.consultar.mockResolvedValue(null);
     await servicio.actualizar();
 
-    expect(db.envio.updateMany).not.toHaveBeenCalled();
+    expect(cambioEstado.actualizarEstadoDelEnvio).not.toHaveBeenCalled();
     expect(cambioEstado.registrarEntregaDelCourier).not.toHaveBeenCalled();
   });
 
@@ -104,7 +99,7 @@ describe('ActualizarEnviosService', () => {
     await expect(servicio.actualizar()).resolves.toBeUndefined();
 
     expect(seguimiento.consultar).toHaveBeenCalledTimes(1);
-    expect(db.envio.updateMany).not.toHaveBeenCalled();
+    expect(cambioEstado.actualizarEstadoDelEnvio).not.toHaveBeenCalled();
   });
 
   it('otra falla solo afecta a su envío: sigue con los demás', async () => {
@@ -115,8 +110,8 @@ describe('ActualizarEnviosService', () => {
 
     await servicio.actualizar();
 
-    expect(db.envio.updateMany).toHaveBeenCalledTimes(1);
-    expect(db.envio.updateMany.mock.calls[0][0].where.id).toBe(2);
+    expect(cambioEstado.actualizarEstadoDelEnvio).toHaveBeenCalledTimes(1);
+    expect(cambioEstado.actualizarEstadoDelEnvio.mock.calls[0][0]).toBe(102);
   });
 
   it('recorre todos los lotes, no solo los primeros 100 envíos', async () => {

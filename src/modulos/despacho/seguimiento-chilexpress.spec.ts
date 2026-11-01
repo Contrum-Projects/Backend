@@ -1,6 +1,12 @@
-import { ServiceUnavailableException } from '@nestjs/common';
-import { SeguimientoChilexpress } from './seguimiento-chilexpress.js';
-import { SEGUIMIENTO_NO_DISPONIBLE } from './seguimiento-envio.js';
+import { Logger, ServiceUnavailableException } from '@nestjs/common';
+import {
+  crearSeguimiento,
+  SeguimientoChilexpress,
+} from './seguimiento-chilexpress.js';
+import {
+  SEGUIMIENTO_NO_DISPONIBLE,
+  SeguimientoNoConfigurado,
+} from './seguimiento-envio.js';
 
 const CLAVE = 'clave-de-prueba';
 const CONSULTA = {
@@ -137,20 +143,62 @@ describe('SeguimientoChilexpress', () => {
     expect(llamada).not.toHaveBeenCalled();
   });
 
-  it('RNF-32 · Chilexpress falla, rechaza la consulta o no responde: 503', async () => {
+  it('RNF-32 · Chilexpress no responde, falla o rechaza la clave: 503, y se corta la pasada', async () => {
     respuesta({ milliseconds: 0, statusCode: 0, errors: ['falla'] }, 500);
     await noDisponible();
 
-    respuesta({ data: null, statusCode: -1 }, 400);
-    await noDisponible();
-
-    respuesta({ data: null, statusCode: -5 });
-    await noDisponible();
-
-    llamada.mockResolvedValue(new Response('no es json'));
-    await noDisponible();
+    for (const status of [401, 403, 429]) {
+      respuesta({ statusCode: status }, status);
+      await noDisponible();
+    }
 
     llamada.mockRejectedValue(new Error('timeout'));
     await noDisponible();
+  });
+
+  it('E7-H3 · una OT rechazada o una respuesta ilegible no frena a los demás envíos', async () => {
+    respuesta({ data: null, statusCode: -1 }, 400);
+    expect(await seguimiento.consultar(CONSULTA)).toBeNull();
+
+    respuesta({ data: null, statusCode: -5 });
+    expect(await seguimiento.consultar(CONSULTA)).toBeNull();
+
+    llamada.mockResolvedValue(new Response('no es json'));
+    expect(await seguimiento.consultar(CONSULTA)).toBeNull();
+  });
+
+  it('RNF-10 · los logs no incluyen la clave ni el cuerpo de la respuesta', async () => {
+    const error = vi.spyOn(Logger.prototype, 'error');
+    const aviso = vi.spyOn(Logger.prototype, 'warn');
+
+    llamada.mockRejectedValue(new TypeError(`valor inválido: ${CLAVE}`));
+    await noDisponible();
+    llamada.mockResolvedValue(new Response('Juan Pérez, Calle 123'));
+    await seguimiento.consultar(CONSULTA);
+
+    const registrado = [...error.mock.calls, ...aviso.mock.calls].join(' ');
+    expect(registrado).not.toContain(CLAVE);
+    expect(registrado).not.toContain('Juan');
+  });
+});
+
+describe('crearSeguimiento', () => {
+  it('E7-H3 · con clave y RUT consulta Chilexpress', () => {
+    expect(
+      crearSeguimiento('clave', 77398220, 'https://sandbox.test'),
+    ).toBeInstanceOf(SeguimientoChilexpress);
+  });
+
+  it('E7-H3 · sin clave o sin RUT, los envíos conservan su último estado', async () => {
+    for (const [clave, rut] of [
+      [undefined, 77398220],
+      ['clave', undefined],
+    ] as const) {
+      const seguimiento = crearSeguimiento(clave, rut, 'https://sandbox.test');
+      expect(seguimiento).toBeInstanceOf(SeguimientoNoConfigurado);
+      await expect(seguimiento.consultar(CONSULTA)).rejects.toThrow(
+        new ServiceUnavailableException(SEGUIMIENTO_NO_DISPONIBLE),
+      );
+    }
   });
 });

@@ -12,14 +12,15 @@ export const MAXIMO_CODIGO_SEGUIMIENTO = 15;
 
 const ESTADOS = Object.values(ESTADOS_PEDIDO);
 
-/** Solo dígitos; el largo y el tipo los revisa `TextoOpcional`. */
+/** Solo dígitos y distinto de cero; el largo y el tipo los revisa `TextoOpcional`. */
 const FormatoCodigoSeguimiento = () =>
   ValidateBy({
     name: 'formatoCodigoSeguimiento',
     validator: {
       validate: (valor: unknown) =>
-        typeof valor !== 'string' || /^\d*$/.test(valor),
-      defaultMessage: () => 'El código de seguimiento solo admite números.',
+        typeof valor !== 'string' || valor === '' || /^0*[1-9]\d*$/.test(valor),
+      defaultMessage: () =>
+        'El código de seguimiento debe ser un número mayor que cero.',
     },
   });
 

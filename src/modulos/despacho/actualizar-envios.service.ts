@@ -102,14 +102,10 @@ export class ActualizarEnviosService {
       );
       return;
     }
-    // Con la condición en la misma escritura: el personal pudo devolver el pedido durante la consulta
-    await this.prisma.envio.updateMany({
-      where: {
-        id: envio.id,
-        codigoSeguimiento: codigo,
-        pedido: { estadoActual: ESTADOS_PEDIDO.DESPACHADO },
-      },
-      data: { estadoEnvio: estado },
-    });
+    await this.cambioEstado.actualizarEstadoDelEnvio(
+      envio.pedidoId,
+      codigo,
+      estado,
+    );
   }
 }

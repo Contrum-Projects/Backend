@@ -70,7 +70,11 @@ describe('CambiarEstadoPedidoDto', () => {
     expect(
       (await probar({ estado: 'despachado', codigoSeguimiento: 'OT99001' }))
         .mensajes,
-    ).toEqual(['El código de seguimiento solo admite números.']);
+    ).toEqual(['El código de seguimiento debe ser un número mayor que cero.']);
+    expect(
+      (await probar({ estado: 'despachado', codigoSeguimiento: '000' }))
+        .mensajes,
+    ).toEqual(['El código de seguimiento debe ser un número mayor que cero.']);
     expect(
       (
         await probar({

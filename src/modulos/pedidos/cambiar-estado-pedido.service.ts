@@ -199,22 +199,8 @@ export class CambiarEstadoPedidoService {
     codigoSeguimiento: string,
   ): Promise<void> {
     const aviso = await this.prisma.$transaction(async (tx) => {
-      const filas = await tx.$queryRaw<PedidoBloqueado[]>`
-        SELECT id_pedido AS id,
-               codigo_publico AS "codigoPublico",
-               estado_actual AS estado,
-               tipo_entrega AS "tipoEntrega",
-               id_usuario AS "compradorId"
-        FROM pedido
-        WHERE id_pedido = ${pedidoId}
-        FOR NO KEY UPDATE`;
-      const pedido = filas[0];
-      if (pedido?.estado !== ESTADOS_PEDIDO.DESPACHADO) return null;
-
-      const entregasPrevias = await tx.historialEstadoPedido.count({
-        where: { pedidoId, estado: ESTADOS_PEDIDO.ENTREGADO },
-      });
-      if (entregasPrevias > 0) return null;
+      const pedido = await this.bloquearSeguible(tx, pedidoId);
+      if (!pedido) return null;
 
       const { count } = await tx.envio.updateMany({
         where: { pedidoId, codigoSeguimiento },
@@ -233,6 +219,49 @@ export class CambiarEstadoPedidoService {
     });
 
     await this.encolarAviso(aviso);
+  }
+
+  /**
+   * E7-H3 · El courier informó otro estado que no es la entrega. Con el pedido bloqueado, para no
+   * pisar un cambio del personal hecho mientras se consultaba.
+   */
+  async actualizarEstadoDelEnvio(
+    pedidoId: number,
+    codigoSeguimiento: string,
+    estadoEnvio: string,
+  ): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      const pedido = await this.bloquearSeguible(tx, pedidoId);
+      if (!pedido) return;
+
+      await tx.envio.updateMany({
+        where: { pedidoId, codigoSeguimiento },
+        data: { estadoEnvio },
+      });
+    });
+  }
+
+  /** Bloquea el pedido; `null` si ya no corresponde seguirlo: no está despachado o ya se entregó. */
+  private async bloquearSeguible(
+    tx: Prisma.TransactionClient,
+    pedidoId: number,
+  ): Promise<PedidoBloqueado | null> {
+    const filas = await tx.$queryRaw<PedidoBloqueado[]>`
+      SELECT id_pedido AS id,
+             codigo_publico AS "codigoPublico",
+             estado_actual AS estado,
+             tipo_entrega AS "tipoEntrega",
+             id_usuario AS "compradorId"
+      FROM pedido
+      WHERE id_pedido = ${pedidoId}
+      FOR NO KEY UPDATE`;
+    const pedido = filas[0];
+    if (pedido?.estado !== ESTADOS_PEDIDO.DESPACHADO) return null;
+
+    const entregasPrevias = await tx.historialEstadoPedido.count({
+      where: { pedidoId, estado: ESTADOS_PEDIDO.ENTREGADO },
+    });
+    return entregasPrevias > 0 ? null : pedido;
   }
 
   /** Historial, estado del pedido y, si es un avance clave, la NOTIFICACION (RNF-12). */

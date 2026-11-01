@@ -13,11 +13,8 @@ import {
 import { CotizadorEnvio } from './cotizador-envio.js';
 import { CotizarEnvioService } from './cotizar-envio.service.js';
 import { DespachoController } from './despacho.controller.js';
-import { SeguimientoChilexpress } from './seguimiento-chilexpress.js';
-import {
-  SeguimientoEnvio,
-  SeguimientoNoConfigurado,
-} from './seguimiento-envio.js';
+import { crearSeguimiento } from './seguimiento-chilexpress.js';
+import { SeguimientoEnvio } from './seguimiento-envio.js';
 import { SeguimientoProcessor } from './seguimiento.processor.js';
 
 const URL_SANDBOX = 'https://testservices.wschilexpress.com';
@@ -58,21 +55,12 @@ const URL_SANDBOX = 'https://testservices.wschilexpress.com';
     {
       provide: SeguimientoEnvio,
       inject: [ConfigService],
-      useFactory: (config: ConfigService<Entorno, true>): SeguimientoEnvio => {
-        const clave = config.get('CHILEXPRESS_CLAVE_ENVIOS', { infer: true });
-        const rut = config.get('CHILEXPRESS_RUT_EMPRESA', { infer: true });
-        if (!clave || !rut) {
-          new Logger('Despacho').warn(
-            'Seguimiento de Chilexpress sin configurar: los envíos conservan su último estado.',
-          );
-          return new SeguimientoNoConfigurado();
-        }
-        return new SeguimientoChilexpress(
-          clave,
+      useFactory: (config: ConfigService<Entorno, true>): SeguimientoEnvio =>
+        crearSeguimiento(
+          config.get('CHILEXPRESS_CLAVE_ENVIOS', { infer: true }),
+          config.get('CHILEXPRESS_RUT_EMPRESA', { infer: true }),
           config.get('CHILEXPRESS_URL_BASE', { infer: true }) ?? URL_SANDBOX,
-          rut,
-        );
-      },
+        ),
     },
     ActualizarEnviosService,
     SeguimientoProcessor,

@@ -4,6 +4,7 @@ import {
   type ConsultaSeguimiento,
   SEGUIMIENTO_NO_DISPONIBLE,
   SeguimientoEnvio,
+  SeguimientoNoConfigurado,
 } from './seguimiento-envio.js';
 
 type EstadoEnvio = Valor<typeof ESTADOS_ENVIO>;
@@ -16,6 +17,8 @@ const MOSTRAR_EVENTOS = 1;
 const CONSULTA_EXITOSA = 0;
 /** «La OT no se encuentra disponible para consultar». */
 const OT_NO_DISPONIBLE = -41;
+/** Clave rechazada o límite de peticiones: los demás envíos fallarían igual. */
+const FALLAS_GENERALES: ReadonlySet<number> = new Set([401, 403, 429]);
 
 /**
  * `code.eventCode` que aparecen en la documentación de Chilexpress (no publica un catálogo): 4
@@ -76,8 +79,9 @@ export class SeguimientoChilexpress extends SeguimientoEnvio {
     const numeroOt = Number(codigoSeguimiento);
     if (!Number.isSafeInteger(numeroOt)) return null;
 
+    let respuesta: Response;
     try {
-      const respuesta = await fetch(`${this.urlBase}${RUTA_TRACKING}`, {
+      respuesta = await fetch(`${this.urlBase}${RUTA_TRACKING}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -91,22 +95,38 @@ export class SeguimientoChilexpress extends SeguimientoEnvio {
         }),
         signal: AbortSignal.timeout(PLAZO_RESPUESTA_MS),
       });
-      if (respuesta.status >= 500) throw new Error(`HTTP ${respuesta.status}`);
-
-      const cuerpo = (await respuesta.json()) as RespuestaTracking;
-      if (cuerpo.statusCode === OT_NO_DISPONIBLE) return null;
-      if (!respuesta.ok || cuerpo.statusCode !== CONSULTA_EXITOSA) {
-        throw new Error(
-          `HTTP ${respuesta.status}, resultado ${cuerpo.statusCode}`,
-        );
-      }
-      return this.estadoDe(cuerpo.data?.trackingEvents ?? []);
     } catch (error) {
-      this.logger.error(
-        `No se pudo consultar el seguimiento en Chilexpress: ${(error as Error).message}`,
-      );
-      throw new ServiceUnavailableException(SEGUIMIENTO_NO_DISPONIBLE);
+      // Solo el nombre: el mensaje de `fetch` puede incluir el valor de la clave
+      throw this.sinServicio((error as Error).name);
     }
+    if (respuesta.status >= 500 || FALLAS_GENERALES.has(respuesta.status)) {
+      throw this.sinServicio(`HTTP ${respuesta.status}`);
+    }
+
+    // De aquí en adelante la falla es de esta OT: los demás envíos se siguen consultando
+    let cuerpo: RespuestaTracking;
+    try {
+      cuerpo = (await respuesta.json()) as RespuestaTracking;
+    } catch {
+      // Sin el mensaje del error: incluye un trozo del cuerpo, que puede traer datos del receptor
+      this.logger.warn(
+        `Chilexpress respondió sin JSON válido: HTTP ${respuesta.status}.`,
+      );
+      return null;
+    }
+    if (cuerpo.statusCode === OT_NO_DISPONIBLE) return null;
+    if (!respuesta.ok || cuerpo.statusCode !== CONSULTA_EXITOSA) {
+      this.logger.warn(
+        `Chilexpress rechazó la consulta: HTTP ${respuesta.status}, resultado ${Number(cuerpo.statusCode)}.`,
+      );
+      return null;
+    }
+    return this.estadoDe(cuerpo.data?.trackingEvents ?? []);
+  }
+
+  private sinServicio(motivo: string): ServiceUnavailableException {
+    this.logger.error(`No se pudo consultar el seguimiento: ${motivo}.`);
+    return new ServiceUnavailableException(SEGUIMIENTO_NO_DISPONIBLE);
   }
 
   /**
@@ -128,3 +148,18 @@ export class SeguimientoChilexpress extends SeguimientoEnvio {
       : null;
   }
 }
+
+/** Sin clave o sin RUT la app arranca, y los envíos conservan su último estado. */
+export const crearSeguimiento = (
+  clave: string | undefined,
+  rutEmpresa: number | undefined,
+  urlBase: string,
+): SeguimientoEnvio => {
+  if (clave && rutEmpresa) {
+    return new SeguimientoChilexpress(clave, urlBase, rutEmpresa);
+  }
+  new Logger('Despacho').warn(
+    'Seguimiento de Chilexpress sin configurar: los envíos conservan su último estado.',
+  );
+  return new SeguimientoNoConfigurado();
+};

@@ -332,6 +332,34 @@ describe('CambiarEstadoPedidoService', () => {
       });
     });
 
+    it('E7-H3 · otro estado del courier: lo guarda con el pedido bloqueado, sin historial ni correo', async () => {
+      db.$queryRaw.mockResolvedValue([despachado]);
+
+      await servicio.actualizarEstadoDelEnvio(40, 'OT1', 'en_reparto');
+
+      expect(db.$queryRaw).toHaveBeenCalledTimes(1);
+      expect(db.envio.updateMany).toHaveBeenCalledWith({
+        where: { pedidoId: 40, codigoSeguimiento: 'OT1' },
+        data: { estadoEnvio: 'en_reparto' },
+      });
+      expect(db.historialEstadoPedido.create).not.toHaveBeenCalled();
+      expect(correos.add).not.toHaveBeenCalled();
+    });
+
+    it('E7-H3 · otro estado del courier tras una corrección del personal: no pisa el envío', async () => {
+      db.$queryRaw.mockResolvedValue([despachado]);
+      db.historialEstadoPedido.count.mockResolvedValue(1);
+      await servicio.actualizarEstadoDelEnvio(40, 'OT1', 'en_reparto');
+
+      db.historialEstadoPedido.count.mockResolvedValue(0);
+      db.$queryRaw.mockResolvedValue([
+        { ...despachado, estado: 'en_preparacion' },
+      ]);
+      await servicio.actualizarEstadoDelEnvio(40, 'OT1', 'en_reparto');
+
+      expect(db.envio.updateMany).not.toHaveBeenCalled();
+    });
+
     it('el pedido ya no está despachado: no cambia nada', async () => {
       db.$queryRaw.mockResolvedValue([
         { ...despachado, estado: 'en_preparacion' },
