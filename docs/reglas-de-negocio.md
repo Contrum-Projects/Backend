@@ -598,6 +598,28 @@ factura vigente; reemplazarla o anularla (nota de crédito) queda fuera de la hi
 registrar con el pedido en cualquier estado posterior a pagado. (3) La boleta no se registra aquí:
 es el comprobante de Mercado Pago (E9-H1). Cambio a la matriz de permisos del 19 oct (E13-H2): se
 agrega `facturacion.gestionar` para vendedor y administrador. Sin cambios al MER.
+Decisiones del 31 oct (E9-H4): `GET /api/pedidos/:codigoPedido/documento` solo para cliente y
+profesional (`CompradorGuard`; el personal recibe 403, sin sesión 401) y siempre sobre un pedido
+de la cuenta del token: el de otra cuenta, uno inexistente o con un código mal formado responde
+404. Entrega el PDF de la factura vigente (`id_documento_anulador` nulo y con archivo) como
+descarga (`Content-Type: application/pdf`, `Content-Disposition: attachment;
+filename="factura-<folio>.pdf"`, `Cache-Control: private, no-store`, `X-Content-Type-Options:
+nosniff`): la API lo lee de R2 con `AlmacenArchivos.obtener` y nunca devuelve una URL ni la clave
+del archivo. Si la factura aún no se registra, 404 «El documento del pedido aún no está
+disponible.» sin archivo; si R2 no está configurado o no responde, 503 sin detalles del error. El
+detalle del pedido (`GET /api/pedidos/:codigoPedido`, E8-H1) suma el campo `documento`: si el
+pedido pidió factura, `{ tipo: 'factura', estado, folio, fechaEmision }` con `estado` `pendiente`
+(folio y fecha en `null`) o `disponible`; si pidió boleta, o está cancelado y sin factura, `null`.
+El equipo lo confirmó el 1 nov: el campo `documento` y su `null` para la boleta, el 404 del
+documento pendiente y que la boleta se vea en E9-H1. Además pidió que **vendedor y administrador**
+también puedan descargar: `GET /api/pedidos/:codigoPedido/factura` con `facturacion.gestionar`
+(bodeguero, cliente y profesional reciben 403, sin sesión 401), para cualquier pedido y con el mismo
+PDF, encabezados y errores (404 pedido inexistente, mal formado o factura pendiente o anulada; 503
+almacén). Un correo al cliente cuando se registre la factura se mencionó como idea («quizás»): no
+es parte de esta historia ni de E9-H3, y queda como posible mejora junto al worker de correos.
+PROPUESTAS por confirmar: (1) Los valores `pendiente` y `disponible` (la historia solo pide
+«indicar que está pendiente»). (2) La boleta no se descarga aquí: es el comprobante de Mercado Pago
+(E9-H1) y su presentación se decide allí. Sin cambios al MER.
 
 **E8 Pedidos.** Estados: pendiente de pago, pagado, en preparación, despachado, entregado, listo
 para retiro, retirado, cancelado (`ESTADOS_PEDIDO`). Cada cambio guarda fecha, quién y comentario,

@@ -3,10 +3,11 @@ import { ConfigService } from '@nestjs/config';
 import { urlPublicaArchivo } from '../../almacen/almacen-archivos.js';
 import { precioConIva } from '../../common/dominio/montos.js';
 import { pagarHastaDe } from '../../common/dominio/plazo-pago.js';
+import { deFechaSinHora } from '../../common/dominio/fechas.js';
 import {
   ESTADOS_PEDIDO,
+  TIPOS_DOCUMENTO,
   type TIPOS_ARTICULO,
-  type TIPOS_DOCUMENTO,
   type TIPOS_ENTREGA,
   type Valor,
 } from '../../common/dominio/valores.js';
@@ -17,6 +18,11 @@ import {
 import type { Entorno } from '../../config/entorno.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { IMAGEN_PRINCIPAL } from '../catalogo/tienda.service.js';
+import {
+  type DocumentoPedido,
+  ESTADOS_DESCARGA_DOCUMENTO,
+  FACTURA_CON_ARCHIVO,
+} from '../facturacion/documento-pedido.js';
 import { PEDIDO_NO_EXISTE } from './codigo-pedido.pipe.js';
 
 /** Un pedido en el historial de la cuenta (E8-H1). */
@@ -82,6 +88,11 @@ export interface DetallePedidoCuenta {
   items: LineaPedido[];
   /** `null` si el pedido es para retiro en tienda. */
   envio: EnvioPedido | null;
+  /**
+   * La factura del pedido: `pendiente` hasta que el personal la registra y `disponible` cuando se
+   * puede descargar (E9-H4). `null` si el pedido pidió boleta o está cancelado.
+   */
+  documento: DocumentoPedido | null;
   /** Cambios de estado, del primero al último. */
   historial: CambioEstadoPedido[];
 }
@@ -197,6 +208,13 @@ export class MisPedidosService {
           select: { estado: true, fechaHora: true },
           orderBy: { correlativo: 'asc' },
         },
+        // Solo folio y fecha: la clave del archivo no sale de la API
+        documentos: {
+          where: FACTURA_CON_ARCHIVO,
+          select: { folio: true, fechaEmision: true },
+          orderBy: { id: 'desc' },
+          take: 1,
+        },
       },
     });
     if (!pedido) throw new NotFoundException(PEDIDO_NO_EXISTE);
@@ -260,6 +278,33 @@ export class MisPedidosService {
         estado: cambio.estado,
         fecha: cambio.fechaHora,
       })),
+      documento: documentoDe(pedido),
     };
   }
 }
+
+/** E9-H4 · El documento del pedido: pendiente o disponible; sin factura que esperar, `null`. */
+const documentoDe = (pedido: {
+  estadoActual: string;
+  tipoDocumentoSolicitado: string;
+  documentos: { folio: number | null; fechaEmision: Date | null }[];
+}): DocumentoPedido | null => {
+  if (pedido.tipoDocumentoSolicitado !== TIPOS_DOCUMENTO.FACTURA) return null;
+  const factura = pedido.documentos[0];
+  if (factura) {
+    return {
+      tipo: TIPOS_DOCUMENTO.FACTURA,
+      estado: ESTADOS_DESCARGA_DOCUMENTO.DISPONIBLE,
+      folio: factura.folio,
+      fechaEmision: deFechaSinHora(factura.fechaEmision),
+    };
+  }
+  // Un pedido cancelado nunca va a tener factura: no se muestra como pendiente
+  if (pedido.estadoActual === ESTADOS_PEDIDO.CANCELADO) return null;
+  return {
+    tipo: TIPOS_DOCUMENTO.FACTURA,
+    estado: ESTADOS_DESCARGA_DOCUMENTO.PENDIENTE,
+    folio: null,
+    fechaEmision: null,
+  };
+};

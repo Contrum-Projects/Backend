@@ -57,6 +57,7 @@ const filaPedido = (cambios: Record<string, unknown> = {}) => ({
     { estado: 'pendiente_pago', fechaHora: new Date('2026-10-20T15:00:00Z') },
     { estado: 'pagado', fechaHora: new Date('2026-10-20T15:05:00Z') },
   ],
+  documentos: [],
   ...cambios,
 });
 
@@ -169,6 +170,61 @@ describe('MisPedidosService', () => {
       expect(
         db.pedido.findFirst.mock.calls[0][0].select.historial.orderBy,
       ).toEqual({ correlativo: 'asc' });
+    });
+
+    it('E9-H4 · documento pendiente: el pedido pidió factura y aún no se registra, sin folio ni archivo', async () => {
+      db.pedido.findFirst.mockResolvedValue(
+        filaPedido({ tipoDocumentoSolicitado: 'factura', documentos: [] }),
+      );
+
+      const detalle = await servicio.obtener(CUENTA, CODIGO);
+
+      expect(detalle.documento).toEqual({
+        tipo: 'factura',
+        estado: 'pendiente',
+        folio: null,
+        fechaEmision: null,
+      });
+    });
+
+    it('E9-H4 · documento disponible: muestra el folio y la fecha de emisión, y nunca lee la clave del archivo', async () => {
+      db.pedido.findFirst.mockResolvedValue(
+        filaPedido({
+          tipoDocumentoSolicitado: 'factura',
+          documentos: [
+            { folio: 4521, fechaEmision: new Date('2026-10-29T00:00:00Z') },
+          ],
+        }),
+      );
+
+      const detalle = await servicio.obtener(CUENTA, CODIGO);
+
+      expect(detalle.documento).toEqual({
+        tipo: 'factura',
+        estado: 'disponible',
+        folio: 4521,
+        fechaEmision: '2026-10-29',
+      });
+      const consulta = db.pedido.findFirst.mock.calls[0][0].select.documentos;
+      expect(consulta.select).toEqual({ folio: true, fechaEmision: true });
+      expect(consulta.where).toEqual({
+        tipo: 'factura',
+        anuladorId: null,
+        ubicacionArchivo: { not: null },
+      });
+    });
+
+    it('E9-H4 · un pedido con boleta, o cancelado sin factura, no tiene documento que esperar', async () => {
+      db.pedido.findFirst.mockResolvedValue(filaPedido());
+      expect((await servicio.obtener(CUENTA, CODIGO)).documento).toBeNull();
+
+      db.pedido.findFirst.mockResolvedValue(
+        filaPedido({
+          tipoDocumentoSolicitado: 'factura',
+          estadoActual: 'cancelado',
+        }),
+      );
+      expect((await servicio.obtener(CUENTA, CODIGO)).documento).toBeNull();
     });
 
     it('el comentario y el autor de un cambio de estado no se leen (son del personal)', async () => {

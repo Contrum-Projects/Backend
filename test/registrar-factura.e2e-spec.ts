@@ -50,6 +50,10 @@ class AlmacenDePrueba extends AlmacenArchivos {
     this.archivos.delete(clave);
     return Promise.resolve();
   }
+
+  obtener(clave: string) {
+    return Promise.reject(new Error(`${clave}: esta prueba no lee archivos`));
+  }
 }
 
 const pdf = (relleno = 2048) =>

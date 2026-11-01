@@ -1,5 +1,6 @@
 import {
   DeleteObjectCommand,
+  GetObjectCommand,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
@@ -58,6 +59,14 @@ export class AlmacenR2 extends AlmacenArchivos {
       }),
     );
   }
+
+  async obtener(clave: string) {
+    const respuesta = await this.cliente.send(
+      new GetObjectCommand({ Bucket: this.configuracion.bucket, Key: clave }),
+    );
+    if (!respuesta.Body) throw new Error(`El archivo ${clave} llegó vacío.`);
+    return Buffer.from(await respuesta.Body.transformToByteArray());
+  }
 }
 
 /** Sin credenciales de R2: la app arranca, pero no se pueden subir archivos. */
@@ -73,5 +82,13 @@ export class AlmacenNoConfigurado extends AlmacenArchivos {
   // Nada que borrar: sin almacén no se subió ningún archivo
   eliminar(): Promise<void> {
     return Promise.resolve();
+  }
+
+  obtener(): Promise<Buffer> {
+    return Promise.reject(
+      new ServiceUnavailableException(
+        'El almacenamiento de archivos no está configurado.',
+      ),
+    );
   }
 }

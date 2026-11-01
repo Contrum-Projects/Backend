@@ -20,6 +20,12 @@ export abstract class AlmacenArchivos {
 
   /** Borra el archivo. No falla si ya no existe. */
   abstract eliminar(clave: string): Promise<void>;
+
+  /**
+   * Lee el archivo completo (se usa con las facturas, de hasta 5 MB). Falla con 503 si el
+   * almacén no está configurado y con un error si el archivo no existe.
+   */
+  abstract obtener(clave: string): Promise<Buffer>;
 }
 
 /**
