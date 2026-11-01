@@ -528,6 +528,33 @@ responde 409, igual que crear el pedido. La región no se recibe en la API:
 la indica el código CUT. **Caché:** 15 min en Redis por origen, destino, peso y medidas; solo la tarifa
 del courier, sin precios de productos ni datos de cuentas; sin Redis se consulta directo. Se envía
 `declaredWorth: 0`: es obligatorio y en el sandbox no cambió la tarifa. Sin cambios al MER.
+Decisiones del 1 nov (E7-H3): la orden de transporte se crea fuera de la API y **el personal ingresa su
+número** en `POST /api/pedidos/:codigoPedido/estado` (`codigoSeguimiento`, solo dígitos, hasta 15, porque
+Chilexpress lo recibe como número JSON).
+Es obligatorio al pasar a despachado y en otro cambio responde 400; esto reemplaza lo que E8-H2 dejó sin
+exigir. `ESTADOS_ENVIO`: `pendiente`, `en_transito`, `en_reparto`, `entregado`, `con_problema`. Al
+despachar queda `en_transito`; el pedido lo devuelve en `envio` (E8-H1). **Consulta:** un job repetible
+cada 30 min en su propia cola, `seguimiento-envios`, para que un courier lento no atrase la cancelación
+por impago (RNF-31). Revisa los pedidos despachados con código; un estado desconocido no cambia el valor
+y queda en el log, y si Chilexpress no responde se conserva el último estado. Cada actualización bloquea
+la fila del pedido, igual que los cambios del personal.
+**Entrega:** si Chilexpress la informa, en una transacción quedan entregados el envío y el pedido, el
+historial sin usuario y la NOTIFICACION; el correo se encola después. **Correcciones:** volver de despachado
+a en preparación borra el código y deja el envío `pendiente`; marcar entregado a mano deja el envío
+`entregado`; volver de entregado a despachado lo deja `con_problema`. Un pedido que ya estuvo entregado no
+se vuelve a consultar, aunque se le ingrese otro código: lo cierra el personal. Sin cambios al MER.
+**Tracking:** `POST /transport-orders/api/v1.0/tracking` con `CHILEXPRESS_CLAVE_ENVIOS` y
+`CHILEXPRESS_RUT_EMPRESA`; sin alguna de las dos, los envíos conservan el último estado. Se usa el evento
+conocido más reciente por `code.eventCode`: 4 y 11 `en_transito`, 13 `en_reparto`, 14 `entregado`. Son los
+únicos códigos que muestra la documentación. **`statusCode` -41** (OT no disponible): sigue con el siguiente
+envío. Otro rechazo de esa OT o una respuesta ilegible queda en el log y también sigue con el siguiente; la
+pasada se corta solo ante una falla general (red, plazo, 5xx, 401, 403, 429). El código no puede ser cero.
+**OT:** cada una es de un solo pedido (`envio.codigo_seguimiento` es único; el equipo lo pidió el 1 nov):
+repetirla responde 409 y volver el pedido a en preparación la libera. Sin ceros a la izquierda, porque `0123`
+y `123` serían la misma OT. **Referencia:** el personal crea la OT con `pedido.codigo_publico` como
+referencia, y ese valor se envía como `reference`. Cambia el MER: agrega la restricción de unicidad.
+**PENDIENTE:** (1) `con_problema` no tiene código de Chilexpress conocido, así que hoy solo lo asigna la
+corrección del personal. (2) Falta probar contra el sandbox con una OT real.
 
 **E9 Facturación.** Boleta: el comprobante de Mercado Pago. Factura: el cliente elige uno de sus
 datos de facturación; el personal registra la factura emitida en el SII con folio (único por tipo)

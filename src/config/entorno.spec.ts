@@ -18,6 +18,26 @@ describe('validarEntorno · Chilexpress', () => {
     ).toThrow('CHILEXPRESS_URL_BASE');
   });
 
+  it('E7-H3 · en producción, la clave de envíos también exige la URL', () => {
+    expect(() =>
+      validarEntorno({
+        ...BASE,
+        NODE_ENV: 'production',
+        CHILEXPRESS_CLAVE_ENVIOS: 'clave',
+      }),
+    ).toThrow('CHILEXPRESS_URL_BASE');
+  });
+
+  it('E7-H3 · el RUT de la empresa va sin puntos ni dígito verificador', () => {
+    expect(
+      validarEntorno({ ...BASE, CHILEXPRESS_RUT_EMPRESA: '77398220' })
+        .CHILEXPRESS_RUT_EMPRESA,
+    ).toBe(77398220);
+    expect(() =>
+      validarEntorno({ ...BASE, CHILEXPRESS_RUT_EMPRESA: '77.398.220-1' }),
+    ).toThrow('CHILEXPRESS_RUT_EMPRESA');
+  });
+
   it('E7-H2 · en producción arranca con clave y URL, o sin clave', () => {
     expect(
       validarEntorno({

@@ -21,6 +21,11 @@ export const COLAS = {
   CAMPANAS: 'campanas',
   /** Tareas con plazo: vencimiento del pago (15 min), recordatorio de carrito, etc. (RNF-31). */
   PLAZOS: 'plazos',
+  /**
+   * Consulta del estado de los envíos (E7-H3). Va aparte de `plazos`: un worker toma cualquier
+   * trabajo de su cola y un courier lento atrasaría la cancelación por impago (RNF-31).
+   */
+  SEGUIMIENTO_ENVIOS: 'seguimiento-envios',
 } as const;
 
 /** Nombres de los trabajos de la cola de correos. */
@@ -49,6 +54,12 @@ export const TRABAJOS_EVENTO_PAGO = {
 export const TRABAJOS_PLAZO = {
   /** Tarea repetible: cancela los pedidos con el plazo de pago vencido (E6-H3). */
   CANCELAR_IMPAGOS: 'cancelar-impagos',
+} as const;
+
+/** Nombres de los trabajos de la cola de seguimiento de envíos. */
+export const TRABAJOS_SEGUIMIENTO = {
+  /** Tarea repetible: consulta al courier el estado de los envíos en camino (E7-H3). */
+  ACTUALIZAR_ENVIOS: 'actualizar-envios',
 } as const;
 
 /** Datos de una notificación de Mercado Pago por procesar: el resto está en EVENTO_PAGO. */

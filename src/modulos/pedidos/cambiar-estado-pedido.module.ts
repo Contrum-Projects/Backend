@@ -9,5 +9,6 @@ import { CambiarEstadoPedidoService } from './cambiar-estado-pedido.service.js';
   imports: [BullModule.registerQueue({ name: COLAS.CORREOS })],
   controllers: [CambiarEstadoPedidoController],
   providers: [CambiarEstadoPedidoService],
+  exports: [CambiarEstadoPedidoService],
 })
 export class CambiarEstadoPedidoModule {}

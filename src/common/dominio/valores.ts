@@ -52,11 +52,15 @@ export const TIPOS_ENTREGA = {
 } as const;
 
 /**
- * ENVIO.estado_envio (E5-H3, decisión del 30 de octubre de 2026): valor de un despacho recién
- * creado. La lista la completa E7-H3.
+ * ENVIO.estado_envio (E7-H3, decisión del 1 de noviembre de 2026). Nace `pendiente` (E5-H3), pasa a
+ * `en_transito` al despacharse y después sigue lo que informa Chilexpress.
  */
 export const ESTADOS_ENVIO = {
   PENDIENTE: 'pendiente',
+  EN_TRANSITO: 'en_transito',
+  EN_REPARTO: 'en_reparto',
+  ENTREGADO: 'entregado',
+  CON_PROBLEMA: 'con_problema',
 } as const;
 
 /** PEDIDO.tipo_documento_solicitado (RF-09.01). */
