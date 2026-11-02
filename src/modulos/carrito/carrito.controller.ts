@@ -58,7 +58,7 @@ export class CarritoController {
   @ApiOperation({
     summary: 'Ver mi carrito con totales (E5-H1, E5-H4)',
     description:
-      'Líneas con precio unitario y subtotal con IVA, calculados al consultar según el rol (el profesional ve el mayorista), y el total. Cada línea indica si el artículo sigue a la venta, si el stock cubre la cantidad (sin informar cuántas unidades hay) y, para el profesional, si un formato está bajo el mínimo (`bajoMinimo`); en esos casos `impideCrearPedido` es `true` hasta que se quite o se ajuste la cantidad.',
+      'Líneas con precio unitario y subtotal con IVA, calculados al consultar según el rol (el profesional ve el mayorista), y el total. Cada línea indica si el artículo sigue a la venta, si el stock cubre la cantidad (sin informar cuántas unidades hay); si no, `impideCrearPedido` es `true` hasta que se quite o se ajuste la cantidad. No hay mínimo de unidades por formato (E5-H4, SCRUM-146).',
   })
   @ApiOkResponse({ description: 'Carrito de la cuenta; vacío si no tiene.' })
   obtener(

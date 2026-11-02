@@ -40,7 +40,7 @@ export class CrearPedidoController {
   @ApiOperation({
     summary: 'Crear mi pedido desde el carrito (E5-H3, E5-H4, E9-H1)',
     description:
-      'Recalcula precios, IVA y total, crea el pedido, reserva el stock, vacía el carrito y da el plazo para pagar. Repetir la misma `claveIdempotencia` devuelve el mismo pedido. El profesional debe llevar el mínimo de unidades de cada formato (los packs no tienen mínimo). El despacho a domicilio se cotiza con Chilexpress y su costo se suma al total (E7-H2).',
+      'Recalcula precios, IVA y total, crea el pedido, reserva el stock, vacía el carrito y da el plazo para pagar. Repetir la misma `claveIdempotencia` devuelve el mismo pedido. El profesional compra al precio mayorista desde una unidad, sin mínimo por formato. El despacho a domicilio se cotiza con Chilexpress y su costo se suma al total (E7-H2).',
   })
   @ApiCreatedResponse({ description: 'Detalle del pedido.' })
   @ApiBadRequestResponse({
@@ -57,7 +57,7 @@ export class CrearPedidoController {
   })
   @ApiConflictResponse({
     description:
-      'Ya hay un pedido pendiente de pago, carrito vacío o cambiado mientras se cotizaba, artículo que ya no se vende, sin stock, formatos bajo el mínimo del profesional, despacho sin cobertura de Chilexpress, o factura sin datos de facturación registrados (E9-H1).',
+      'Ya hay un pedido pendiente de pago, carrito vacío o cambiado mientras se cotizaba, artículo que ya no se vende, sin stock, despacho sin cobertura de Chilexpress, o factura sin datos de facturación registrados (E9-H1).',
   })
   @ApiServiceUnavailableResponse({
     description:
