@@ -11,6 +11,7 @@ import {
   ClienteGemini,
   ClienteIaNoConfigurado,
 } from './cliente-ia.js';
+import { FirmaSugerencia } from './firma-sugerencia.js';
 import { FormatosController } from './formatos.controller.js';
 import { FormatosService } from './formatos.service.js';
 import { ImagenesController } from './imagenes.controller.js';
@@ -62,6 +63,7 @@ import { TiendaService } from './tienda.service.js';
       },
     },
     CacheCatalogo,
+    FirmaSugerencia,
     MarcasService,
     CategoriasService,
     ProductosService,

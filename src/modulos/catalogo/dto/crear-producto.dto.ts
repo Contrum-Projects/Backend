@@ -1,13 +1,16 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IdEntero } from '../../../common/validacion/id-entero.js';
 import { TextoObligatorio } from '../../../common/validacion/texto-obligatorio.js';
+import { TextoOpcional } from '../../../common/validacion/texto-opcional.js';
 import { CANALES_VENTA } from '../../../common/dominio/valores.js';
+import { LARGO_MAXIMO_INGREDIENTES_IA } from '../cliente-ia.js';
 import { CanalVenta } from './canal-venta.decorator.js';
+import { SugerenciaUsada, SugerenciaUsadaDto } from './sugerencia-usada.dto.js';
 
 /**
  * Entrada para crear un producto (E3-H1, RF-03.01).
- * El producto nace activo y con la descripción escrita a mano (`origenDescripcion = manual`);
- * la descripción sugerida por IA llega con la épica 4.
+ * El producto nace activo. La descripción es manual salvo que llegue la `sugerencia` firmada de la
+ * IA de la que partió (E4-H2): entonces su origen es «ia» o «ia_editada».
  *
  * Cada dato obligatorio tiene su mensaje en español que nombra el campo, para que el panel
  * pueda señalar lo que falta (criterio «datos obligatorios faltantes»).
@@ -27,6 +30,21 @@ export class CrearProductoDto {
     femenino: true,
   })
   descripcion: string;
+
+  @SugerenciaUsada()
+  sugerencia?: SugerenciaUsadaDto;
+
+  @ApiPropertyOptional({
+    example: 'Aqua, Sodium Laureth Sulfate, Glycerin',
+    maxLength: LARGO_MAXIMO_INGREDIENTES_IA,
+    nullable: true,
+    description: 'Lista de ingredientes del reverso (E4-H2). Opcional.',
+  })
+  @TextoOpcional({
+    etiqueta: 'La lista de ingredientes',
+    maximo: LARGO_MAXIMO_INGREDIENTES_IA,
+  })
+  ingredientes?: string | null;
 
   @ApiProperty({
     example: 1,

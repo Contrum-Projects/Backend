@@ -4,7 +4,10 @@ import {
   ServiceUnavailableException,
   UnprocessableEntityException,
 } from '@nestjs/common';
+import type { ConfigService } from '@nestjs/config';
+import type { Entorno } from '../../config/entorno.js';
 import { type ClienteIa, ErrorServicioIa } from './cliente-ia.js';
+import { FirmaSugerencia } from './firma-sugerencia.js';
 import { TAMANO_MAXIMO_IMAGEN_BYTES } from './imagenes.service.js';
 import {
   MENSAJE_FOTO_ILEGIBLE,
@@ -20,7 +23,10 @@ const jpeg = () => {
 
 describe('SugerenciaDescripcionService', () => {
   const leerReverso = vi.fn<ClienteIa['leerReverso']>();
-  const servicio = new SugerenciaDescripcionService({ leerReverso });
+  const firma = new FirmaSugerencia({
+    get: () => 's'.repeat(32),
+  } as unknown as ConfigService<Entorno, true>);
+  const servicio = new SugerenciaDescripcionService({ leerReverso }, firma);
 
   beforeEach(() => {
     leerReverso.mockReset();
@@ -43,6 +49,7 @@ describe('SugerenciaDescripcionService', () => {
     await expect(servicio.sugerir(archivo)).resolves.toEqual({
       descripcion: 'Shampoo reparador para cabello dañado.',
       ingredientes: 'Aqua, Glycerin',
+      firma: firma.firmar('Shampoo reparador para cabello dañado.'),
     });
     expect(leerReverso).toHaveBeenCalledWith(archivo.buffer, {
       tipoContenido: 'image/jpeg',

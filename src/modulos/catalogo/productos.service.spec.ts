@@ -1,6 +1,22 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import type { ConfigService } from '@nestjs/config';
+import type { Entorno } from '../../config/entorno.js';
 import type { PrismaService } from '../../prisma/prisma.service.js';
-import { ProductosService } from './productos.service.js';
+import { FirmaSugerencia } from './firma-sugerencia.js';
+import {
+  MENSAJE_SUGERENCIA_INVALIDA,
+  ProductosService,
+} from './productos.service.js';
+
+const firma = new FirmaSugerencia({
+  get: () => 's'.repeat(32),
+} as unknown as ConfigService<Entorno, true>);
+
+const TEXTO_IA = 'Shampoo reparador para cabello dañado.';
+const sugerencia = { descripcion: TEXTO_IA, firma: firma.firmar(TEXTO_IA) };
+
+const origenGuardado = (llamada: unknown) =>
+  (llamada as { data: { origenDescripcion?: string } }).data.origenDescripcion;
 
 const producto = (extra: object = {}) => ({
   id: 5,
@@ -47,7 +63,102 @@ describe('ProductosService', () => {
 
   beforeEach(() => {
     prisma = crearPrisma();
-    servicio = new ProductosService(prisma as unknown as PrismaService);
+    servicio = new ProductosService(prisma as unknown as PrismaService, firma);
+  });
+
+  describe('origen de la descripción (E4-H2)', () => {
+    it('E4-H2 · sugerencia aceptada: al crear, la descripción se guarda con origen «IA»', async () => {
+      await servicio.crear({
+        ...datosNuevos,
+        descripcion: TEXTO_IA,
+        sugerencia,
+      });
+
+      const [llamada] = prisma.producto.create.mock.calls[0];
+      expect(origenGuardado(llamada)).toBe('ia');
+      expect(llamada).toMatchObject({ data: { descripcion: TEXTO_IA } });
+    });
+
+    it('E4-H2 · sugerencia editada: al crear, el texto corregido se guarda con origen «IA editada»', async () => {
+      await servicio.crear({
+        ...datosNuevos,
+        descripcion: 'Shampoo reparador para cabello teñido.',
+        sugerencia,
+      });
+
+      const [llamada] = prisma.producto.create.mock.calls[0];
+      expect(origenGuardado(llamada)).toBe('ia_editada');
+      expect(llamada).toMatchObject({
+        data: { descripcion: 'Shampoo reparador para cabello teñido.' },
+      });
+    });
+
+    it('E4-H2 · sugerencia descartada: el texto propio, sin sugerencia, se guarda con origen «manual»', async () => {
+      await servicio.crear({ ...datosNuevos, descripcion: 'Texto propio.' });
+
+      expect(origenGuardado(prisma.producto.create.mock.calls[0][0])).toBe(
+        'manual',
+      );
+    });
+
+    it('E4-H2 · sin publicación automática: una sugerencia con firma que no corresponde se rechaza con 400 y no guarda nada', async () => {
+      await expect(
+        servicio.crear({
+          ...datosNuevos,
+          descripcion: 'Texto inventado.',
+          sugerencia: {
+            descripcion: 'Texto inventado.',
+            firma: sugerencia.firma,
+          },
+        }),
+      ).rejects.toThrow(new BadRequestException(MENSAJE_SUGERENCIA_INVALIDA));
+      expect(prisma.producto.create).not.toHaveBeenCalled();
+    });
+
+    it('E4-H2 · al editar con la sugerencia: igual a la sugerida queda «IA» y cambiada queda «IA editada»', async () => {
+      await servicio.actualizar(5, { descripcion: TEXTO_IA, sugerencia });
+      await servicio.actualizar(5, {
+        descripcion: 'Texto corregido.',
+        sugerencia,
+      });
+
+      const [aceptada, editada] = prisma.producto.update.mock.calls;
+      expect(origenGuardado(aceptada[0])).toBe('ia');
+      expect(origenGuardado(editada[0])).toBe('ia_editada');
+    });
+
+    it('E4-H2 · al editar, una sugerencia sin descripción o con firma inválida: 400 sin cambios', async () => {
+      await expect(
+        servicio.actualizar(5, { nombre: 'Otro', sugerencia }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      await expect(
+        servicio.actualizar(5, {
+          descripcion: TEXTO_IA,
+          sugerencia: { descripcion: TEXTO_IA, firma: '0'.repeat(64) },
+        }),
+      ).rejects.toThrow(MENSAJE_SUGERENCIA_INVALIDA);
+      expect(prisma.producto.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('ingredientes (E4-H2)', () => {
+    it('E4-H2 · ingredientes: se guardan al crear y se pueden cambiar o borrar al editar', async () => {
+      await servicio.crear({ ...datosNuevos, ingredientes: 'Aqua, Glycerin' });
+      expect(prisma.producto.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            ingredientes: 'Aqua, Glycerin',
+          }) as unknown,
+        }),
+      );
+
+      await servicio.actualizar(5, { ingredientes: null });
+      expect(prisma.producto.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ ingredientes: null }) as unknown,
+        }),
+      );
+    });
   });
 
   describe('crear', () => {

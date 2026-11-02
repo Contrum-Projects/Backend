@@ -719,6 +719,17 @@ rechaza (503) una descripción de más de 1000 caracteres o ingredientes de más
 modelo los devuelva; en E4-H2 la sugerencia se guarda solo por el DTO del producto y se muestra
 como texto plano. Sin cambios al
 MER; ojo para E4-H2: PRODUCTO no tiene dónde guardar los ingredientes.
+Decisiones del 2 nov (E4-H2): la sugerencia vuelve con `firma` (HMAC-SHA256 de la descripción
+sugerida; la clave sale de `JWT_ACCESS_SECRET` con separación de dominio, sin variable nueva).
+`POST /api/catalogo/productos` y `PATCH /api/catalogo/productos/:id` aceptan `sugerencia:
+{ descripcion, firma }` cuando el texto partió de la IA: igual a la sugerida, origen `ia`; distinta,
+`ia_editada`; sin `sugerencia` al crear, `manual`. Firma que no corresponde al texto sugerido: 400
+sin cambios; en el PATCH, `sugerencia` sin `descripcion`: 400. PATCH de la descripción sin
+`sugerencia`: se mantiene la regla de E3-H1 (`ia` que cambia pasa a `ia_editada`; `ia_editada` y
+`manual` no cambian). La sugerencia sola nunca escribe nada: solo se guarda lo que el personal
+envía al crear o editar. **Cambio al MER:** `producto.ingredientes` (texto opcional, hasta 3000;
+en el PATCH `null` lo borra). Solo sale en las respuestas del panel; mostrarlo en la tienda no
+está en la historia.
 
 **E10 Verificación.** Requiere RUT. OCR (Google Cloud Vision) de cada documento, factores de
 confianza con puntaje y versión de reglas. Aprobación automática solo con un único documento

@@ -3,10 +3,15 @@ import { CanalVenta } from './canal-venta.decorator.js';
 import { IdEntero } from '../../../common/validacion/id-entero.js';
 import { CANALES_VENTA } from '../../../common/dominio/valores.js';
 import { TextoObligatorio } from '../../../common/validacion/texto-obligatorio.js';
+import { TextoOpcional } from '../../../common/validacion/texto-opcional.js';
+import { LARGO_MAXIMO_INGREDIENTES_IA } from '../cliente-ia.js';
+import { SugerenciaUsada, SugerenciaUsadaDto } from './sugerencia-usada.dto.js';
 
 /**
  * Cambios sobre un producto (E3-H1). Solo se modifica lo que llega en el cuerpo; lo que
- * llega no puede quedar vacío ni `null`.
+ * llega no puede quedar vacío ni `null` (salvo `ingredientes`, que `null` borra).
+ * Con `sugerencia` (exige `descripcion`) el origen se decide como al crear (E4-H2); sin ella,
+ * una descripción de origen «ia» que cambia pasa a «ia_editada» (RF-04.04).
  * Desactivar no va aquí: tiene su propia ruta.
  */
 export class ActualizarProductoDto {
@@ -26,6 +31,20 @@ export class ActualizarProductoDto {
     puedeFaltar: true,
   })
   descripcion?: string;
+
+  @SugerenciaUsada()
+  sugerencia?: SugerenciaUsadaDto;
+
+  @ApiPropertyOptional({
+    maxLength: LARGO_MAXIMO_INGREDIENTES_IA,
+    nullable: true,
+    description: '`null` o un texto vacío borra la lista de ingredientes.',
+  })
+  @TextoOpcional({
+    etiqueta: 'La lista de ingredientes',
+    maximo: LARGO_MAXIMO_INGREDIENTES_IA,
+  })
+  ingredientes?: string | null;
 
   @ApiPropertyOptional({ example: 2 })
   @IdEntero({
