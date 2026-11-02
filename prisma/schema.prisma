@@ -217,6 +217,8 @@ model Producto {
   nombre            String   @db.VarChar(200)
   descripcion       String   @db.Text
   origenDescripcion String   @map("origen_descripcion") @db.VarChar(30)
+  /// Lista de ingredientes del reverso (E4-H2); opcional.
+  ingredientes      String?  @db.Text
   canalVenta        String   @map("canal_venta") @db.VarChar(30)
   activo            Boolean  @default(true)
   fechaCreacion     DateTime @default(now()) @map("fecha_creacion") @db.Timestamptz(6)
