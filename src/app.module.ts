@@ -22,6 +22,7 @@ import { NotificacionesModule } from './modulos/notificaciones/notificaciones.mo
 import { PagosModule } from './modulos/pagos/pagos.module.js';
 import { PersonalModule } from './modulos/personal/personal.module.js';
 import { TerritorioModule } from './modulos/territorio/territorio.module.js';
+import { SolicitudVerificacionModule } from './modulos/verificacion/solicitud-verificacion.module.js';
 import { SaludController } from './salud/salud.controller.js';
 
 @Module({
@@ -86,6 +87,7 @@ import { SaludController } from './salud/salud.controller.js';
     CatalogoModule,
     RegistrarFacturaModule,
     DescargarDocumentoModule,
+    SolicitudVerificacionModule,
     CarritoModule,
     DespachoModule,
     MisPedidosModule,

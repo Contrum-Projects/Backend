@@ -114,3 +114,45 @@ describe('validarEntorno · IA', () => {
     ).toBe('gemini-2.5-flash-lite');
   });
 });
+
+describe('validarEntorno · consulta al SII', () => {
+  it('E10-H1 · arranca sin clave de Khipu, también en producción: se piden documentos', () => {
+    const entorno = validarEntorno({
+      ...BASE,
+      ...CORREO,
+      NODE_ENV: 'production',
+      KHIPU_API_KEY: '',
+    });
+
+    expect(entorno.KHIPU_API_KEY).toBeUndefined();
+    expect(entorno.KHIPU_URL_BASE).toBeUndefined();
+    expect(entorno.SII_PROVEEDOR).toBe('khipu');
+  });
+
+  it('E10-H1 · la URL de Khipu va con https y sin barra final', () => {
+    expect(
+      validarEntorno({ ...BASE, KHIPU_URL_BASE: 'https://api.khipu.com/' })
+        .KHIPU_URL_BASE,
+    ).toBe('https://api.khipu.com');
+    expect(() =>
+      validarEntorno({ ...BASE, KHIPU_URL_BASE: 'http://api.khipu.com' }),
+    ).toThrow('KHIPU_URL_BASE');
+  });
+
+  it('E10-H1 · el proveedor simulado sirve en desarrollo y en las pruebas, pero no en producción', () => {
+    expect(
+      validarEntorno({ ...BASE, SII_PROVEEDOR: 'simulado' }).SII_PROVEEDOR,
+    ).toBe('simulado');
+    expect(() =>
+      validarEntorno({
+        ...BASE,
+        ...CORREO,
+        NODE_ENV: 'production',
+        SII_PROVEEDOR: 'simulado',
+      }),
+    ).toThrow('SII_PROVEEDOR');
+    expect(() => validarEntorno({ ...BASE, SII_PROVEEDOR: 'otro' })).toThrow(
+      'SII_PROVEEDOR',
+    );
+  });
+});

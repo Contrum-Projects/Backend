@@ -51,6 +51,12 @@ export const LIMITES = {
    * cuenta, con `LimitePorCuentaGuard`. Cada sugerencia es una llamada pagada a Gemini.
    */
   SUGERIR_DESCRIPCION: { limit: 15, ttl: 60_000 },
+  /**
+   * Solicitar la verificación como profesional (E10-H1, decisión del 2 nov 2026): 5/hora por
+   * cuenta, con `LimitePorCuentaGuard`. Cada envío consulta al SII a través de Khipu, que cobra
+   * por consulta: frena gastar la cuota del proveedor repitiendo la solicitud.
+   */
+  SOLICITAR_VERIFICACION: { limit: 5, ttl: 60 * 60_000 },
 } as const;
 
 /**

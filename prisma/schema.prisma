@@ -142,6 +142,14 @@ model SolicitudVerificacion {
   puntajeConfianza Int?      @map("puntaje_confianza")
   versionReglas    String?   @map("version_reglas") @db.VarChar(20)
 
+  // Consulta automática del inicio de actividades en el SII (E10-H1, decisión del 2 nov 2026).
+  // Una consulta por solicitud: tras un rechazo se abre otra solicitud y se consulta de nuevo.
+  fechaConsultaSii     DateTime? @map("fecha_consulta_sii") @db.Timestamptz(6)
+  resultadoConsultaSii String?   @map("resultado_consulta_sii") @db.VarChar(30)
+  girosSii             Json?     @map("giros_sii")
+  proveedorConsultaSii String?   @map("proveedor_consulta_sii") @db.VarChar(30)
+  operacionConsultaSii String?   @map("operacion_consulta_sii") @db.VarChar(36)
+
   solicitante  Usuario                    @relation("SolicitudPresentada", fields: [solicitanteId], references: [id])
   resolutor    Usuario?                   @relation("SolicitudResuelta", fields: [resolutorId], references: [id])
   antecedentes Antecedente[]

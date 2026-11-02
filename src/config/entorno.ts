@@ -102,6 +102,21 @@ export const esquemaEntorno = z
     GEMINI_API_KEY: opcional(z.string()),
     /** Modelo de Gemini con visión que lee el reverso del producto. */
     GEMINI_MODELO: z.string().min(1).default('gemini-2.5-flash'),
+    /**
+     * Clave de la API de Khipu (E10-H1, decisión del 2 nov 2026), que consulta la «Situación
+     * tributaria de terceros» del SII. Sin ella la app arranca, pero la consulta falla y quien
+     * solicita la verificación debe adjuntar documentos.
+     */
+    KHIPU_API_KEY: opcional(z.string()),
+    /** Sin ella se usa la de producción de Khipu. */
+    KHIPU_URL_BASE: opcional(
+      z.url({ protocol: /^https$/ }).transform((v) => v.replace(/\/+$/, '')),
+    ),
+    /**
+     * Quién responde la consulta al SII. `simulado` es solo para desarrollo: responde según el
+     * último dígito del RUT, sin consultar a nadie. En producción la app no arranca con él.
+     */
+    SII_PROVEEDOR: z.enum(['khipu', 'simulado']).default('khipu'),
     /** `false` apaga el envío en esta instancia: los e2e leen los trabajos de la cola. */
     CORREOS_WORKER_ACTIVO: z
       .enum(['true', 'false'])
@@ -122,6 +137,17 @@ export const esquemaEntorno = z
         code: 'custom',
         path: ['CORREO_REMITENTE'],
         message: 'es obligatorio si hay clave de Resend',
+      });
+    }
+    // Con el simulado, cualquiera con RUT acabado en 3..9 sería profesional sin serlo (E10-H1)
+    if (
+      entorno.NODE_ENV === 'production' &&
+      entorno.SII_PROVEEDOR === 'simulado'
+    ) {
+      contexto.addIssue({
+        code: 'custom',
+        path: ['SII_PROVEEDOR'],
+        message: 'no puede ser «simulado» en producción',
       });
     }
     // Nunca cobrar tarifas de prueba a clientes reales por olvidar la URL (E7-H2)
