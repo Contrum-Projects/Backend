@@ -706,7 +706,19 @@ envío: el código de seguimiento y el paso automático a entregado con Chilexpr
 (SCRUM-52). Sin cambios al MER.
 
 **E4 IA.** Descripción sugerida e ingredientes desde la foto del reverso; nunca se publica sin
-revisión; se guarda el origen: manual, IA o IA editada. PENDIENTE: proveedor de IA.
+revisión; se guarda el origen: manual, IA o IA editada.
+Decisiones del 2 nov (E4-H1): proveedor **Gemini Flash** (`@google/genai`, modelo en
+`GEMINI_MODELO`, por defecto `gemini-2.5-flash`). Ruta `POST /api/catalogo/descripciones/sugerencia`
+con `catalogo.gestionar`: recibe la foto (JPEG, PNG o WebP hasta 5 MB, campo `imagen`) y devuelve
+`{ descripcion, ingredientes }` (`ingredientes` es `null` si la foto no los muestra). No guarda la
+foto ni la sugerencia: aceptarla, editarla y registrar el origen es de E4-H2. Foto ilegible: 422;
+IA caída, sin respuesta en 30 s (un solo intento) o sin `GEMINI_API_KEY`: 503. En ambos casos la
+descripción se escribe a mano, y crear o editar productos nunca depende de la IA. Límite: 15/min por
+cuenta (`LIMITES.SUGERIR_DESCRIPCION`). La clave es opcional, también en producción. El servidor
+rechaza (503) una descripción de más de 1000 caracteres o ingredientes de más de 3000, aunque el
+modelo los devuelva; en E4-H2 la sugerencia se guarda solo por el DTO del producto y se muestra
+como texto plano. Sin cambios al
+MER; ojo para E4-H2: PRODUCTO no tiene dónde guardar los ingredientes.
 
 **E10 Verificación.** Requiere RUT. OCR (Google Cloud Vision) de cada documento, factores de
 confianza con puntaje y versión de reglas. Aprobación automática solo con un único documento

@@ -46,6 +46,11 @@ export const LIMITES = {
    * `LimitePorCuentaGuard`. Cada cotización nueva consulta a Chilexpress: frena agotar su cuota.
    */
   COTIZAR_ENVIO: { limit: 10, ttl: 60_000 },
+  /**
+   * Sugerir la descripción desde la foto del reverso (E4-H1, decisión del 2 nov 2026): 15/min por
+   * cuenta, con `LimitePorCuentaGuard`. Cada sugerencia es una llamada pagada a Gemini.
+   */
+  SUGERIR_DESCRIPCION: { limit: 15, ttl: 60_000 },
 } as const;
 
 /**
