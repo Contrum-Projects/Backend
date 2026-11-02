@@ -162,6 +162,31 @@ export const ESTADOS_SOLICITUD = {
   RECHAZADA: 'rechazada',
 } as const;
 
+/**
+ * SOLICITUD_VERIFICACION.resultado_consulta_sii (E10-H1, decisión del 2 de noviembre de 2026): lo
+ * que dio la consulta automática del inicio de actividades. Solo `aprobado` aprueba la solicitud;
+ * cualquier otro resultado la deja `pendiente` a la espera de documentos (E10-H2). Es lo que el
+ * personal ve al revisar: nunca se le muestra a quien solicita.
+ */
+export const RESULTADOS_CONSULTA_SII = {
+  APROBADO: 'aprobado',
+  SIN_INICIO_ACTIVIDADES: 'sin_inicio_actividades',
+  OTRO_GIRO: 'otro_giro',
+  NO_DISPONIBLE: 'no_disponible',
+} as const;
+
+/** SOLICITUD_VERIFICACION.proveedor_consulta_sii: quién respondió la consulta al SII. */
+export const PROVEEDORES_SII = {
+  KHIPU: 'khipu',
+  SIMULADO: 'simulado',
+} as const;
+
+/**
+ * Giro del SII que acredita al peluquero: 960200, «Peluquería y otros tratamientos de belleza»
+ * (E10-H1, decisión del 2 de noviembre de 2026).
+ */
+export const GIRO_PELUQUERIA = '960200';
+
 /** CAMPANA.tipo: campaña de envío único o saludo de cumpleaños. */
 export const TIPOS_CAMPANA = {
   ENVIO_UNICO: 'envio_unico',

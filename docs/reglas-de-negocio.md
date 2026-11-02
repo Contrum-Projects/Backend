@@ -15,7 +15,7 @@ Cinco roles fijos en el código (`src/common/dominio/roles.ts`); una cuenta tien
 | Rol | Quién | Qué puede |
 | --- | --- | --- |
 | `cliente` | Consumidor final con cuenta | Compra a precio minorista |
-| `profesional` | Peluquero con la verificación aprobada | Compra a precio mayorista desde 3 unidades por formato; ve los productos exclusivos |
+| `profesional` | Peluquero con la verificación aprobada | Compra a precio mayorista; ve los productos exclusivos |
 | `vendedor` | Personal de tienda | Catálogo, consultar stock y pedidos (matriz de E13-H2) |
 | `bodeguero` | Personal de tienda | Recibe el aviso de stock bajo; proveedores, inventario y pedidos (matriz de E13-H2) |
 | `administrador` | La dueña | Todos los permisos del panel; aviso de stock bajo, oferta de cumpleaños |
@@ -731,12 +731,41 @@ envía al crear o editar. **Cambio al MER:** `producto.ingredientes` (texto opci
 en el PATCH `null` lo borra). Solo sale en las respuestas del panel; mostrarlo en la tienda no
 está en la historia.
 
-**E10 Verificación.** Requiere RUT. OCR (Google Cloud Vision) de cada documento, factores de
-confianza con puntaje y versión de reglas. Aprobación automática solo con un único documento
-legible, puntaje sobre el umbral y ningún factor fallido; todo lo demás va a revisión manual.
+**E10 Verificación.** Requiere RUT. Flujo (cambio del 2 nov 2026, SCRUM-62 a 67): primero se
+consulta el **inicio de actividades en el SII** y, si no aprueba, el cliente adjunta documentos
+que revisa el personal. Ya no hay OCR (Google Cloud Vision) ni factores de confianza con puntaje.
+Aprobación automática solo con el giro **960200** (Peluquería y otros tratamientos de belleza)
+vigente; todo lo demás, o una consulta que falla, pide documentos (E10-H2) y va a revisión manual.
 **El sistema nunca rechaza solo** (RNF-27). Rechazo manual exige motivo. Al aprobar: rol
-`profesional` de inmediato y correo. Detecta el mismo documento (hash) en otra cuenta. Archivos
-se borran 30 días después de resuelta, conservando el texto. PENDIENTE: factores, pesos y umbral.
+`profesional` de inmediato y correo (E10-H4). Archivos se borran 30 días después de resuelta,
+conservando la solicitud y el resultado de la consulta al SII (E10-H6). Por confirmar: la
+detección del mismo documento (hash) en otra cuenta no aparece en las historias nuevas.
+
+Decisiones del 2 nov (E10-H1, SCRUM-62): `POST /api/verificaciones` (sin cuerpo) y
+`GET /api/verificaciones/yo`, solo para cliente y profesional. La consulta pasa por la interfaz
+`ProveedorSituacionTributaria`; el proveedor es **Khipu** (`POST /v1/cl/services/sii.cl/tax-situation`,
+clave en `KHIPU_API_KEY`, URL en `KHIPU_URL_BASE`), así se puede cambiar sin tocar el servicio.
+La consulta es síncrona, con plazo de **10 s**; sin clave la app arranca, pero toda consulta falla y
+se piden documentos. `SII_PROVEEDOR=simulado` es solo para desarrollo (último dígito del RUT:
+0 sin actividades, 1 otro giro, 2 falla, otro peluquería) y la app no arranca con él en producción.
+**Regla de aprobación:** alguna actividad con `Code` `960200` y `Date` ya cumplida; Khipu no trae un
+campo de vigencia, así que «vigente» es «está en la lista del SII y su fecha de inicio ya pasó».
+Una fecha que falta no aprueba. Estados: `aprobada` si aprueba (sin resolutor: la aprobó el
+sistema); si no, `pendiente`, que significa «falta que adjunte documentos» (`requiereDocumentos`
+en la respuesta), y `revision_manual` cuando los envíe (E10-H2). Se guarda en la solicitud la fecha
+de la consulta, el resultado (`aprobado`, `sin_inicio_actividades`, `otro_giro` o `no_disponible`),
+los giros recibidos, el proveedor y el id de la operación; quien solicita nunca los ve. **409** si
+la cuenta no tiene RUT, ya es profesional, o tiene una solicitud `pendiente`, `revision_manual` o
+`aprobada`; tras un rechazo puede enviar otra y se consulta de nuevo. La consulta se hace antes de
+la transacción (no se espera a Khipu con la cuenta bloqueada); al registrar se bloquea la fila de la
+cuenta, como al editar el RUT, y si el RUT cambió mientras tanto responde 409. Límite de 5 envíos
+por hora por cuenta (`LIMITES.SOLICITAR_VERIFICACION`): cada consulta es una llamada que cobra
+Khipu. El cambio de rol y el correo al aprobar son de E10-H4: mientras no se implemente, una
+solicitud aprobada deja la cuenta como cliente. **Cambio al MER:** cinco columnas nuevas en
+`solicitud_verificacion` (`fecha_consulta_sii`, `resultado_consulta_sii`, `giros_sii`,
+`proveedor_consulta_sii`, `operacion_consulta_sii`). `puntaje_confianza`, `version_reglas`,
+`resultado_factor_confianza` y los campos de OCR de `antecedente` quedan sin uso por el flujo
+nuevo y no se eliminaron: decidirlo con el equipo.
 
 **E12 Marketing.** Publicidad solo a quien la aceptó (cuenta activa con correo verificado o
 suscriptor confirmado); el consentimiento se revisa de nuevo al enviar. Baja desde cualquier
