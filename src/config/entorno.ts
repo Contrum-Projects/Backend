@@ -95,6 +95,13 @@ export const esquemaEntorno = z
     RESEND_API_KEY: opcional(z.string()),
     /** Obligatorio con la clave de Resend. Su dominio debe estar verificado allá. */
     CORREO_REMITENTE: opcional(z.string()),
+    /**
+     * Clave de la API de Gemini (E4-H1, decisión del 2 nov 2026). Sin ella la app arranca, pero
+     * sugerir la descripción desde la foto responde 503 y se escribe a mano.
+     */
+    GEMINI_API_KEY: opcional(z.string()),
+    /** Modelo de Gemini con visión que lee el reverso del producto. */
+    GEMINI_MODELO: z.string().min(1).default('gemini-2.5-flash'),
     /** `false` apaga el envío en esta instancia: los e2e leen los trabajos de la cola. */
     CORREOS_WORKER_ACTIVO: z
       .enum(['true', 'false'])

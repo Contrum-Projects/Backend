@@ -16,8 +16,7 @@ src/modulos/<modulo>/
 | --- | --- | --- |
 | `cuentas` | E1 | Registro, confirmación de correo, inicio y cierre de sesión, recuperación de contraseña, datos y direcciones |
 | `personal` | E13 | Cuentas del personal de tienda, roles fijos y control de acceso |
-| `catalogo` | E2, E3 | Catálogo público, búsqueda, administración de productos, formatos, packs, marcas y categorías |
-| `ia` | E4 | Sugerencia de descripción desde la foto del reverso |
+| `catalogo` | E2, E3, E4 | Catálogo público, búsqueda, administración de productos, formatos, packs, marcas y categorías; descripción sugerida con IA |
 | `carrito` | E5 | Carrito y compra del peluquero |
 | `pedidos` | E5, E8 | Creación del pedido, estados e historial |
 | `pagos` | E6 | Mercado Pago, notificaciones (webhook) y conciliación |

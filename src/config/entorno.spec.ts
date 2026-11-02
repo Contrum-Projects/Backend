@@ -93,3 +93,24 @@ describe('validarEntorno · correos', () => {
     ).toBe(false);
   });
 });
+
+describe('validarEntorno · IA', () => {
+  it('E4-H1 · arranca sin clave de Gemini, también en producción: la descripción se escribe a mano', () => {
+    const entorno = validarEntorno({
+      ...BASE,
+      ...CORREO,
+      NODE_ENV: 'production',
+      GEMINI_API_KEY: '',
+    });
+
+    expect(entorno.GEMINI_API_KEY).toBeUndefined();
+    expect(entorno.GEMINI_MODELO).toBe('gemini-2.5-flash');
+  });
+
+  it('E4-H1 · el modelo de Gemini se puede cambiar por entorno', () => {
+    expect(
+      validarEntorno({ ...BASE, GEMINI_MODELO: 'gemini-2.5-flash-lite' })
+        .GEMINI_MODELO,
+    ).toBe('gemini-2.5-flash-lite');
+  });
+});
