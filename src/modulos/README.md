@@ -18,7 +18,7 @@ src/modulos/<modulo>/
 | `personal` | E13 | Cuentas del personal de tienda, roles fijos y control de acceso |
 | `catalogo` | E2, E3 | Catálogo público, búsqueda, administración de productos, formatos, packs, marcas y categorías |
 | `ia` | E4 | Sugerencia de descripción desde la foto del reverso |
-| `carrito` | E5 | Carrito y mínimo de compra del peluquero |
+| `carrito` | E5 | Carrito y compra del peluquero |
 | `pedidos` | E5, E8 | Creación del pedido, estados e historial |
 | `pagos` | E6 | Mercado Pago, notificaciones (webhook) y conciliación |
 | `despacho` | E7 | Retiro en tienda, cotización y envío con Chilexpress |

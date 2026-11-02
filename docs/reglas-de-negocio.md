@@ -375,7 +375,7 @@ E11-H6) y sus existencias en orden de id de ubicación, como las transferencias.
 bloquea la fila del pedido, devuelve lo vendido menos lo ya reingresado a **la misma ubicación de
 donde salió** (aunque esté desactivada) con un movimiento `TIPOS_MOVIMIENTO.REINGRESO` con
 `id_ubicacion_destino` y quien cancela (`null` si es automática); llamarlo otra vez no reingresa
-dos veces. La validación previa del pedido (agotado, rol, mínimo del peluquero) sigue siendo de
+dos veces. La validación previa del pedido (agotado, rol) sigue siendo de
 E5; como defensa, el servicio responde 400 si una cantidad no es un entero mayor que 0 o si las
 unidades de un formato pasarían el máximo de int4, y 409 si un artículo no existe o es un pack sin
 componentes. El resultado del descuento es interno (ubicaciones, stock y correos del personal):
@@ -386,8 +386,8 @@ sesión. Un carrito por cuenta; el carrito no guarda precios. El pedido exige se
 confirmado, rechaza si falta stock o el artículo no se vende a esa cuenta, y un doble clic crea un
 solo pedido (clave de idempotencia). Al crearlo se reserva el stock (se descuenta con movimiento de
 venta) y hay **15 minutos** para pagar (`PLAZO_PAGO_MINUTOS`; el plazo lo lleva una cola, con
-`fechaExpiracionPago` de respaldo). El profesional necesita al menos `MINIMO_UNIDADES_PELUQUERO`
-(3) unidades de **cada** formato; si no, el pedido no se crea (los packs no tienen mínimo: ver E5-H4).
+`fechaExpiracionPago` de respaldo). El profesional compra al precio mayorista desde una unidad, sin
+mínimo por formato (cambio de la clienta, SCRUM-146: ver E5-H4).
 
 Decisiones del 27 oct (E5-H1): `GET /api/carrito`, `POST /api/carrito/items`, `PATCH` y `DELETE
 /api/carrito/items/:articuloId` (id del artículo de venta), solo para cliente y profesional con
@@ -401,8 +401,8 @@ nunca se informa cuántas unidades hay (decisión de E2-H3). **PROPUESTAS por co
 y señalar; (2) un artículo que deja de venderse (desactivado, sin precio, pack vencido o exclusivo
 tras perder el rol) queda en el carrito sin precio, fuera del total y señalado, y solo se puede
 quitar; (3) tope de 999 unidades por línea. El stock se revisa por línea: la suma entre packs y
-formatos que comparten componentes la valida el pedido (E5-H3, SCRUM-45); el mínimo del profesional
-lo exige E5-H4 (SCRUM-46). Sin cambios al MER.
+formatos que comparten componentes la valida el pedido (E5-H3, SCRUM-45). Ya no hay mínimo de
+unidades para el profesional (E5-H4, SCRUM-146). Sin cambios al MER.
 Decisiones del 28 oct (E5-H2): el carrito del visitante vive en el navegador y la API no lo guarda.
 `POST /api/carrito/cotizar` es **pública** y solo calcula: recibe `{ articulos: [{ articuloId,
 cantidad }] }` y responde con la forma de `GET /api/carrito`, siempre como visitante (minorista,
@@ -435,14 +435,15 @@ de aplicar la tasa al neto total. La línea guarda el neto vigente y su tipo de 
 crea con `estado_envio = pendiente` y el costo que cotiza E7-H2 (SCRUM-51). **Pendiente de otras historias:** la
 cancelación por impago es de E6-H3 (SCRUM-49), que toma el plazo desde `fechaExpiracionPago`: esta
 historia no encola el trabajo. No envía correo al cliente.
-Decisiones del 30 oct (E5-H4): el mínimo (`MINIMO_UNIDADES_PELUQUERO`, 3) se exige solo a las líneas
-de **formato** del profesional: un pack no tiene mínimo y sus componentes no suman a los formatos
-sueltos, así que un solo pack se puede comprar a mayorista. `POST /api/pedidos` responde 409 y nombra
-los formatos que no alcanzan, después de revisar que todo siga a la venta y antes de tocar el stock.
-Repetir una clave ya usada devuelve el mismo pedido sin revisar el mínimo. El carrito (de cuenta) lo
-señala solo al profesional: línea con `bajoMinimo: true` e `impideCrearPedido: true`, y
-`puedeCrearPedido: false`; agregar o cambiar a menos del mínimo se sigue aceptando. `cotizar` compra
-como visitante y nunca lo aplica. Sin cambios al MER.
+Decisiones del 1 nov (E5-H4, SCRUM-146): cambio de último minuto de la clienta, que **reemplaza** el
+mínimo de 3 unidades por formato que se había definido el 30 oct (SCRUM-46). El profesional verificado
+compra cualquier cantidad (desde 1 unidad) de un formato o de un pack y se le guarda el precio
+mayorista en cada línea. `POST /api/pedidos` ya no responde 409 por unidades mínimas ni nombra
+formatos que no alcanzan. El carrito de la cuenta ya no trae el campo `bajoMinimo` en sus líneas:
+`impideCrearPedido` y `puedeCrearPedido` dependen solo de que el artículo siga a la venta y de que
+el stock alcance. Se eliminó la variable de entorno `MINIMO_UNIDADES_PELUQUERO`. El requerimiento
+RF-05.10 vive fuera de este repositorio: hay que actualizarlo en el documento de requerimientos.
+Sin cambios al MER.
 
 **E6 Pago.** Solo Mercado Pago. La notificación se responde de inmediato y se procesa en la cola
 `eventos-pago` (RNF-15: MP espera 22 s). Cada evento se procesa una vez (`idEventoExterno` único).

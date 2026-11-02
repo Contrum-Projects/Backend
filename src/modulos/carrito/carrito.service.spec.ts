@@ -66,7 +66,6 @@ const crearServicio = (db: ReturnType<typeof crearDb>) => {
       ({
         IVA_PORCENTAJE: IVA,
         R2_URL_PUBLICA: 'https://cdn.test',
-        MINIMO_UNIDADES_PELUQUERO: 3,
       })[clave],
   };
   return new CarritoService(
@@ -136,7 +135,6 @@ describe('CarritoService', () => {
             subtotal: unitario * 3,
             aLaVenta: true,
             stockSuficiente: true,
-            bajoMinimo: false,
             impideCrearPedido: false,
           },
         ],
@@ -145,9 +143,9 @@ describe('CarritoService', () => {
       });
     });
 
-    it('E5-H4 · bajo el mínimo: al profesional le señala la línea e impide crear el pedido', async () => {
+    it('E5-H4 · cualquier cantidad: una sola unidad de un formato no impide crear el pedido del profesional', async () => {
       db.carrito.findFirst.mockResolvedValue({
-        items: [lineaFormato(11, 2)],
+        items: [lineaFormato(11, 1)],
       });
       db.formatoProducto.findMany.mockResolvedValue([
         { id: 11, articulo: { precioMayoristaNeto: 8000 } },
@@ -160,66 +158,9 @@ describe('CarritoService', () => {
 
       expect(carrito.items[0]).toMatchObject({
         stockSuficiente: true,
-        bajoMinimo: true,
-        impideCrearPedido: true,
-      });
-      expect(carrito.puedeCrearPedido).toBe(false);
-    });
-
-    it('E5-H4 · mínimo cumplido: con 3 unidades el profesional puede crear el pedido', async () => {
-      db.carrito.findFirst.mockResolvedValue({
-        items: [lineaFormato(11, 3)],
-      });
-      db.formatoProducto.findMany.mockResolvedValue([
-        { id: 11, articulo: { precioMayoristaNeto: 8000 } },
-      ]);
-      db.existencia.groupBy.mockResolvedValue([
-        { formatoId: 11, _sum: { cantidad: 5 } },
-      ]);
-
-      const carrito = await servicio.obtener(CODIGO, ROLES.PROFESIONAL);
-
-      expect(carrito.items[0]).toMatchObject({
-        bajoMinimo: false,
         impideCrearPedido: false,
       });
-      expect(carrito.puedeCrearPedido).toBe(true);
-    });
-
-    it('E5-H4 · un pack no tiene mínimo: una unidad no impide el pedido del profesional', async () => {
-      db.carrito.findFirst.mockResolvedValue({ items: [lineaPack(30, 1)] });
-      db.pack.findMany.mockResolvedValue([
-        {
-          id: 30,
-          articulo: { precioMayoristaNeto: 12000 },
-          componentes: [{ formatoId: 11, cantidad: 2 }],
-        },
-      ]);
-      db.existencia.groupBy.mockResolvedValue([
-        { formatoId: 11, _sum: { cantidad: 5 } },
-      ]);
-
-      const carrito = await servicio.obtener(CODIGO, ROLES.PROFESIONAL);
-
-      expect(carrito.items[0]).toMatchObject({
-        bajoMinimo: false,
-        impideCrearPedido: false,
-      });
-      expect(carrito.puedeCrearPedido).toBe(true);
-    });
-
-    it('E5-H4 · el cliente no tiene mínimo: una unidad no señala nada', async () => {
-      db.carrito.findFirst.mockResolvedValue({
-        items: [lineaFormato(11, 1)],
-      });
-      venderFormato(db, 11, 10000, 5);
-
-      const carrito = await servicio.obtener(CODIGO, ROLES.CLIENTE);
-
-      expect(carrito.items[0]).toMatchObject({
-        bajoMinimo: false,
-        impideCrearPedido: false,
-      });
+      expect(carrito.items[0]).not.toHaveProperty('bajoMinimo');
       expect(carrito.puedeCrearPedido).toBe(true);
     });
 
@@ -465,7 +406,6 @@ describe('CarritoService', () => {
             subtotal: unitario * 3,
             aLaVenta: true,
             stockSuficiente: false,
-            bajoMinimo: false,
             impideCrearPedido: true,
           },
         ],
@@ -508,7 +448,6 @@ describe('CarritoService', () => {
         subtotal: null,
         aLaVenta: false,
         stockSuficiente: null,
-        bajoMinimo: false,
         impideCrearPedido: true,
       });
       expect(carrito.total).toBe(precioConIva(10000, IVA));

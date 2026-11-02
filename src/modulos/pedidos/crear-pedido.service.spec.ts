@@ -129,7 +129,6 @@ describe('CrearPedidoService', () => {
           ({
             IVA_PORCENTAJE: 19,
             PLAZO_PAGO_MINUTOS: 15,
-            MINIMO_UNIDADES_PELUQUERO: 3,
           })[clave],
       ),
     };
@@ -527,7 +526,7 @@ describe('CrearPedidoService', () => {
     expect(ventaStock.descontarPorPedido).not.toHaveBeenCalled();
   });
 
-  describe('mínimo del profesional (E5-H4)', () => {
+  describe('compra mayorista sin mínimo (E5-H4, SCRUM-146)', () => {
     const lineaFormato = (
       articuloId: number,
       cantidad: number,
@@ -547,10 +546,10 @@ describe('CrearPedidoService', () => {
       articulo: { formato: null, pack: { nombre: 'Dúo reparador' } },
     });
 
-    it('E5-H4 · mínimo cumplido: con 3 unidades de cada formato crea el pedido y guarda el mayorista en cada línea', async () => {
+    it('E5-H4 · cualquier cantidad: con 1 o más unidades de cada formato crea el pedido y guarda el mayorista en cada línea', async () => {
       db.carrito.findUnique.mockResolvedValue({
         id: 5,
-        items: [lineaFormato(11, 3, 'Shampoo'), lineaFormato(12, 4, 'Bálsamo')],
+        items: [lineaFormato(11, 1, 'Shampoo'), lineaFormato(12, 4, 'Bálsamo')],
       });
       carrito.articulosALaVenta.mockResolvedValue(
         new Map([
@@ -564,7 +563,7 @@ describe('CrearPedidoService', () => {
       expect(datosPedido().detalles.create).toEqual([
         {
           articuloId: 11,
-          cantidad: 3,
+          cantidad: 1,
           precioUnitarioNetoAplicado: 800,
           tipoPrecio: 'mayorista',
         },
@@ -577,7 +576,7 @@ describe('CrearPedidoService', () => {
       ]);
     });
 
-    it('E5-H4 · bajo el mínimo: responde 409, nombra solo los formatos que no alcanzan y no toca el stock ni el carrito', async () => {
+    it('E5-H4 · sin validación de mínimo: formatos con 1 y 2 unidades no se rechazan y se descuentan del stock', async () => {
       db.carrito.findUnique.mockResolvedValue({
         id: 5,
         items: [
@@ -594,21 +593,18 @@ describe('CrearPedidoService', () => {
         ]),
       );
 
-      const error = await servicio
-        .crear(CUENTA, ROLES.PROFESIONAL, dtoRetiro())
-        .catch((e: unknown) => e);
+      await servicio.crear(CUENTA, ROLES.PROFESIONAL, dtoRetiro());
 
-      expect(error).toBeInstanceOf(ConflictException);
-      const mensaje = (error as Error).message;
-      expect(mensaje).toContain('Shampoo 300 ml');
-      expect(mensaje).toContain('Tónico 300 ml');
-      expect(mensaje).not.toContain('Bálsamo');
-      expect(db.pedido.create).not.toHaveBeenCalled();
-      expect(ventaStock.descontarPorPedido).not.toHaveBeenCalled();
-      expect(db.itemCarrito.deleteMany).not.toHaveBeenCalled();
+      expect(datosPedido().detalles.create).toEqual([
+        expect.objectContaining({ articuloId: 11, cantidad: 2 }),
+        expect.objectContaining({ articuloId: 12, cantidad: 3 }),
+        expect.objectContaining({ articuloId: 13, cantidad: 1 }),
+      ]);
+      expect(ventaStock.descontarPorPedido).toHaveBeenCalledTimes(1);
+      expect(db.itemCarrito.deleteMany).toHaveBeenCalled();
     });
 
-    it('E5-H4 · un pack no necesita mínimo: una unidad se compra a mayorista', async () => {
+    it('E5-H4 · un pack se compra a mayorista desde una unidad', async () => {
       db.carrito.findUnique.mockResolvedValue({
         id: 5,
         items: [lineaPack(30, 1)],
