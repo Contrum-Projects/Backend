@@ -76,6 +76,11 @@ export class SugerenciaDescripcionController {
       properties: {
         descripcion: { type: 'string' },
         ingredientes: { type: 'string', nullable: true },
+        firma: {
+          type: 'string',
+          description:
+            'Se reenvía en `sugerencia` al crear o editar el producto para registrar el origen de la descripción.',
+        },
       },
     },
   })

@@ -7,6 +7,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { CLIENTE_IA, type ClienteIa, ErrorServicioIa } from './cliente-ia.js';
+import { FirmaSugerencia } from './firma-sugerencia.js';
 import {
   type ArchivoSubido,
   TAMANO_MAXIMO_IMAGEN_BYTES,
@@ -18,6 +19,8 @@ export interface SugerenciaDescripcion {
   descripcion: string;
   /** `null` si la foto no muestra la lista de ingredientes. */
   ingredientes: string | null;
+  /** Se reenvía al guardar el producto para registrar el origen «IA» o «IA editada» (E4-H2). */
+  firma: string;
 }
 
 export const MENSAJE_FOTO_ILEGIBLE =
@@ -34,7 +37,10 @@ export const MENSAJE_IA_NO_DISPONIBLE =
 export class SugerenciaDescripcionService {
   private readonly logger = new Logger(SugerenciaDescripcionService.name);
 
-  constructor(@Inject(CLIENTE_IA) private readonly ia: ClienteIa) {}
+  constructor(
+    @Inject(CLIENTE_IA) private readonly ia: ClienteIa,
+    private readonly firma: FirmaSugerencia,
+  ) {}
 
   async sugerir(
     archivo: ArchivoSubido | undefined,
@@ -74,6 +80,7 @@ export class SugerenciaDescripcionService {
     return {
       descripcion: lectura.descripcion,
       ingredientes: lectura.ingredientes,
+      firma: this.firma.firmar(lectura.descripcion),
     };
   }
 }

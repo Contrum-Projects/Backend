@@ -144,6 +144,7 @@ describe('Catálogo · sugerir la descripción desde la foto del reverso (e2e)',
       descripcion:
         'Shampoo reparador para cabello dañado por procesos químicos.',
       ingredientes: 'Aqua, Sodium Laureth Sulfate, Glycerin',
+      firma: expect.stringMatching(/^[0-9a-f]{64}$/) as unknown,
     });
     expect(await prisma.producto.count()).toBe(productosAntes);
   });
@@ -164,6 +165,7 @@ describe('Catálogo · sugerir la descripción desde la foto del reverso (e2e)',
     expect(respuesta.body).toEqual({
       descripcion: 'Acondicionador nutritivo.',
       ingredientes: null,
+      firma: expect.any(String) as unknown,
     });
   });
 
