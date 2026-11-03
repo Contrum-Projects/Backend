@@ -37,7 +37,8 @@ import { VentaStockService } from './venta-stock.service.js';
     StockBajoService,
     VentaStockService,
   ],
-  // El pedido (E5) y su cancelación (E6, E8) descuentan y reingresan stock con este servicio
-  exports: [VentaStockService],
+  // El pedido (E5) y su cancelación (E6, E8) descuentan y reingresan stock con este servicio; el
+  // reporte de stock bajo el mínimo (E14-H4) reutiliza el cálculo del aviso del panel (E11-H6)
+  exports: [VentaStockService, StockBajoService],
 })
 export class InventarioModule {}
