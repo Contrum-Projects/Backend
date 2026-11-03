@@ -1,19 +1,27 @@
 import {
+  Body,
   Controller,
   Get,
   HttpCode,
   HttpStatus,
   Post,
+  UploadedFiles,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import {
+  ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiBody,
   ApiConflictResponse,
+  ApiConsumes,
   ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiPayloadTooLargeResponse,
+  ApiServiceUnavailableResponse,
   ApiTags,
   ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
@@ -25,12 +33,22 @@ import {
   JwtAutenticacionGuard,
   UsuarioActual,
 } from '../../autenticacion/jwt-autenticacion.guard.js';
+import { TIPOS_ANTECEDENTE } from '../../common/dominio/valores.js';
 import { LimitePorCuentaGuard } from '../../limites/limite-por-cuenta.guard.js';
 import { LIMITES } from '../../limites/limites.js';
+import { AdjuntarDocumentosDto } from './dto/adjuntar-documentos.dto.js';
+import {
+  type ArchivoAntecedente,
+  DocumentosVerificacionService,
+} from './documentos-verificacion.service.js';
 import {
   SolicitudVerificacionService,
   type SolicitudVerificacionCuenta,
 } from './solicitud-verificacion.service.js';
+import {
+  CAMPO_ANTECEDENTES,
+  SubidaAntecedentesInterceptor,
+} from './subida-antecedentes.interceptor.js';
 
 /** Solicitud de verificación como profesional de la cuenta con la sesión iniciada (E10-H1). */
 @ApiTags('verificacion')
@@ -42,7 +60,10 @@ import {
   description: 'Cuenta del personal de tienda.',
 })
 export class SolicitudVerificacionController {
-  constructor(private readonly solicitudes: SolicitudVerificacionService) {}
+  constructor(
+    private readonly solicitudes: SolicitudVerificacionService,
+    private readonly documentos: DocumentosVerificacionService,
+  ) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -70,11 +91,66 @@ export class SolicitudVerificacionController {
     return this.solicitudes.solicitar(usuario.codigoPublico);
   }
 
+  @Post('yo/documentos')
+  @HttpCode(HttpStatus.CREATED)
+  @UseGuards(LimitePorCuentaGuard)
+  @Throttle({ default: LIMITES.ADJUNTAR_DOCUMENTOS })
+  @UseInterceptors(SubidaAntecedentesInterceptor)
+  @ApiOperation({
+    summary: 'Adjuntar los documentos de mi solicitud de verificación (E10-H2)',
+    description:
+      'Para quien no pasó la verificación automática: la solicitud está `pendiente` y `requiereDocumentos` es `true`. Recibe de 1 a 5 documentos en el campo `archivos` (PDF, JPG o PNG, hasta 5 MB cada uno, reconocidos por su contenido) y, en el campo `tipos`, el tipo de cada uno en el mismo orden (`titulo`, `certificado` u `otro`; un certificado de curso vale como `certificado`). La solicitud pasa a `revision_manual`, a la espera del personal. Los archivos se guardan privados y no se entregan por esta API.',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: [CAMPO_ANTECEDENTES, 'tipos'],
+      properties: {
+        [CAMPO_ANTECEDENTES]: {
+          type: 'array',
+          items: { type: 'string', format: 'binary' },
+        },
+        tipos: {
+          type: 'array',
+          items: { type: 'string', enum: Object.values(TIPOS_ANTECEDENTE) },
+        },
+      },
+    },
+  })
+  @ApiCreatedResponse({
+    description:
+      'Documentos guardados: la solicitud queda en `revision_manual`.',
+  })
+  @ApiBadRequestResponse({
+    description:
+      'Sin documentos, más de 5, un archivo que no es PDF, JPG ni PNG, o los tipos no coinciden con los archivos.',
+  })
+  @ApiNotFoundResponse({ description: 'La cuenta nunca envió una solicitud.' })
+  @ApiConflictResponse({
+    description:
+      'La solicitud ya fue aprobada, ya tiene documentos en revisión o fue rechazada (hay que enviar una nueva).',
+  })
+  @ApiPayloadTooLargeResponse({ description: 'Un documento supera los 5 MB.' })
+  @ApiTooManyRequestsResponse({
+    description: 'Más de 5 envíos de documentos por hora de la misma cuenta.',
+  })
+  @ApiServiceUnavailableResponse({
+    description: 'El almacén de archivos no está configurado o no responde.',
+  })
+  adjuntarDocumentos(
+    @UsuarioActual() usuario: UsuarioAutenticado,
+    @Body() dto: AdjuntarDocumentosDto,
+    @UploadedFiles() archivos: ArchivoAntecedente[] | undefined,
+  ): Promise<SolicitudVerificacionCuenta> {
+    return this.documentos.adjuntar(usuario.codigoPublico, dto, archivos);
+  }
+
   @Get('yo')
   @ApiOperation({
     summary: 'Ver el estado de mi solicitud de verificación (E10-H1)',
     description:
-      'La solicitud más reciente de la cuenta: su estado (`pendiente`, `revision_manual`, `aprobada` o `rechazada`), las fechas, el motivo si fue rechazada y si debe adjuntar documentos. Nunca incluye lo que respondió el SII, el puntaje ni quién la resolvió.',
+      'La solicitud más reciente de la cuenta: su estado (`pendiente`, `revision_manual`, `aprobada` o `rechazada`), las fechas, el motivo si fue rechazada, si debe adjuntar documentos y el nombre y tipo de los que ya adjuntó. Nunca incluye lo que respondió el SII, el puntaje ni quién la resolvió.',
   })
   @ApiOkResponse({ description: 'La solicitud más reciente.' })
   @ApiNotFoundResponse({

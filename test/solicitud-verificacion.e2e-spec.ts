@@ -262,6 +262,7 @@ describe('Verificación · solicitar la verificación como profesional (e2e)', (
 
     for (const cuerpo of [creada.body, vista.body]) {
       expect(Object.keys(cuerpo as object).sort()).toEqual([
+        'documentos',
         'estado',
         'fechaResolucion',
         'fechaSolicitud',
@@ -414,6 +415,7 @@ describe('Verificación · solicitar la verificación como profesional (e2e)', (
         fechaResolucion: '2026-11-03T12:00:00.000Z',
         motivoRechazo: 'El documento no se lee.',
         requiereDocumentos: false,
+        documentos: [],
       });
     });
 

@@ -42,6 +42,7 @@ const solicitudGuardada = (cambios: object = {}) => ({
   fechaSolicitud: new Date('2026-11-02T18:00:00.000Z'),
   fechaResolucion: null,
   motivoRechazo: null,
+  antecedentes: [],
   ...cambios,
 });
 
@@ -135,6 +136,7 @@ describe('SolicitudVerificacionService', () => {
       fechaResolucion: '2026-11-02T18:00:00.000Z',
       motivoRechazo: null,
       requiereDocumentos: false,
+      documentos: [],
     });
   });
 
@@ -155,6 +157,7 @@ describe('SolicitudVerificacionService', () => {
       fechaResolucion: null,
       motivoRechazo: null,
       requiereDocumentos: true,
+      documentos: [],
     });
   });
 
@@ -346,6 +349,7 @@ describe('SolicitudVerificacionService', () => {
         fechaResolucion: '2026-11-03T12:00:00.000Z',
         motivoRechazo: 'El documento no se lee.',
         requiereDocumentos: false,
+        documentos: [],
       });
     });
 
@@ -377,6 +381,10 @@ describe('SolicitudVerificacionService', () => {
           fechaSolicitud: true,
           fechaResolucion: true,
           motivoRechazo: true,
+          antecedentes: {
+            select: { tipo: true, nombreArchivo: true },
+            orderBy: { id: 'asc' },
+          },
         },
       });
     });

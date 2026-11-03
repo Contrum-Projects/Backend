@@ -57,6 +57,12 @@ export const LIMITES = {
    * por consulta: frena gastar la cuota del proveedor repitiendo la solicitud.
    */
   SOLICITAR_VERIFICACION: { limit: 5, ttl: 60 * 60_000 },
+  /**
+   * Adjuntar los documentos de la verificación (E10-H2, decisión del 2 nov 2026): 5/hora por
+   * cuenta, con `LimitePorCuentaGuard`. Cada envío sube hasta 5 archivos de 5 MB al almacén: frena
+   * llenarlo.
+   */
+  ADJUNTAR_DOCUMENTOS: { limit: 5, ttl: 60 * 60_000 },
 } as const;
 
 /**

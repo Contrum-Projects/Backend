@@ -42,6 +42,14 @@ export interface SolicitudVerificacionCuenta {
    * lo que significa `pendiente`. Con documentos enviados pasa a `revision_manual`.
    */
   requiereDocumentos: boolean;
+  /** Los documentos que adjuntó (E10-H2); vacío mientras no los envíe. Nunca su ubicación ni su hash. */
+  documentos: DocumentoSolicitud[];
+}
+
+/** Un documento de la solicitud tal como lo ve quien la envió. */
+export interface DocumentoSolicitud {
+  tipo: string;
+  nombreArchivo: string;
 }
 
 /**
@@ -55,11 +63,15 @@ const ESTADOS_QUE_BLOQUEAN: string[] = [
   ESTADOS_SOLICITUD.APROBADA,
 ];
 
-const SELECCION_SOLICITUD = {
+export const SELECCION_SOLICITUD = {
   estado: true,
   fechaSolicitud: true,
   fechaResolucion: true,
   motivoRechazo: true,
+  antecedentes: {
+    select: { tipo: true, nombreArchivo: true },
+    orderBy: { id: 'asc' },
+  },
 } satisfies Prisma.SolicitudVerificacionSelect;
 
 type SolicitudLeida = Prisma.SolicitudVerificacionGetPayload<{
@@ -213,7 +225,7 @@ const exigirPuedeSolicitar = (cuenta: CuentaLeida) => {
   if (bloqueante) throw new ConflictException(SOLICITUD_EN_CURSO);
 };
 
-const aSolicitudCuenta = (
+export const aSolicitudCuenta = (
   solicitud: SolicitudLeida,
 ): SolicitudVerificacionCuenta => ({
   estado: solicitud.estado,
@@ -224,4 +236,8 @@ const aSolicitudCuenta = (
       ? solicitud.motivoRechazo
       : null,
   requiereDocumentos: solicitud.estado === ESTADOS_SOLICITUD.PENDIENTE,
+  documentos: solicitud.antecedentes.map(({ tipo, nombreArchivo }) => ({
+    tipo,
+    nombreArchivo,
+  })),
 });

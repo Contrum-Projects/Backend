@@ -1,6 +1,8 @@
 import { Logger, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { AlmacenModule } from '../../almacen/almacen.module.js';
 import type { Entorno } from '../../config/entorno.js';
+import { DocumentosVerificacionService } from './documentos-verificacion.service.js';
 import { SolicitudVerificacionController } from './solicitud-verificacion.controller.js';
 import { SolicitudVerificacionService } from './solicitud-verificacion.service.js';
 import {
@@ -13,9 +15,11 @@ import { ProveedorSituacionTributaria } from './sii/proveedor-situacion-tributar
 /**
  * Épica 10: verificación de profesionales, solicitud de la cuenta (ver src/modulos/README.md). El
  * SII se consulta por el proveedor que se inyecta como `ProveedorSituacionTributaria`: Khipu; sin
- * `KHIPU_API_KEY` la app arranca, pero la consulta falla y se piden documentos.
+ * `KHIPU_API_KEY` la app arranca, pero la consulta falla y se piden documentos, que se guardan en el
+ * almacén de archivos (E10-H2).
  */
 @Module({
+  imports: [AlmacenModule],
   controllers: [SolicitudVerificacionController],
   providers: [
     {
@@ -44,6 +48,7 @@ import { ProveedorSituacionTributaria } from './sii/proveedor-situacion-tributar
       },
     },
     SolicitudVerificacionService,
+    DocumentosVerificacionService,
   ],
 })
 export class SolicitudVerificacionModule {}

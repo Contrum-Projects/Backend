@@ -187,6 +187,26 @@ export const PROVEEDORES_SII = {
  */
 export const GIRO_PELUQUERIA = '960200';
 
+/**
+ * ANTECEDENTE.tipo: el documento con que quien no pasó la verificación automática acredita su
+ * oficio (E10-H2, propuesta del 2 de noviembre de 2026, por confirmar con el equipo). Lo elige quien
+ * lo sube. El inicio de actividades ya no se adjunta: se consulta al SII (E10-H1). El carnet no se
+ * pide: lleva demasiados datos confidenciales. Un certificado de curso vale como `certificado`.
+ */
+export const TIPOS_ANTECEDENTE = {
+  TITULO: 'titulo',
+  CERTIFICADO: 'certificado',
+  OTRO: 'otro',
+} as const;
+
+/**
+ * ANTECEDENTE.estado_ocr. Sin OCR (decisión del 2 de noviembre de 2026): los documentos los
+ * revisa el personal, así que ninguno se procesa. La columna es obligatoria y queda con este valor.
+ */
+export const ESTADOS_OCR = {
+  NO_APLICA: 'no_aplica',
+} as const;
+
 /** CAMPANA.tipo: campaña de envío único o saludo de cumpleaños. */
 export const TIPOS_CAMPANA = {
   ENVIO_UNICO: 'envio_unico',
