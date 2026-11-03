@@ -1,9 +1,17 @@
+import { InjectQueue } from '@nestjs/bullmq';
 import {
   ConflictException,
   Injectable,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import type { Queue } from 'bullmq';
+import {
+  COLAS,
+  TRABAJOS_CORREO,
+  type TrabajoVerificacionAprobada,
+} from '../../colas/colas.js';
+import { encolarCorreos } from '../../colas/encolar-correo.js';
 import { hoyEnLaTienda } from '../../common/dominio/fechas.js';
 import { ROLES } from '../../common/dominio/roles.js';
 import {
@@ -13,6 +21,7 @@ import {
 import type { Prisma } from '../../generated/prisma/client.js';
 import { bloquearCuenta } from '../../prisma/bloqueos.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { registrarAprobacion } from './aprobacion-verificacion.js';
 import { evaluarSituacion } from './sii/evaluar-situacion.js';
 import { ProveedorSituacionTributaria } from './sii/proveedor-situacion-tributaria.js';
 
@@ -106,8 +115,8 @@ interface ConsultaRealizada {
  * Solicitud de verificación como profesional (E10-H1, RF-10.01, RF-10.04, RF-10.05 y RF-10.09).
  * Al solicitar se consulta el inicio de actividades del RUT en el SII: con el giro 960200 vigente
  * la solicitud queda `aprobada` sola; con cualquier otro resultado, o si la consulta falla, queda
- * `pendiente` a la espera de documentos (E10-H2). El sistema nunca rechaza solo (RNF-27). El rol
- * de la cuenta y el correo de aprobación son de E10-H4.
+ * `pendiente` a la espera de documentos (E10-H2). El sistema nunca rechaza solo (RNF-27). Aprobada,
+ * la cuenta pasa a `profesional` en la misma transacción y se encola el correo que lo avisa (E10-H4).
  *
  * La consulta es una llamada externa de hasta 10 segundos: se hace antes de la transacción, sin
  * tener la cuenta bloqueada. La fila de la cuenta se bloquea al registrar, como al editar el RUT:
@@ -120,6 +129,7 @@ export class SolicitudVerificacionService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly proveedor: ProveedorSituacionTributaria,
+    @InjectQueue(COLAS.CORREOS) private readonly correos: Queue,
   ) {}
 
   async solicitar(codigoPublico: string): Promise<SolicitudVerificacionCuenta> {
@@ -133,7 +143,7 @@ export class SolicitudVerificacionService {
 
     const consulta = await this.consultar(previa.rut as string);
 
-    const solicitud = await this.prisma.$transaction(async (tx) => {
+    const { solicitud, aviso } = await this.prisma.$transaction(async (tx) => {
       await bloquearCuenta(tx, codigoPublico);
       const cuenta = await tx.usuario.findUniqueOrThrow({
         where: { id: previa.id },
@@ -144,7 +154,7 @@ export class SolicitudVerificacionService {
         throw new ConflictException(DATOS_CAMBIARON);
 
       const aprobada = consulta.resultado === RESULTADOS_CONSULTA_SII.APROBADO;
-      return tx.solicitudVerificacion.create({
+      const creada = await tx.solicitudVerificacion.create({
         data: {
           solicitanteId: cuenta.id,
           estado: aprobada
@@ -160,7 +170,22 @@ export class SolicitudVerificacionService {
         },
         select: SELECCION_SOLICITUD,
       });
+      // E10-H4: el rol y el registro del correo van con la aprobación (RNF-12)
+      const avisoAprobacion: TrabajoVerificacionAprobada | null = aprobada
+        ? await registrarAprobacion(tx, cuenta.id)
+        : null;
+      return { solicitud: creada, aviso: avisoAprobacion };
     });
+
+    // Después del commit; con Redis caído la NOTIFICACION queda pendiente y la solicitud no falla
+    if (aviso) {
+      await encolarCorreos(
+        this.correos,
+        TRABAJOS_CORREO.VERIFICACION_APROBADA,
+        [aviso],
+        this.logger,
+      );
+    }
     return aSolicitudCuenta(solicitud);
   }
 

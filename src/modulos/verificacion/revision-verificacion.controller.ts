@@ -72,7 +72,7 @@ export class RevisionVerificacionController {
   @ApiOperation({
     summary: 'Aprobar una solicitud en revisión manual (E10-H3)',
     description:
-      'Sin cuerpo. Deja `aprobada` la solicitud en revisión manual de la cuenta y registra quién la resolvió y cuándo. El cambio de rol a profesional y el correo de aviso corresponden a E10-H4.',
+      'Sin cuerpo. Deja `aprobada` la solicitud en revisión manual de la cuenta y registra quién la resolvió y cuándo. En la misma operación la cuenta pasa a profesional y se le envía el correo de aviso (E10-H4); sus sesiones siguen abiertas y obtienen el precio mayorista al renovarse (`POST /api/cuentas/sesion/renovar`).',
   })
   @ApiOkResponse({ description: 'Solicitud aprobada.' })
   @ApiConflictResponse({

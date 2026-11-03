@@ -11,6 +11,7 @@ import {
   correoConfirmacion,
   correoInvitacion,
   correoRecuperacion,
+  correoVerificacionAprobada,
 } from './cuenta.js';
 import { correoCambioEstado, correoPagoConfirmado } from './pedido.js';
 import { correoStockBajo, correoStockBajoRecuperado } from './stock-bajo.js';
@@ -200,5 +201,39 @@ describe('Plantillas de correo', () => {
     expect(fechaLarga(FECHA)).toBe('11 de octubre a las 17:05');
     expect(fechaCorta(FECHA)).toBe('11 oct');
     expect(fechaConHora(FECHA)).toBe('11 oct, 17:05');
+  });
+
+  it('E10-H4 · correo de aprobación: lleva el texto del diseño, el nombre y el enlace al catálogo, sin el mínimo de unidades', () => {
+    const { catalogo } = rutasTienda('https://tienda.cl/');
+    const { html, texto } = correoVerificacionAprobada({
+      asunto: 'Tu cuenta profesional está activa',
+      nombre: 'Andrea',
+      urlCatalogo: catalogo,
+      enlacesPie,
+    });
+
+    expect(catalogo).toBe('https://tienda.cl/catalogo');
+    expect(html).toContain('Tu cuenta profesional está activa');
+    expect(html).toContain('Hola, Andrea. Aprobamos tu verificación.');
+    expect(html).toContain('Ver precios profesionales');
+    expect(html).toContain('href="https://tienda.cl/catalogo"');
+    expect(html).toContain('pediste verificar tu cuenta como profesional');
+    expect(html).not.toContain('3 unidades');
+    expect(texto).toContain(
+      'Ver precios profesionales: https://tienda.cl/catalogo',
+    );
+    expect(texto).not.toContain('<');
+  });
+
+  it('E10-H4 · correo de aprobación: el nombre no se interpreta como HTML', () => {
+    const { html } = correoVerificacionAprobada({
+      asunto: 'A',
+      nombre: '<b>Andrea</b>',
+      urlCatalogo: 'https://tienda.cl/catalogo',
+      enlacesPie,
+    });
+
+    expect(html).not.toContain('<b>Andrea</b>');
+    expect(html).toContain('&lt;b&gt;Andrea&lt;/b&gt;');
   });
 });

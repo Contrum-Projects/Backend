@@ -72,7 +72,7 @@ export class SolicitudVerificacionController {
   @ApiOperation({
     summary: 'Solicitar mi verificación como profesional (E10-H1)',
     description:
-      'Sin cuerpo. Consulta en el SII el inicio de actividades del RUT de la cuenta, que debe estar registrado. Con el giro 960200 (Peluquería y otros tratamientos de belleza) vigente, la solicitud queda `aprobada`. En cualquier otro caso, o si la consulta no está disponible, queda `pendiente` y `requiereDocumentos` es `true`: hay que adjuntar documentos para la revisión del personal. Nunca se rechaza sola. Si antes la rechazaron, se puede enviar una nueva y se consulta de nuevo.',
+      'Sin cuerpo. Consulta en el SII el inicio de actividades del RUT de la cuenta, que debe estar registrado. Con el giro 960200 (Peluquería y otros tratamientos de belleza) vigente, la solicitud queda `aprobada`, la cuenta pasa a profesional y se le envía el correo de aviso (E10-H4): renovando la sesión (`POST /api/cuentas/sesion/renovar`) recibe el token con el rol nuevo y ve el precio mayorista. En cualquier otro caso, o si la consulta no está disponible, queda `pendiente` y `requiereDocumentos` es `true`: hay que adjuntar documentos para la revisión del personal. Nunca se rechaza sola. Si antes la rechazaron, se puede enviar una nueva y se consulta de nuevo.',
   })
   @ApiCreatedResponse({
     description:

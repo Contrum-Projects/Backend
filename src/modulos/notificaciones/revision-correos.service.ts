@@ -10,7 +10,9 @@ import {
   type TrabajoCorreoConEnlace,
   type TrabajoPagoConfirmado,
   type TrabajoStockBajoRecuperado,
+  type TrabajoVerificacionAprobada,
 } from '../../colas/colas.js';
+import { ROLES } from '../../common/dominio/roles.js';
 import {
   encolarCorreos,
   idTrabajoCorreo,
@@ -58,6 +60,7 @@ const TIPOS_QUE_ENVIA = [
   TIPOS_NOTIFICACION.PAGO_CONFIRMADO,
   TIPOS_NOTIFICACION.CAMBIO_ESTADO_PEDIDO,
   TIPOS_NOTIFICACION.STOCK_BAJO,
+  TIPOS_NOTIFICACION.VERIFICACION_APROBADA,
 ];
 
 interface Pendiente {
@@ -70,6 +73,7 @@ interface Pendiente {
     email: string;
     nombre: string;
     activo: boolean;
+    rol: string;
     fechaVerificacionCorreo: Date | null;
   } | null;
   pedido: {
@@ -117,6 +121,7 @@ export class RevisionCorreosService {
             email: true,
             nombre: true,
             activo: true,
+            rol: true,
             fechaVerificacionCorreo: true,
           },
         },
@@ -178,6 +183,12 @@ export class RevisionCorreosService {
       if (!usuario.activo) return null;
       const datos: TrabajoStockBajoRecuperado = persona;
       return { trabajo: TRABAJOS_CORREO.STOCK_BAJO, datos };
+    }
+    if (tipo === TIPOS_NOTIFICACION.VERIFICACION_APROBADA) {
+      // Si la desactivaron o le cambiaron el rol, el aviso ya no es cierto (E10-H4)
+      if (!usuario.activo || usuario.rol !== ROLES.PROFESIONAL) return null;
+      const datos: TrabajoVerificacionAprobada = persona;
+      return { trabajo: TRABAJOS_CORREO.VERIFICACION_APROBADA, datos };
     }
     if (!pedido) return null;
     if (tipo === TIPOS_NOTIFICACION.PAGO_CONFIRMADO) {

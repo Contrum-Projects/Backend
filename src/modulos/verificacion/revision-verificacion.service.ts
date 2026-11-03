@@ -1,20 +1,33 @@
+import { InjectQueue } from '@nestjs/bullmq';
 import {
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
+import type { Queue } from 'bullmq';
+import {
+  COLAS,
+  TRABAJOS_CORREO,
+  type TrabajoVerificacionAprobada,
+} from '../../colas/colas.js';
+import { encolarCorreos } from '../../colas/encolar-correo.js';
 import { ROLES } from '../../common/dominio/roles.js';
 import { ESTADOS_SOLICITUD } from '../../common/dominio/valores.js';
 import { bloquearCuenta } from '../../prisma/bloqueos.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import {
+  CUENTA_NO_APROBABLE,
+  registrarAprobacion,
+} from './aprobacion-verificacion.js';
 import type { RechazarSolicitudDto } from './dto/rechazar-solicitud.dto.js';
+
+export { CUENTA_NO_APROBABLE };
 
 export const SIN_SOLICITUD_CUENTA =
   'La cuenta no tiene solicitudes de verificación.';
 export const NO_ESTA_EN_REVISION =
   'Solo se puede resolver una solicitud en revisión manual.';
-export const CUENTA_NO_APROBABLE =
-  'Solo se puede aprobar la solicitud de una cuenta activa que sigue siendo cliente.';
 
 /** Integrante del personal que resolvió la solicitud. */
 export interface ResolutorSolicitud {
@@ -42,8 +55,8 @@ type Decision =
 /**
  * Revisión manual de las solicitudes de verificación por el personal (E10-H3, RF-10.06): aprobar
  * o rechazar con motivo la solicitud más reciente de una cuenta, que debe estar en
- * `revision_manual`. Queda guardado quién la resolvió y cuándo. El rol `profesional` y el correo
- * al aprobar son de E10-H4.
+ * `revision_manual`. Queda guardado quién la resolvió y cuándo. Aprobar deja la cuenta como
+ * `profesional` en la misma transacción y encola el correo que lo avisa después del commit (E10-H4).
  *
  * La fila de la cuenta se bloquea antes de leer la solicitud, como al solicitar y al adjuntar
  * documentos: una resolución no se cruza con otra ni con un cambio de la cuenta. El cambio de
@@ -51,7 +64,12 @@ type Decision =
  */
 @Injectable()
 export class RevisionVerificacionService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(RevisionVerificacionService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    @InjectQueue(COLAS.CORREOS) private readonly correos: Queue,
+  ) {}
 
   /** E10-H3 · Aprueba la solicitud en revisión manual de la cuenta `codigoPublicoCuenta`. */
   aprobar(
@@ -76,12 +94,12 @@ export class RevisionVerificacionService {
     });
   }
 
-  private resolver(
+  private async resolver(
     codigoPublicoPersonal: string,
     codigoPublicoCuenta: string,
     decision: Decision,
   ): Promise<SolicitudResuelta> {
-    return this.prisma.$transaction(async (tx) => {
+    const { resuelta, aviso } = await this.prisma.$transaction(async (tx) => {
       const cuentaId = await bloquearCuenta(tx, codigoPublicoCuenta);
       const solicitud = await tx.solicitudVerificacion.findFirst({
         where: { solicitanteId: cuentaId },
@@ -126,7 +144,13 @@ export class RevisionVerificacionService {
       });
       if (count === 0) throw new ConflictException(NO_ESTA_EN_REVISION);
 
-      return {
+      // E10-H4: el rol y el registro del correo van con la aprobación (RNF-12)
+      const aviso: TrabajoVerificacionAprobada | null =
+        decision.estado === ESTADOS_SOLICITUD.APROBADA
+          ? await registrarAprobacion(tx, cuentaId)
+          : null;
+
+      const resuelta: SolicitudResuelta = {
         codigoPublicoCuenta,
         estado: decision.estado,
         fechaSolicitud: solicitud.fechaSolicitud.toISOString(),
@@ -134,6 +158,18 @@ export class RevisionVerificacionService {
         motivoRechazo: decision.motivo,
         resolutor,
       };
+      return { resuelta, aviso };
     });
+
+    // Después del commit; con Redis caído la NOTIFICACION queda pendiente y la aprobación no falla
+    if (aviso) {
+      await encolarCorreos(
+        this.correos,
+        TRABAJOS_CORREO.VERIFICACION_APROBADA,
+        [aviso],
+        this.logger,
+      );
+    }
+    return resuelta;
   }
 }

@@ -1,6 +1,8 @@
+import { BullModule } from '@nestjs/bullmq';
 import { Logger, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AlmacenModule } from '../../almacen/almacen.module.js';
+import { COLAS } from '../../colas/colas.js';
 import type { Entorno } from '../../config/entorno.js';
 import { DocumentosVerificacionService } from './documentos-verificacion.service.js';
 import { RevisionVerificacionController } from './revision-verificacion.controller.js';
@@ -19,10 +21,11 @@ import { ProveedorSituacionTributaria } from './sii/proveedor-situacion-tributar
  * SII se consulta por el proveedor que se inyecta como `ProveedorSituacionTributaria`: Khipu; sin
  * `KHIPU_API_KEY` la app arranca, pero la consulta falla y se piden documentos, que se guardan en el
  * almacén de archivos (E10-H2).
- * El personal resuelve las solicitudes en revisión manual (E10-H3).
+ * El personal resuelve las solicitudes en revisión manual (E10-H3). Aprobada, la cuenta pasa a
+ * `profesional` y se encola el correo que lo avisa (E10-H4).
  */
 @Module({
-  imports: [AlmacenModule],
+  imports: [AlmacenModule, BullModule.registerQueue({ name: COLAS.CORREOS })],
   controllers: [
     SolicitudVerificacionController,
     RevisionVerificacionController,

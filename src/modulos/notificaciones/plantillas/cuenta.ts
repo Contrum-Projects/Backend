@@ -11,6 +11,45 @@ import {
   titulo,
 } from './base.js';
 
+interface DatosVerificacionAprobada {
+  asunto: string;
+  nombre: string;
+  urlCatalogo: string;
+  enlacesPie: EnlacesPie;
+}
+
+/**
+ * Verificación aprobada (E10-H4), según el diseño de Figma, con tres cambios decididos el 3 de
+ * noviembre de 2026: un mismo texto para la aprobación automática y la manual (la automática no
+ * revisa documentos); sin el recuadro de «al menos 3 unidades de cada formato», que dejó de regir
+ * con SCRUM-146; y sin «Completa tu perfil profesional» hasta que exista el perfil (RF-10.11).
+ */
+export const correoVerificacionAprobada = ({
+  asunto,
+  nombre,
+  urlCatalogo,
+  enlacesPie,
+}: DatosVerificacionAprobada): CorreoRenderizado => {
+  const encabezado = 'Tu cuenta profesional está activa';
+  const mensaje = `Hola, ${nombre}. Aprobamos tu verificación. Desde ahora ves el precio profesional en todo el catálogo.`;
+  const accion = 'Ver precios profesionales';
+  const pie =
+    'Recibes este correo porque pediste verificar tu cuenta como profesional.';
+  return {
+    html: marco({
+      asunto,
+      cuerpo: [
+        titulo(encabezado),
+        texto(mensaje),
+        boton(accion, urlCatalogo),
+      ].join(''),
+      pie,
+      enlaces: enlacesPie,
+    }),
+    texto: textoPlano(encabezado, mensaje, `${accion}: ${urlCatalogo}`, pie),
+  };
+};
+
 const SI_NO_FUNCIONA =
   'Si el botón no funciona, copia este enlace en tu navegador:';
 

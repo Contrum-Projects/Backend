@@ -28,6 +28,7 @@ import {
   correoConfirmacion,
   correoInvitacion,
   correoRecuperacion,
+  correoVerificacionAprobada,
 } from './plantillas/cuenta.js';
 import {
   correoCambioEstado,
@@ -110,6 +111,13 @@ export class ContenidoCorreosService {
         );
       case TRABAJOS_CORREO.STOCK_BAJO:
         return this.stockBajo(datos, notificacion.asunto);
+      case TRABAJOS_CORREO.VERIFICACION_APROBADA:
+        return correoVerificacionAprobada({
+          asunto: notificacion.asunto,
+          nombre: datos.nombre,
+          urlCatalogo: this.rutas.catalogo,
+          enlacesPie: this.rutas.pie,
+        });
       default:
         throw new Error(`Trabajo de correo desconocido: ${trabajo}`);
     }

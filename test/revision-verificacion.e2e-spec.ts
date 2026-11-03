@@ -1,11 +1,14 @@
+import { getQueueToken } from '@nestjs/bullmq';
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import argon2 from 'argon2';
+import type { Job, Queue } from 'bullmq';
 import type { Redis } from 'ioredis';
 import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { App } from 'supertest/types.js';
 import { AppModule } from '../src/app.module.js';
+import { COLAS } from '../src/colas/colas.js';
 import { ROLES, type Rol } from '../src/common/dominio/roles.js';
 import { ESTADOS_SOLICITUD } from '../src/common/dominio/valores.js';
 import { configurarApp } from '../src/configurar-app.js';
@@ -87,6 +90,21 @@ describe('Verificación · aprobar o rechazar solicitudes en revisión manual (e
     prisma.solicitudVerificacion.findUniqueOrThrow({ where: { id } });
 
   const limpiar = async () => {
+    // Aprobar encola el correo de E10-H4: se borran sus trabajos y notificaciones
+    const correos = app.get<Queue>(getQueueToken(COLAS.CORREOS));
+    const trabajos: Job<{ destinatario?: string }>[] = await correos.getJobs([
+      'prioritized',
+      'waiting',
+      'delayed',
+    ]);
+    await Promise.all(
+      trabajos
+        .filter((t) => t.data?.destinatario?.startsWith(PREFIJO_CORREO))
+        .map((t) => t.remove()),
+    );
+    await prisma.notificacion.deleteMany({
+      where: { usuario: { email: { startsWith: PREFIJO_CORREO } } },
+    });
     await prisma.solicitudVerificacion.deleteMany({
       where: { solicitante: { email: { startsWith: PREFIJO_CORREO } } },
     });
