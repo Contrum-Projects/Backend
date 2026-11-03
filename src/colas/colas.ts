@@ -41,6 +41,8 @@ export const TRABAJOS_CORREO = {
   CAMBIO_ESTADO_PEDIDO: 'cambio-estado-pedido',
   /** Confirmación al cliente de que se recibió el pago de su pedido (E6-H2). */
   PAGO_CONFIRMADO: 'pago-confirmado',
+  /** Aviso al solicitante de que su cuenta quedó verificada como profesional (E10-H4). */
+  VERIFICACION_APROBADA: 'verificacion-aprobada',
   /** Tarea repetible: reencola los correos pendientes si Redis se cayó o se vació (RNF-29). */
   REVISAR_PENDIENTES: 'revisar-pendientes',
 } as const;
@@ -117,6 +119,13 @@ export interface TrabajoPagoConfirmado {
   montoTotal: number;
 }
 
+/** Datos del correo que avisa que la cuenta quedó verificada como profesional (E10-H4). */
+export interface TrabajoVerificacionAprobada {
+  notificacionId: number;
+  destinatario: string;
+  nombre: string;
+}
+
 /**
  * Stock bajo reencolado por la revisión (RNF-29): NOTIFICACION no guarda el formato, así que el
  * correo sale sin sus cifras y remite al panel.
@@ -133,7 +142,8 @@ export type TrabajoCorreo =
   | TrabajoStockBajo
   | TrabajoStockBajoRecuperado
   | TrabajoCambioEstadoPedido
-  | TrabajoPagoConfirmado;
+  | TrabajoPagoConfirmado
+  | TrabajoVerificacionAprobada;
 
 /**
  * Prioridad de los correos (RNF-16): en BullMQ, número menor = sale antes.

@@ -183,4 +183,49 @@ describe('EnvioCorreosService', () => {
       'notificacion-8',
     );
   });
+
+  describe('E10-H4 · correo de aprobación', () => {
+    const AVISO = {
+      notificacionId: 9,
+      destinatario: 'andrea@correo.cl',
+      nombre: 'Andrea',
+    };
+    const conCuenta = (usuario: { activo: boolean; rol: string }) =>
+      prisma.notificacion.findUnique.mockResolvedValue({
+        estadoEnvio: ESTADOS_NOTIFICACION.PENDIENTE,
+        asunto: 'Tu cuenta profesional está activa',
+        pedidoId: null,
+        usuario,
+      });
+
+    it('E10-H4 · correo de aprobación: se envía a quien sigue activo y profesional', async () => {
+      conCuenta({ activo: true, rol: 'profesional' });
+
+      await servicio.enviar(TRABAJOS_CORREO.VERIFICACION_APROBADA, AVISO);
+
+      expect(cliente.enviar).toHaveBeenCalledWith(
+        expect.objectContaining({
+          para: 'andrea@correo.cl',
+          asunto: 'Tu cuenta profesional está activa',
+        }),
+      );
+    });
+
+    it('E10-H4 · correo de aprobación: si la desactivaron o ya no es profesional, queda fallida sin enviarse', async () => {
+      for (const usuario of [
+        { activo: false, rol: 'profesional' },
+        { activo: true, rol: 'cliente' },
+      ]) {
+        conCuenta(usuario);
+
+        await servicio.enviar(TRABAJOS_CORREO.VERIFICACION_APROBADA, AVISO);
+      }
+
+      expect(cliente.enviar).not.toHaveBeenCalled();
+      expect(prisma.notificacion.updateMany).toHaveBeenCalledWith({
+        where: { id: 9, estadoEnvio: ESTADOS_NOTIFICACION.PENDIENTE },
+        data: { estadoEnvio: ESTADOS_NOTIFICACION.FALLIDA },
+      });
+    });
+  });
 });

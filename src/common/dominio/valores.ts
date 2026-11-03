@@ -241,6 +241,8 @@ export const TIPOS_NOTIFICACION = {
   CAMBIO_ESTADO_PEDIDO: 'cambio_estado_pedido',
   /** E6-H2, decisión del 31 de octubre de 2026: se recibió el pago del pedido (RF-06.06). */
   PAGO_CONFIRMADO: 'pago_confirmado',
+  /** E10-H4, decisión del 3 de noviembre de 2026: la cuenta quedó verificada como profesional (RF-10.08). */
+  VERIFICACION_APROBADA: 'verificacion_aprobada',
 } as const;
 
 /**

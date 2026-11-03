@@ -1,5 +1,7 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
+import type { Queue } from 'bullmq';
 import type { PrismaService } from '../../prisma/prisma.service.js';
+import { ASUNTO_VERIFICACION_APROBADA } from './aprobacion-verificacion.js';
 import {
   CUENTA_NO_APROBABLE,
   NO_ESTA_EN_REVISION,
@@ -23,10 +25,19 @@ const crearDb = () => {
     // El bloqueo de la cuenta (`bloquearCuenta`) devuelve su id
     $queryRaw: vi.fn().mockResolvedValue([{ id: 7 }]),
     /** La cuenta que solicitó, tal como se lee con la fila bloqueada. */
-    solicitante: { rol: 'cliente', activo: true },
+    solicitante: {
+      rol: 'cliente',
+      activo: true,
+      email: 'marcela@correo.cl',
+      nombre: 'Marcela',
+    } as object,
     usuario: {
       // Por id, la cuenta que solicitó; por código público, quien resuelve
       findUniqueOrThrow: vi.fn(),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+    },
+    notificacion: {
+      create: vi.fn().mockResolvedValue({ id: 90 }),
     },
     solicitudVerificacion: {
       findFirst: vi.fn().mockResolvedValue({
@@ -37,9 +48,15 @@ const crearDb = () => {
       updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
     $transaction: vi.fn(),
+    /** Se llama cuando la transacción simulada termina bien: marca el commit. */
+    commit: vi.fn(),
   };
-  db.$transaction.mockImplementation((fn: (t: typeof db) => Promise<unknown>) =>
-    fn(db),
+  db.$transaction.mockImplementation(
+    async (fn: (t: typeof db) => Promise<unknown>) => {
+      const resultado = await fn(db);
+      db.commit();
+      return resultado;
+    },
   );
   db.usuario.findUniqueOrThrow.mockImplementation(
     (args: { where: { id?: number } }) =>
@@ -52,13 +69,18 @@ const crearDb = () => {
 
 describe('RevisionVerificacionService', () => {
   let db: ReturnType<typeof crearDb>;
+  let correos: { add: ReturnType<typeof vi.fn> };
   let servicio: RevisionVerificacionService;
 
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(AHORA);
     db = crearDb();
-    servicio = new RevisionVerificacionService(db as unknown as PrismaService);
+    correos = { add: vi.fn().mockResolvedValue({}) };
+    servicio = new RevisionVerificacionService(
+      db as unknown as PrismaService,
+      correos as unknown as Queue,
+    );
   });
 
   afterEach(() => {
@@ -186,5 +208,71 @@ describe('RevisionVerificacionService', () => {
     await expect(servicio.aprobar(PERSONAL, CUENTA)).rejects.toThrow(
       new ConflictException(NO_ESTA_EN_REVISION),
     );
+    expect(db.usuario.updateMany).not.toHaveBeenCalled();
+    expect(correos.add).not.toHaveBeenCalled();
+  });
+
+  describe('E10-H4 · al aprobar', () => {
+    it('E10-H4 · cambio a profesional: la aprobación manual cambia el rol de la cuenta en la misma transacción, solo si sigue activa y cliente', async () => {
+      await servicio.aprobar(PERSONAL, CUENTA);
+
+      expect(db.usuario.updateMany).toHaveBeenCalledWith({
+        where: { id: 7, rol: 'cliente', activo: true },
+        data: { rol: 'profesional' },
+      });
+      expect(db.$transaction).toHaveBeenCalledTimes(1);
+    });
+
+    it('E10-H4 · cambio a profesional: si la cuenta dejó de ser cliente o activa justo antes, 409 y no se registra el correo', async () => {
+      db.usuario.updateMany.mockResolvedValue({ count: 0 });
+
+      await expect(servicio.aprobar(PERSONAL, CUENTA)).rejects.toThrow(
+        new ConflictException(CUENTA_NO_APROBABLE),
+      );
+      expect(db.notificacion.create).not.toHaveBeenCalled();
+      expect(correos.add).not.toHaveBeenCalled();
+    });
+
+    it('E10-H4 · correo de aprobación: registra la NOTIFICACION pendiente en la transacción y encola el correo al solicitante después del commit', async () => {
+      await servicio.aprobar(PERSONAL, CUENTA);
+
+      expect(db.notificacion.create).toHaveBeenCalledWith({
+        data: {
+          usuarioId: 7,
+          tipo: 'verificacion_aprobada',
+          asunto: ASUNTO_VERIFICACION_APROBADA,
+          estadoEnvio: 'pendiente',
+        },
+        select: { id: true },
+      });
+      expect(correos.add).toHaveBeenCalledWith(
+        'verificacion-aprobada',
+        {
+          notificacionId: 90,
+          destinatario: 'marcela@correo.cl',
+          nombre: 'Marcela',
+        },
+        expect.objectContaining({ jobId: 'correo-90', priority: 1 }),
+      );
+      expect(correos.add.mock.invocationCallOrder[0]).toBeGreaterThan(
+        db.commit.mock.invocationCallOrder[0],
+      );
+    });
+
+    it('E10-H4 · correo de aprobación: si Redis no responde, la aprobación igual queda registrada (RNF-32)', async () => {
+      correos.add.mockRejectedValue(new Error('Redis caído'));
+
+      await expect(servicio.aprobar(PERSONAL, CUENTA)).resolves.toMatchObject({
+        estado: 'aprobada',
+      });
+    });
+
+    it('E10-H4 · rechazar no cambia el rol ni envía el correo de aprobación', async () => {
+      await servicio.rechazar(PERSONAL, CUENTA, { motivo: MOTIVO });
+
+      expect(db.usuario.updateMany).not.toHaveBeenCalled();
+      expect(db.notificacion.create).not.toHaveBeenCalled();
+      expect(correos.add).not.toHaveBeenCalled();
+    });
   });
 });

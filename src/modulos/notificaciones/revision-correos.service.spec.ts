@@ -363,4 +363,39 @@ describe('RevisionCorreosService', () => {
     expect(prisma.notificacion.updateMany).not.toHaveBeenCalled();
     advertir.mockRestore();
   });
+
+  it('E10-H4 · correo pendiente: la verificación aprobada se reencola con el nombre y el correo de la cuenta', async () => {
+    prisma.notificacion.findMany.mockResolvedValue([
+      pendiente(TIPOS_NOTIFICACION.VERIFICACION_APROBADA, {
+        usuario: { ...USUARIO, rol: 'profesional' },
+      }),
+    ]);
+
+    await servicio.revisarPendientes();
+
+    const [nombre, datos] = correoEncolado();
+    expect(nombre).toBe(TRABAJOS_CORREO.VERIFICACION_APROBADA);
+    expect(datos).toEqual({
+      notificacionId: 7,
+      destinatario: USUARIO.email,
+      nombre: USUARIO.nombre,
+    });
+  });
+
+  it('E10-H4 · correo pendiente: la verificación aprobada de una cuenta desactivada o que ya no es profesional queda fallida', async () => {
+    for (const cambio of [
+      { activo: false, rol: 'profesional' },
+      { activo: true, rol: 'cliente' },
+    ]) {
+      prisma.notificacion.findMany.mockResolvedValue([
+        pendiente(TIPOS_NOTIFICACION.VERIFICACION_APROBADA, {
+          usuario: { ...USUARIO, ...cambio },
+        }),
+      ]);
+
+      await servicio.revisarPendientes();
+
+      expectFallida();
+    }
+  });
 });

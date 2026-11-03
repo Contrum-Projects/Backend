@@ -238,6 +238,8 @@ export const rutasTienda = (urlTienda: string) => {
     pedido: (codigo: string) =>
       `${base}/mis-pedidos/${encodeURIComponent(codigo)}`,
     inventario: `${base}/panel/inventario`,
+    /** PROPUESTA por confirmar con frontend (E10-H4). */
+    catalogo: `${base}/catalogo`,
   };
 };
 

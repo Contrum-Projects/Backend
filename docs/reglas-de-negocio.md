@@ -47,7 +47,9 @@ suscribirse a ofertas. No hay compra como invitado.
 - Cierre de sesión, desactivación de cuenta y cambio de rol rigen de inmediato, sin esperar a que
   caduque el token (RNF-28): el token lleva su sesión (`sid`) y `JwtAutenticacionGuard` revisa en
   SESION que no esté revocada (decisión del 18 oct, E1-H3). Desactivar o cambiar el rol debe
-  revocar las sesiones de la cuenta.
+  revocar las sesiones de la cuenta. **Excepción** (decisión del 3 nov, E10-H4): el ascenso de
+  cliente a profesional al aprobar la verificación no revoca, porque el token anterior solo da
+  permisos de cliente; al renovar la sesión el rol se lee de la base.
 - Credenciales solo en variables de entorno (RNF-10); gitleaks corre en CI.
 
 ## Montos e integridad (RNF-11 a RNF-14, RNF-29)
@@ -760,8 +762,8 @@ la cuenta no tiene RUT, ya es profesional, o tiene una solicitud `pendiente`, `r
 la transacción (no se espera a Khipu con la cuenta bloqueada); al registrar se bloquea la fila de la
 cuenta, como al editar el RUT, y si el RUT cambió mientras tanto responde 409. Límite de 5 envíos
 por hora por cuenta (`LIMITES.SOLICITAR_VERIFICACION`): cada consulta es una llamada que cobra
-Khipu. El cambio de rol y el correo al aprobar son de E10-H4: mientras no se implemente, una
-solicitud aprobada deja la cuenta como cliente. **Cambio al MER:** cinco columnas nuevas en
+Khipu. Al aprobar, la cuenta pasa a profesional y se avisa por correo (E10-H4, ver abajo).
+**Cambio al MER:** cinco columnas nuevas en
 `solicitud_verificacion` (`fecha_consulta_sii`, `resultado_consulta_sii`, `giros_sii`,
 `proveedor_consulta_sii`, `operacion_consulta_sii`). `puntaje_confianza`, `version_reglas`,
 `resultado_factor_confianza` y los campos de OCR de `antecedente` quedan sin uso por el flujo
@@ -797,9 +799,26 @@ está `pendiente` (aún sin documentos), `aprobada` o `rechazada`. **Aprobar** e
 cuenta siga activa y con rol `cliente` (si la desactivaron o cambió de rol, 409 sin cambios), para
 que E10-H4 no dé el precio mayorista a quien no corresponde; rechazar se permite siempre. Se bloquea la fila de la cuenta,
 como al solicitar y al adjuntar, y el cambio exige `revision_manual` en la misma sentencia: dos
-resoluciones a la vez aplican solo una, y la otra recibe 409. Aprobar todavía no cambia el rol ni
-envía el correo (E10-H4). Listar las solicitudes en revisión y ver sus documentos no está en la
+resoluciones a la vez aplican solo una, y la otra recibe 409. Al aprobar cambia el rol y se envía
+el correo (E10-H4). Listar las solicitudes en revisión y ver sus documentos no está en la
 historia. Sin cambios al MER.
+
+Decisiones del 3 nov (E10-H4, SCRUM-65): sin rutas nuevas. Toda aprobación, automática
+(`POST /api/verificaciones`) o manual (`POST /api/verificaciones/:codigoPublico/aprobar`), deja en
+la **misma transacción** la solicitud `aprobada`, el rol `profesional` y la NOTIFICACION
+`verificacion_aprobada` pendiente (RNF-12); el correo se encola después del commit, con prioridad
+de cuenta, y si Redis no responde la aprobación no falla (lo reencola la revisión de pendientes).
+El rol cambia con una condición atómica (cuenta activa y `cliente`, con la fila ya bloqueada): si
+no se cumple, 409 sin cambios. **Sesiones:** no se revocan (excepción de RNF-28 para el ascenso);
+el frontend llama a `POST /api/cuentas/sesion/renovar`, que entrega el token con el rol
+`profesional` y desde ahí el catálogo muestra el mayorista. **Correo:** diseño «Verificación
+aprobada» de Figma, asunto «Tu cuenta profesional está activa», con tres cambios: un mismo texto
+para la aprobación automática y la manual («Aprobamos tu verificación…», la automática no revisa
+documentos); sin el recuadro de «al menos 3 unidades de cada formato» (ya no rige, SCRUM-146); y
+sin «Completa tu perfil profesional» hasta que exista el perfil (RF-10.11). El botón «Ver precios
+profesionales» lleva a `URL_TIENDA/catalogo` (**PROPUESTA** por confirmar con frontend). Si al
+enviarlo o reencolarlo la cuenta está desactivada o ya no es profesional, queda `fallida`. Sin
+cambios al MER.
 
 **E12 Marketing.** Publicidad solo a quien la aceptó (cuenta activa con correo verificado o
 suscriptor confirmado); el consentimiento se revisa de nuevo al enviar. Baja desde cualquier

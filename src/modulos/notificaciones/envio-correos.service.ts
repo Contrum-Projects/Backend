@@ -31,6 +31,14 @@ const puedeRecibirStockBajo = (
   !!usuario?.activo &&
   (usuario.rol === ROLES.BODEGUERO || usuario.rol === ROLES.ADMINISTRADOR);
 
+/**
+ * Avisa que la cuenta ve el precio mayorista: si la desactivaron o le cambiaron el rol antes del
+ * envío, ya no es cierto (E10-H4).
+ */
+const sigueProfesional = (
+  usuario: { activo: boolean; rol: string } | null,
+): boolean => !!usuario?.activo && usuario.rol === ROLES.PROFESIONAL;
+
 /** Un cambio de estado reencolado avisa el estado actual: el asunto guardado puede ser anterior. */
 const asuntoDe = (
   trabajo: string,
@@ -68,6 +76,13 @@ export class EnvioCorreosService {
     if (
       trabajo === TRABAJOS_CORREO.STOCK_BAJO &&
       !puedeRecibirStockBajo(notificacion.usuario)
+    ) {
+      await this.marcarFallida(id);
+      return;
+    }
+    if (
+      trabajo === TRABAJOS_CORREO.VERIFICACION_APROBADA &&
+      !sigueProfesional(notificacion.usuario)
     ) {
       await this.marcarFallida(id);
       return;
