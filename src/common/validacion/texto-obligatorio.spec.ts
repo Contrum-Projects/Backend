@@ -48,6 +48,24 @@ describe('TextoObligatorio', () => {
     ]);
   });
 
+  it('con mínimo, un texto recortado más corto dice el mínimo; vacío sigue siendo obligatorio', () => {
+    class ConMinimo {
+      @TextoObligatorio({ etiqueta: 'El motivo', maximo: 20, minimo: 10 })
+      motivo: unknown;
+    }
+
+    expect(mensajes(ConMinimo, { motivo: '  corto  ' })).toEqual([
+      'El motivo debe tener al menos 10 caracteres.',
+    ]);
+    expect(mensajes(ConMinimo, { motivo: '   ' })).toEqual([
+      'El motivo es obligatorio.',
+    ]);
+    expect(mensajes(ConMinimo, { motivo: 'diez letra' })).toEqual([]);
+    expect(mensajes(ConMinimo, { motivo: 'x'.repeat(21) })).toEqual([
+      'El motivo no puede superar los 20 caracteres.',
+    ]);
+  });
+
   it('con puedeFaltar, la ausencia es válida pero null o vacío no', () => {
     expect(mensajes(PuedeFaltar, {})).toEqual([]);
     expect(mensajes(PuedeFaltar, { nombre: null })).toEqual([

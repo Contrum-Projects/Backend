@@ -786,6 +786,21 @@ dos envíos a la vez no guardan dos veces los documentos. Límite de 5 envíos p
 (`LIMITES.ADJUNTAR_DOCUMENTOS`). `GET /api/verificaciones/yo` ahora incluye `documentos` (tipo y
 nombre, nunca la ubicación ni el hash). Sin cambios al MER.
 
+Decisiones del 3 nov (E10-H3, SCRUM-64): `POST /api/verificaciones/:codigoPublico/aprobar` (sin
+cuerpo) y `POST /api/verificaciones/:codigoPublico/rechazar` (`{ motivo }`), con el permiso
+`verificacion.gestionar`. `:codigoPublico` es el UUID de la **cuenta** (la solicitud no tiene código
+público, RNF-07) y la ruta actúa sobre su solicitud más reciente, que debe estar `revision_manual`.
+Guarda el estado, `resolutor` y `fecha_resolucion`; al rechazar, también `motivo_rechazo`.
+**Motivo:** obligatorio, se recorta, de **10 a 1000** caracteres (vacío o en blanco: «El motivo del
+rechazo es obligatorio.»). **404** si la cuenta no existe o nunca solicitó; **409** si la solicitud
+está `pendiente` (aún sin documentos), `aprobada` o `rechazada`. **Aprobar** exige además que la
+cuenta siga activa y con rol `cliente` (si la desactivaron o cambió de rol, 409 sin cambios), para
+que E10-H4 no dé el precio mayorista a quien no corresponde; rechazar se permite siempre. Se bloquea la fila de la cuenta,
+como al solicitar y al adjuntar, y el cambio exige `revision_manual` en la misma sentencia: dos
+resoluciones a la vez aplican solo una, y la otra recibe 409. Aprobar todavía no cambia el rol ni
+envía el correo (E10-H4). Listar las solicitudes en revisión y ver sus documentos no está en la
+historia. Sin cambios al MER.
+
 **E12 Marketing.** Publicidad solo a quien la aceptó (cuenta activa con correo verificado o
 suscriptor confirmado); el consentimiento se revisa de nuevo al enviar. Baja desde cualquier
 correo, por dirección. Campaña con vista previa y confirmación; sale una vez y llega una vez a cada
