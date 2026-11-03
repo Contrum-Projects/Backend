@@ -13,6 +13,8 @@ interface Opciones {
   /** Cómo se nombra el dato en el mensaje: «El nombre del producto». */
   etiqueta: string;
   maximo: number;
+  /** Largo mínimo del texto ya recortado; sin él basta con que no quede vacío. */
+  minimo?: number;
   /** La etiqueta es femenina («La descripción»): el mensaje dice «obligatoria». */
   femenino?: boolean;
   /**
@@ -29,9 +31,19 @@ interface Opciones {
 export function TextoObligatorio({
   etiqueta,
   maximo,
+  minimo = 1,
   femenino,
   puedeFaltar,
 }: Opciones) {
+  const mensaje = (valor: unknown): string => {
+    if (typeof valor !== 'string' || valor.length === 0) {
+      return `${etiqueta} es ${femenino ? 'obligatoria' : 'obligatorio'}.`;
+    }
+    if (valor.length > maximo) {
+      return `${etiqueta} no puede superar los ${maximo} caracteres.`;
+    }
+    return `${etiqueta} debe tener al menos ${minimo} caracteres.`;
+  };
   const decoradores = [
     Transform(recortar),
     ValidateBy({
@@ -39,12 +51,10 @@ export function TextoObligatorio({
       validator: {
         validate: (valor: unknown) =>
           typeof valor === 'string' &&
+          valor.length >= minimo &&
           valor.length > 0 &&
           valor.length <= maximo,
-        defaultMessage: ({ value }: ValidationArguments) =>
-          typeof value === 'string' && value.length > maximo
-            ? `${etiqueta} no puede superar los ${maximo} caracteres.`
-            : `${etiqueta} es ${femenino ? 'obligatoria' : 'obligatorio'}.`,
+        defaultMessage: ({ value }: ValidationArguments) => mensaje(value),
       },
     }),
   ];
