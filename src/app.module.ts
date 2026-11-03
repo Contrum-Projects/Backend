@@ -21,6 +21,7 @@ import { MisPedidosModule } from './modulos/pedidos/mis-pedidos.module.js';
 import { NotificacionesModule } from './modulos/notificaciones/notificaciones.module.js';
 import { PagosModule } from './modulos/pagos/pagos.module.js';
 import { PersonalModule } from './modulos/personal/personal.module.js';
+import { ReportesModule } from './modulos/reportes/reportes.module.js';
 import { TerritorioModule } from './modulos/territorio/territorio.module.js';
 import { SolicitudVerificacionModule } from './modulos/verificacion/solicitud-verificacion.module.js';
 import { SaludController } from './salud/salud.controller.js';
@@ -95,6 +96,7 @@ import { SaludController } from './salud/salud.controller.js';
     CancelarPedidoModule,
     CambiarEstadoPedidoModule,
     PagosModule,
+    ReportesModule,
     TerritorioModule,
     NotificacionesModule,
   ],

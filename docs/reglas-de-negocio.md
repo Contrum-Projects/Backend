@@ -829,6 +829,14 @@ anual. Registrar apertura, clic y rebote. Todo correo publicitario lleva remiten
 
 **E14 Reportes.** Solo administrador. OE1 30 %, OE2 70 % en 48 h, OE3 80 %; ventas por período y
 tipo de cliente; carritos abandonados y recuperados; resultado de campañas; stock bajo el mínimo.
+Decisiones del 30 oct (E14-H4): `GET /api/reportes/stock-bajo-minimo` con `reportes.ver` (solo
+administrador; bodeguero, vendedor, cliente y profesional reciben 403 y sin sesión 401).
+Reutiliza `StockBajoService.listarBajoMinimo()`, el mismo cálculo del aviso del panel de bodega
+(E11-H6, `GET /api/inventario/stock/bajo-minimo`): formatos con mínimo > 0 y stock total (todas las
+ubicaciones) bajo él, con `stockTotal`, `stockMinimo` y `faltante`, del que más falta al que menos;
+se calcula al consultar, sin caché, y si ninguno está bajo su mínimo responde una lista vacía. Los
+formatos desactivados también salen, marcados con `activo = false`. PROPUESTA por confirmar: el
+reporte no pagina ni filtra (la historia no lo pide). Sin cambios al MER.
 
 ## Rendimiento y operación
 
