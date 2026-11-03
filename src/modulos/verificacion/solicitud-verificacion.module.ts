@@ -4,6 +4,8 @@ import { ConfigService } from '@nestjs/config';
 import { AlmacenModule } from '../../almacen/almacen.module.js';
 import { COLAS } from '../../colas/colas.js';
 import type { Entorno } from '../../config/entorno.js';
+import { ConsultaVerificacionController } from './consulta-verificacion.controller.js';
+import { ConsultaVerificacionService } from './consulta-verificacion.service.js';
 import { DocumentosVerificacionService } from './documentos-verificacion.service.js';
 import { RevisionVerificacionController } from './revision-verificacion.controller.js';
 import { RevisionVerificacionService } from './revision-verificacion.service.js';
@@ -21,14 +23,17 @@ import { ProveedorSituacionTributaria } from './sii/proveedor-situacion-tributar
  * SII se consulta por el proveedor que se inyecta como `ProveedorSituacionTributaria`: Khipu; sin
  * `KHIPU_API_KEY` la app arranca, pero la consulta falla y se piden documentos, que se guardan en el
  * almacén de archivos (E10-H2).
- * El personal resuelve las solicitudes en revisión manual (E10-H3). Aprobada, la cuenta pasa a
- * `profesional` y se encola el correo que lo avisa (E10-H4).
+ * El personal resuelve las solicitudes en revisión manual (E10-H3) y las consulta con sus
+ * documentos (E10-H7). Aprobada, la cuenta pasa a `profesional` y se encola el correo que lo avisa
+ * (E10-H4).
  */
 @Module({
   imports: [AlmacenModule, BullModule.registerQueue({ name: COLAS.CORREOS })],
   controllers: [
     SolicitudVerificacionController,
     RevisionVerificacionController,
+    // Después de SolicitudVerificacionController: `GET /verificaciones/yo` va antes que `:codigoPublico`
+    ConsultaVerificacionController,
   ],
   providers: [
     {
@@ -59,6 +64,7 @@ import { ProveedorSituacionTributaria } from './sii/proveedor-situacion-tributar
     SolicitudVerificacionService,
     DocumentosVerificacionService,
     RevisionVerificacionService,
+    ConsultaVerificacionService,
   ],
 })
 export class SolicitudVerificacionModule {}

@@ -26,6 +26,16 @@ export abstract class AlmacenArchivos {
    * almacén no está configurado y con un error si el archivo no existe.
    */
   abstract obtener(clave: string): Promise<Buffer>;
+
+  /**
+   * URL firmada para ver o descargar un archivo privado sin sesión, que deja de servir a los
+   * `segundos` indicados. Con `nombreArchivo` el navegador lo muestra con ese nombre. No comprueba
+   * que el archivo exista. Falla con 503 si el almacén no está configurado.
+   */
+  abstract urlTemporal(
+    clave: string,
+    opciones: { segundos: number; nombreArchivo?: string },
+  ): Promise<string>;
 }
 
 /**

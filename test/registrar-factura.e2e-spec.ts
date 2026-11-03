@@ -46,6 +46,10 @@ class AlmacenDePrueba extends AlmacenArchivos {
     return Promise.resolve();
   }
 
+  urlTemporal(clave: string) {
+    return Promise.resolve(`https://almacen.prueba/${clave}`);
+  }
+
   eliminar(clave: string) {
     this.archivos.delete(clave);
     return Promise.resolve();
