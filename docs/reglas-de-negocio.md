@@ -767,6 +767,25 @@ solicitud aprobada deja la cuenta como cliente. **Cambio al MER:** cinco columna
 `resultado_factor_confianza` y los campos de OCR de `antecedente` quedan sin uso por el flujo
 nuevo y no se eliminaron: decidirlo con el equipo.
 
+Decisiones del 2 nov (E10-H2, SCRUM-63): `POST /api/verificaciones/yo/documentos` (multipart:
+`archivos` de 1 a 5 y un `tipos` por archivo, en el mismo orden), solo para cliente y profesional,
+sobre la solicitud más reciente de la cuenta, que debe estar `pendiente` (la verificación
+automática no la aprobó). Pasa a `revision_manual`. **Tipos de documento (propuesta, por confirmar
+con el equipo):** `titulo`, `certificado` (un certificado de curso vale) y `otro`; el inicio de
+actividades ya no se adjunta porque se consulta al SII, y el carnet no se pide. PDF, JPG o PNG de
+hasta 5 MB cada uno, reconocidos por su contenido y no por la extensión. Los archivos se suben
+privados a `verificaciones/<cuenta>/<uuid>` antes de la transacción y se borran si la base no
+llega a registrarlos. **409** si la solicitud ya fue aprobada, ya tiene documentos en revisión o fue
+rechazada (hay que enviar una nueva, que vuelve a consultar al SII); **404** si la cuenta nunca
+solicitó; **400** sin documentos, más de 5, formato inválido o tipos que no calzan; **413** sobre
+5 MB. Cada antecedente guarda su hash SHA-256 y `estado_ocr` `no_aplica` (sin OCR, la columna
+obligatoria queda con ese valor). El motivo por el que se piden documentos (sin inicio de
+actividades, otro giro o consulta no disponible) ya está en `resultado_consulta_sii` de la
+solicitud (E10-H1): el personal lo lee de ahí. La fila de la cuenta se bloquea, como al solicitar:
+dos envíos a la vez no guardan dos veces los documentos. Límite de 5 envíos por hora por cuenta
+(`LIMITES.ADJUNTAR_DOCUMENTOS`). `GET /api/verificaciones/yo` ahora incluye `documentos` (tipo y
+nombre, nunca la ubicación ni el hash). Sin cambios al MER.
+
 **E12 Marketing.** Publicidad solo a quien la aceptó (cuenta activa con correo verificado o
 suscriptor confirmado); el consentimiento se revisa de nuevo al enviar. Baja desde cualquier
 correo, por dirección. Campaña con vista previa y confirmación; sale una vez y llega una vez a cada
