@@ -800,8 +800,7 @@ cuenta siga activa y con rol `cliente` (si la desactivaron o cambió de rol, 409
 que E10-H4 no dé el precio mayorista a quien no corresponde; rechazar se permite siempre. Se bloquea la fila de la cuenta,
 como al solicitar y al adjuntar, y el cambio exige `revision_manual` en la misma sentencia: dos
 resoluciones a la vez aplican solo una, y la otra recibe 409. Al aprobar cambia el rol y se envía
-el correo (E10-H4). Listar las solicitudes en revisión y ver sus documentos no está en la
-historia. Sin cambios al MER.
+el correo (E10-H4). Sin cambios al MER.
 
 Decisiones del 3 nov (E10-H4, SCRUM-65): sin rutas nuevas. Toda aprobación, automática
 (`POST /api/verificaciones`) o manual (`POST /api/verificaciones/:codigoPublico/aprobar`), deja en
@@ -819,6 +818,31 @@ sin «Completa tu perfil profesional» hasta que exista el perfil (RF-10.11). El
 profesionales» lleva a `URL_TIENDA/catalogo` (**PROPUESTA** por confirmar con frontend). Si al
 enviarlo o reencolarlo la cuenta está desactivada o ya no es profesional, queda `fallida`. Sin
 cambios al MER.
+
+Decisiones del 3 nov (E10-H7, SCRUM-147), todas con `verificacion.gestionar`:
+`GET /api/verificaciones/revision-manual` (paginado con `pagina` y `limite`),
+`GET /api/verificaciones/:codigoPublico` y `GET /api/verificaciones/:codigoPublico/documentos/:numero`.
+Solo leen. **Listado:** las solicitudes en `revision_manual`, de la más antigua a la más reciente
+(`fecha_solicitud`, luego id), con `codigoPublicoCuenta`, nombre, apellido, RUT, `fechaEnvio` y
+`motivoRevision`, que sale de `resultado_consulta_sii`: `sin_inicio_actividades`, `otro_giro` o
+`no_disponible` (la consulta falló). La «fecha de envío» es la de la solicitud: no se guarda cuándo se
+adjuntaron los documentos. **Detalle:** `:codigoPublico` es el UUID de la cuenta y se muestra su
+solicitud más reciente **en cualquier estado** (también una ya resuelta): datos de la cuenta (nombre,
+RUT, correo, teléfono), estado, `resolutor`, motivo del rechazo (solo si fue rechazada), `consultaSii`
+(fecha, resultado y los giros que informó el SII, `null` si falló), `documentos` (`numero` desde 1,
+tipo, nombre y `fechaEliminacion`) y `solicitudesAnteriores` con su estado, fechas, resolutor y
+motivo, de la más reciente a la más antigua. Nunca salen la ubicación del archivo ni su hash.
+**Documento:** devuelve `{ url, venceEn, tipo, nombreArchivo }` con una URL firmada de R2 que vence a
+los **60 segundos** (`SEGUNDOS_ENLACE_DOCUMENTO`) y abre el archivo en el navegador con su nombre; los
+archivos siguen siendo privados. El equipo eligió la URL firmada (no entregar el archivo por la API) y
+pidió un plazo corto: el enlace se abre sin sesión mientras vive, así que el frontend lo pide al
+hacer clic y no lo guarda. El documento se identifica por su posición en la solicitud (no hay
+código público, RNF-07). **404** si la cuenta no existe o nunca solicitó, o si no hay documento con ese
+número; **410** con la fecha («El documento se eliminó el 02-12-2026.») si el archivo ya se borró
+(E10-H6), sin enlace; **503** si R2 no está configurado. Los documentos solo se ven de la solicitud
+más reciente: al abrir una nueva tras un rechazo, los de la anterior ya no se piden por la API.
+Nueva dependencia `@aws-sdk/s3-request-presigner` (fijada en la misma versión que `client-s3`) y
+nuevo método `AlmacenArchivos.urlTemporal`. Sin cambios al MER.
 
 **E12 Marketing.** Publicidad solo a quien la aceptó (cuenta activa con correo verificado o
 suscriptor confirmado); el consentimiento se revisa de nuevo al enviar. Baja desde cualquier

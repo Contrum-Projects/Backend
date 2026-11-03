@@ -4,6 +4,7 @@ import {
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { ServiceUnavailableException } from '@nestjs/common';
 import { AlmacenArchivos } from './almacen-archivos.js';
 
@@ -67,6 +68,25 @@ export class AlmacenR2 extends AlmacenArchivos {
     if (!respuesta.Body) throw new Error(`El archivo ${clave} llegó vacío.`);
     return Buffer.from(await respuesta.Body.transformToByteArray());
   }
+
+  urlTemporal(
+    clave: string,
+    opciones: { segundos: number; nombreArchivo?: string },
+  ) {
+    return getSignedUrl(
+      this.cliente,
+      new GetObjectCommand({
+        Bucket: this.configuracion.bucket,
+        Key: clave,
+        // Se abre en el navegador; el nombre va codificado (RFC 5987) para conservar las tildes
+        ResponseContentDisposition: opciones.nombreArchivo
+          ? `inline; filename*=UTF-8''${encodeURIComponent(opciones.nombreArchivo)}`
+          : 'inline',
+        ResponseCacheControl: 'private, no-store',
+      }),
+      { expiresIn: opciones.segundos },
+    );
+  }
 }
 
 /** Sin credenciales de R2: la app arranca, pero no se pueden subir archivos. */
@@ -85,6 +105,14 @@ export class AlmacenNoConfigurado extends AlmacenArchivos {
   }
 
   obtener(): Promise<Buffer> {
+    return Promise.reject(
+      new ServiceUnavailableException(
+        'El almacenamiento de archivos no está configurado.',
+      ),
+    );
+  }
+
+  urlTemporal(): Promise<string> {
     return Promise.reject(
       new ServiceUnavailableException(
         'El almacenamiento de archivos no está configurado.',
