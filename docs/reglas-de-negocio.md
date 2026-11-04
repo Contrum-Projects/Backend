@@ -850,9 +850,15 @@ aprobada» es tener el rol `profesional`: el cliente y el personal reciben **403
 **401**. Un cliente recién aprobado debe renovar la sesión para entrar. Al guardar, se bloquea la
 fila de la cuenta y el rol se vuelve a leer de la base (profesional y activa). **Obligatorios:**
 años de experiencia (entero de **0 a 40**), una modalidad de trabajo y al menos una especialidad,
-sin repetir. **Opcionales:** `nombreLugarTrabajo` (texto, hasta 150) y `redSocial` (texto, hasta
-255; no está en la historia y se agregó por decisión del equipo); `null`, un texto vacío o no
-enviarlos los deja sin valor. La comuna del perfil (`id_comuna`) no se pide aquí: se obtiene de otra
+sin repetir. **Opcionales:** `nombreLugarTrabajo` (texto, hasta 150) y `redSocial` (hasta 255; no
+está en la historia y se agregó por decisión del equipo); `null`, un texto vacío o no enviarlos los
+deja sin valor. `redSocial` solo acepta el enlace `https://` al perfil en **Instagram, Facebook o
+TikTok**: el dominio debe ser exactamente `instagram.com`, `facebook.com` o `tiktok.com`, con o sin
+`www` (`DOMINIOS_RED_SOCIAL`), sin usuario, clave ni puerto en el enlace, con una ruta al perfil y
+sin espacios, comillas ni caracteres de control. Se revisa el texto y también cómo lo interpreta
+`URL`, así `https://instagram.com@otro.sitio` no pasa. Un `@usuario` suelto, otros sitios, los
+subdominios móviles (`m.facebook.com`) y los acortadores (`fb.com`, `vm.tiktok.com`) responden 400.
+Así lo que se guarda y se muestra como enlace es siempre de esas redes y no permite XSS guardado. La comuna del perfil (`id_comuna`) no se pide aquí: se obtiene de otra
 parte. Si falta un obligatorio, **400** con un mensaje por cada dato que falta y no se guarda nada.
 **Modalidades y especialidades (PROPUESTA del 4 nov, por confirmar con la clienta):** las listas
 `MODALIDADES_TRABAJO` (7) y `ESPECIALIDADES` (16) de `valores.ts`; una sola modalidad, sin opción

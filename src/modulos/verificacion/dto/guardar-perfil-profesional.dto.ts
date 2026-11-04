@@ -6,6 +6,10 @@ import {
   MODALIDADES_TRABAJO,
 } from '../../../common/dominio/valores.js';
 import { NumeroPositivo } from '../../../common/validacion/numero-positivo.js';
+import {
+  recortarTexto,
+  segunPresencia,
+} from '../../../common/validacion/presencia.js';
 import { TextoOpcional } from '../../../common/validacion/texto-opcional.js';
 
 /** Años de experiencia que se aceptan (decisión del 4 de noviembre de 2026, E10-H5). */
@@ -48,6 +52,74 @@ const Especialidades = () =>
       },
     },
   });
+
+/**
+ * Dominios de las redes sociales que se aceptan (decisión del 4 de noviembre de 2026, E10-H5):
+ * Instagram, Facebook y TikTok, con o sin `www`. Sin subdominios móviles ni acortadores, que ocultan
+ * el perfil final.
+ */
+export const DOMINIOS_RED_SOCIAL: readonly string[] = [
+  'instagram.com',
+  'www.instagram.com',
+  'facebook.com',
+  'www.facebook.com',
+  'tiktok.com',
+  'www.tiktok.com',
+];
+
+export const RED_SOCIAL_INVALIDA =
+  'La red social debe ser el enlace a tu perfil de Instagram, Facebook o TikTok, que empiece con https://.';
+
+/** Sin espacios, caracteres de control ni los que permiten salir de un atributo HTML. */
+const CARACTERES_ENLACE = /^[^\s\p{Cc}<>"'`\\]+$/u;
+
+/**
+ * Enlace `https://` a un perfil de una red permitida. Se revisa el texto (esquema y caracteres) y,
+ * además, cómo lo interpreta `URL`: el dominio debe estar en la lista exacta, sin usuario, clave ni
+ * puerto (`https://instagram.com@otro.sitio` apunta a otro.sitio), y con una ruta al perfil.
+ */
+const esEnlaceRedSocial = (texto: string): boolean => {
+  if (!texto.startsWith('https://') || !CARACTERES_ENLACE.test(texto)) {
+    return false;
+  }
+  try {
+    const url = new URL(texto);
+    return (
+      url.protocol === 'https:' &&
+      DOMINIOS_RED_SOCIAL.includes(url.hostname) &&
+      url.username === '' &&
+      url.password === '' &&
+      url.port === '' &&
+      url.pathname.length > 1
+    );
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Red social opcional (decisión del 4 de noviembre de 2026, E10-H5): solo el enlace `https://` a un
+ * perfil de Instagram, Facebook o TikTok. Así lo que se guarda y se muestra como enlace es siempre
+ * de esas redes y no permite ejecutar código (XSS guardado). Se recorta; `null` o un texto vacío la
+ * dejan sin valor. Da un solo mensaje.
+ */
+const RedSocial = () =>
+  segunPresencia('borrable', [
+    recortarTexto(true),
+    ValidateBy({
+      name: 'redSocial',
+      validator: {
+        validate: (valor: unknown) =>
+          typeof valor === 'string' &&
+          valor.length <= MAXIMO_RED_SOCIAL &&
+          esEnlaceRedSocial(valor),
+        defaultMessage: ({ value }: ValidationArguments) =>
+          typeof value === 'string' && value.length > MAXIMO_RED_SOCIAL
+            ? `La red social no puede superar los ${MAXIMO_RED_SOCIAL} caracteres.`
+            : RED_SOCIAL_INVALIDA,
+      },
+    }),
+  ]);
 
 /**
  * Perfil profesional del peluquero verificado (E10-H5, RF-10.11). Se envía completo: reemplaza al
@@ -96,11 +168,12 @@ export class GuardarPerfilProfesionalDto {
   nombreLugarTrabajo?: string | null;
 
   @ApiPropertyOptional({
-    example: '@bellavista.salon',
+    example: 'https://www.instagram.com/bellavista.salon',
     maxLength: MAXIMO_RED_SOCIAL,
     nullable: true,
-    description: 'Opcional. Usuario o enlace de una red social.',
+    description:
+      'Opcional. Enlace https:// al perfil en Instagram, Facebook o TikTok (instagram.com, facebook.com o tiktok.com, con o sin www).',
   })
-  @TextoOpcional({ etiqueta: 'La red social', maximo: MAXIMO_RED_SOCIAL })
+  @RedSocial()
   redSocial?: string | null;
 }

@@ -73,14 +73,14 @@ describe('PerfilProfesionalService', () => {
         CODIGO,
         dtoBase({
           nombreLugarTrabajo: 'Salón Bella Vista',
-          redSocial: '@bellavista.salon',
+          redSocial: 'https://www.instagram.com/bellavista.salon',
         }),
       );
 
       expect(tx.perfilProfesional.upsert.mock.calls[0][0].update).toMatchObject(
         {
           nombreLugarTrabajo: 'Salón Bella Vista',
-          redSocial: '@bellavista.salon',
+          redSocial: 'https://www.instagram.com/bellavista.salon',
         },
       );
     });

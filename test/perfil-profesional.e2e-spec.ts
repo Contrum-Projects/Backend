@@ -133,7 +133,7 @@ describe('Verificación · perfil profesional (e2e)', () => {
         anosExperiencia: 9,
         modalidad: MODALIDADES_TRABAJO.SALON_PROPIO,
         especialidades: [ESPECIALIDADES.CORTE_DAMA],
-        redSocial: '@bellavista.salon',
+        redSocial: 'https://www.instagram.com/bellavista.salon',
       })
       .expect(200);
 
@@ -142,7 +142,7 @@ describe('Verificación · perfil profesional (e2e)', () => {
       modalidad: MODALIDADES_TRABAJO.SALON_PROPIO,
       especialidades: [ESPECIALIDADES.CORTE_DAMA],
       nombreLugarTrabajo: null,
-      redSocial: '@bellavista.salon',
+      redSocial: 'https://www.instagram.com/bellavista.salon',
     });
     expect(
       await prisma.perfilProfesional.count({
@@ -181,6 +181,21 @@ describe('Verificación · perfil profesional (e2e)', () => {
 
     expect((respuesta.body as { message: string[] }).message).toEqual([
       'Indica al menos una especialidad.',
+    ]);
+    expect(await perfilEnBase(email)).toBeNull();
+  });
+
+  it('una red social que no es un enlace de Instagram, Facebook o TikTok responde 400 y no guarda el perfil', async () => {
+    const { email, token } = await cuentaCon(ROLES.PROFESIONAL);
+
+    const respuesta = await request(app.getHttpServer())
+      .put(RUTA)
+      .auth(token, { type: 'bearer' })
+      .send({ ...perfil(), redSocial: 'javascript:alert(document.cookie)' })
+      .expect(400);
+
+    expect((respuesta.body as { message: string[] }).message).toEqual([
+      'La red social debe ser el enlace a tu perfil de Instagram, Facebook o TikTok, que empiece con https://.',
     ]);
     expect(await perfilEnBase(email)).toBeNull();
   });
