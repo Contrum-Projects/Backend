@@ -48,6 +48,14 @@ export const bloquearCuenta = async (
   return cuenta.id;
 };
 
+/**
+ * Bloquea la fila del suscriptor: dos solicitudes simultáneas del mismo correo no pasan juntas el
+ * tope de confirmaciones (E12-H1).
+ */
+export const bloquearLead = async (tx: Tx, id: number): Promise<void> => {
+  await tx.$queryRaw`SELECT id_lead FROM lead WHERE id_lead = ${id} FOR UPDATE`;
+};
+
 /** Bloquea la fila del artículo de venta (formato o pack): imágenes y precios (E3-H3, E3-H5). */
 export const bloquearArticulo = async (
   tx: Tx,

@@ -1,6 +1,10 @@
 import type { Logger } from '@nestjs/common';
 import type { Queue } from 'bullmq';
-import { PRIORIDAD_CORREO, type TrabajoCorreoConEnlace } from './colas.js';
+import {
+  PRIORIDAD_CORREO,
+  TRABAJOS_CORREO,
+  type TrabajoCorreoConEnlace,
+} from './colas.js';
 
 /** Si Redis no responde en este plazo, la petición sigue sin esperar la cola. */
 const ESPERA_MAXIMA_COLA_MS = 2_000;
@@ -10,7 +14,6 @@ export const INTENTOS_CORREO = 5;
 
 // El estado del envío vive en NOTIFICACION: el trabajo se borra de Redis al terminar (bien o mal)
 const OPCIONES_CORREO = {
-  priority: PRIORIDAD_CORREO.PEDIDO_Y_CUENTA,
   attempts: INTENTOS_CORREO,
   backoff: { type: 'exponential', delay: 5_000 },
   removeOnComplete: true,
@@ -42,13 +45,26 @@ export const conPlazo = async <T>(
 export const conPlazoDeCola = <T>(operacion: Promise<T>): Promise<T> =>
   conPlazo(operacion, ESPERA_MAXIMA_COLA_MS, 'Redis no respondió a tiempo');
 
-const opcionesDe = ({ notificacionId }: { notificacionId: number }) => ({
+/** Correos que no son de pedido ni de cuenta (RNF-16); los demás salen con la prioridad más alta. */
+const PRIORIDAD_POR_TRABAJO: Record<string, number> = {
+  [TRABAJOS_CORREO.CONFIRMACION_SUSCRIPCION]: PRIORIDAD_CORREO.SUSCRIPCION,
+};
+
+/** Prioridad con que se encola un trabajo de la cola de correos (RNF-16). */
+export const prioridadCorreo = (trabajo: string): number =>
+  PRIORIDAD_POR_TRABAJO[trabajo] ?? PRIORIDAD_CORREO.PEDIDO_Y_CUENTA;
+
+const opcionesDe = (
+  trabajo: string,
+  { notificacionId }: { notificacionId: number },
+) => ({
   ...OPCIONES_CORREO,
+  priority: prioridadCorreo(trabajo),
   jobId: idTrabajoCorreo(notificacionId),
 });
 
 /**
- * Encola uno o varios correos de pedido o cuenta en una sola operación, después del commit. Si
+ * Encola uno o varios correos en una sola operación, con la prioridad de su trabajo, después del commit. Si
  * Redis no responde, las NOTIFICACION ya quedaron pendientes en la base y la petición no falla
  * por eso (RNF-32): solo se advierte, tras un único plazo de espera.
  */
@@ -62,12 +78,12 @@ export const encolarCorreos = async <T extends { notificacionId: number }>(
   try {
     await conPlazoDeCola<unknown>(
       lista.length === 1
-        ? correos.add(trabajo, lista[0], opcionesDe(lista[0]))
+        ? correos.add(trabajo, lista[0], opcionesDe(trabajo, lista[0]))
         : correos.addBulk(
             lista.map((datos) => ({
               name: trabajo,
               data: datos,
-              opts: opcionesDe(datos),
+              opts: opcionesDe(trabajo, datos),
             })),
           ),
     );

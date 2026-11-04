@@ -9,6 +9,7 @@ import {
   ClienteCorreoSimulado,
   ClienteResend,
 } from './cliente-correo.js';
+import { MarketingModule } from '../marketing/marketing.module.js';
 import { ContenidoCorreosService } from './contenido-correos.service.js';
 import { CorreosProcessor } from './correos.processor.js';
 import { EnvioCorreosService } from './envio-correos.service.js';
@@ -16,7 +17,8 @@ import { RevisionCorreosService } from './revision-correos.service.js';
 
 /** Envío de los correos de la cola `correos` (E1-H6; ver src/modulos/README.md). */
 @Module({
-  imports: [BullModule.registerQueue({ name: COLAS.CORREOS })],
+  // MarketingModule: firma del enlace de la suscripción, para rearmarlo al reencolar (E12-H1)
+  imports: [BullModule.registerQueue({ name: COLAS.CORREOS }), MarketingModule],
   providers: [
     {
       provide: CLIENTE_CORREO,

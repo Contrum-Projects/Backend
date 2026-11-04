@@ -53,7 +53,7 @@ export const correoVerificacionAprobada = ({
 const SI_NO_FUNCIONA =
   'Si el botón no funciona, copia este enlace en tu navegador:';
 
-interface CorreoConEnlace {
+export interface CorreoConEnlace {
   asunto: string;
   encabezado: string;
   /** Párrafos del cuerpo, antes del botón. */
@@ -70,7 +70,7 @@ interface CorreoConEnlace {
  * Base de los correos con enlace de un uso, según el diseño de «Confirma tu correo». Recuperación e
  * invitación no tienen diseño propio en Figma: usan esta misma base.
  */
-const correoConEnlace = (datos: CorreoConEnlace): CorreoRenderizado => ({
+export const correoConEnlace = (datos: CorreoConEnlace): CorreoRenderizado => ({
   html: marco({
     asunto: datos.asunto,
     cuerpo: [
@@ -131,7 +131,7 @@ interface DatosEnlaceConVigencia {
   enlacesPie: EnlacesPie;
 }
 
-const vigencia = (horas: number): string =>
+export const vigencia = (horas: number): string =>
   horas === 1 ? '1 hora' : `${horas} horas`;
 
 export const correoRecuperacion = ({

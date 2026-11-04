@@ -243,6 +243,16 @@ export const TIPOS_NOTIFICACION = {
   PAGO_CONFIRMADO: 'pago_confirmado',
   /** E10-H4, decisión del 3 de noviembre de 2026: la cuenta quedó verificada como profesional (RF-10.08). */
   VERIFICACION_APROBADA: 'verificacion_aprobada',
+  /** E12-H1, decisión del 3 de noviembre de 2026: enlace para confirmar la suscripción a ofertas. */
+  CONFIRMACION_SUSCRIPCION: 'confirmacion_suscripcion',
+} as const;
+
+/**
+ * LEAD.origen (E12-H1, decisión del 3 de noviembre de 2026): de dónde vino la suscripción. Lista
+ * abierta: por ahora solo el formulario público de la tienda.
+ */
+export const ORIGENES_LEAD = {
+  FORMULARIO_WEB: 'formulario_web',
 } as const;
 
 /**

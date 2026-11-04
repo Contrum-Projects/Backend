@@ -43,6 +43,8 @@ export const TRABAJOS_CORREO = {
   PAGO_CONFIRMADO: 'pago-confirmado',
   /** Aviso al solicitante de que su cuenta quedó verificada como profesional (E10-H4). */
   VERIFICACION_APROBADA: 'verificacion-aprobada',
+  /** Enlace para confirmar la suscripción a las ofertas, sin cuenta (E12-H1). */
+  CONFIRMACION_SUSCRIPCION: 'confirmacion-suscripcion',
   /** Tarea repetible: reencola los correos pendientes si Redis se cayó o se vació (RNF-29). */
   REVISAR_PENDIENTES: 'revisar-pendientes',
 } as const;
@@ -127,6 +129,17 @@ export interface TrabajoVerificacionAprobada {
 }
 
 /**
+ * Datos del correo que confirma la suscripción a las ofertas (E12-H1). El suscriptor no tiene
+ * nombre: solo su correo. El enlace lleva el token firmado, por eso el trabajo se borra de Redis
+ * al terminar, como los de cuenta.
+ */
+export interface TrabajoConfirmacionSuscripcion {
+  notificacionId: number;
+  destinatario: string;
+  enlace: string;
+}
+
+/**
  * Stock bajo reencolado por la revisión (RNF-29): NOTIFICACION no guarda el formato, así que el
  * correo sale sin sus cifras y remite al panel.
  */
@@ -143,7 +156,8 @@ export type TrabajoCorreo =
   | TrabajoStockBajoRecuperado
   | TrabajoCambioEstadoPedido
   | TrabajoPagoConfirmado
-  | TrabajoVerificacionAprobada;
+  | TrabajoVerificacionAprobada
+  | TrabajoConfirmacionSuscripcion;
 
 /**
  * Prioridad de los correos (RNF-16): en BullMQ, número menor = sale antes.
