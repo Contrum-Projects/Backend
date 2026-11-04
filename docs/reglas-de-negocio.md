@@ -897,7 +897,10 @@ Decisiones del 4 nov (E12-H2): `PUT /api/cuentas/yo/consentimiento-marketing` `{
 profesional; 401 sin sesión, 403 al personal; 400 si `acepta` falta o no es booleano) responde
 `{ acepta, fechaConsentimiento }`, que también sale en `GET /api/cuentas/yo` como
 `consentimientoMarketing`. Activar guarda `fecha_consentimiento_marketing`; repetirlo no la cambia;
-desactivar la **conserva** (última vez que aceptó). `POST /api/marketing/bajas` `{ token }` es
+desactivar la **conserva** (última vez que aceptó). Desactivar también da de baja, en la misma
+transacción, la suscripción sin cuenta (LEAD) con el mismo correo, como la baja desde el correo
+(decisión del equipo del 4 nov: quien no quiere ofertas no las recibe por ningún registro);
+activar no la reactiva. `POST /api/marketing/bajas` `{ token }` es
 pública (`LIMITES.SUSCRIPCION`) y da de baja **la dirección** en una transacción: la cuenta queda
 con `acepta_marketing_email = false` y LEAD con `activo = false` y `fecha_baja` en la fecha de
 esta baja (aunque estuviera pendiente o ya de baja: así ningún enlace de confirmación anterior la

@@ -167,6 +167,34 @@ describe('Marketing · consentimiento de publicidad y baja desde el correo (e2e)
       });
     });
 
+    it('E12-H2 · consentimiento en la cuenta: desactivarlo da de baja también la suscripción sin cuenta de la misma dirección; activarlo no la reactiva (decisión del equipo del 4 nov)', async () => {
+      const cuenta = await crearCuenta(ROLES.CLIENTE);
+      await prisma.lead.create({
+        data: {
+          email: cuenta.email,
+          origen: ORIGENES_LEAD.FORMULARIO_WEB,
+          activo: true,
+        },
+      });
+      const token = await iniciarSesion(cuenta.email);
+
+      await elegir(token, false).expect(200);
+      const deBaja = await prisma.lead.findUniqueOrThrow({
+        where: { email: cuenta.email },
+      });
+      await elegir(token, true).expect(200);
+
+      expect(deBaja.activo).toBe(false);
+      expect(deBaja.fechaBaja).not.toBeNull();
+      expect(
+        (
+          await prisma.lead.findUniqueOrThrow({
+            where: { email: cuenta.email },
+          })
+        ).activo,
+      ).toBe(false);
+    });
+
     it.each([[undefined], ['si'], [null]])(
       'E12-H2 · consentimiento en la cuenta: acepta=%s responde 400',
       async (acepta) => {
