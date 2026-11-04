@@ -1,16 +1,20 @@
 import { Transform } from 'class-transformer';
 import { ValidateBy } from 'class-validator';
-import { segunPresencia } from './presencia.js';
+import { type Presencia, segunPresencia } from './presencia.js';
 
-interface Opciones {
+interface Opciones extends Presencia {
   /** Cómo se nombra el dato en el mensaje: «Dejarla como principal». */
   etiqueta: string;
   /** Llega en la URL (`?incluirInactivos=true`): acepta los textos `true` y `false`. */
   desdeTexto?: boolean;
 }
 
-/** Sí o no opcional; si llega, debe ser `true` o `false`. */
-export function Booleano({ etiqueta, desdeTexto }: Opciones) {
+/** Sí o no; si llega, debe ser `true` o `false`. Por omisión puede faltar. */
+export function Booleano({
+  etiqueta,
+  desdeTexto,
+  presencia = 'puedeFaltar',
+}: Opciones) {
   const decoradores: PropertyDecorator[] = [
     ValidateBy({
       name: 'booleano',
@@ -29,5 +33,5 @@ export function Booleano({ etiqueta, desdeTexto }: Opciones) {
       }),
     );
   }
-  return segunPresencia('puedeFaltar', decoradores);
+  return segunPresencia(presencia, decoradores);
 }

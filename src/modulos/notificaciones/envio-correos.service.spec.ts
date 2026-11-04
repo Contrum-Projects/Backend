@@ -5,6 +5,13 @@ import { type ClienteCorreo, ErrorEnvioCorreo } from './cliente-correo.js';
 import type { ContenidoCorreosService } from './contenido-correos.service.js';
 import { EnvioCorreosService } from './envio-correos.service.js';
 
+interface CuentaDestino {
+  activo: boolean;
+  rol: string;
+  aceptaMarketingEmail: boolean;
+  fechaVerificacionCorreo: Date | null;
+}
+
 const DATOS = {
   notificacionId: 7,
   destinatario: 'camila@correo.cl',
@@ -226,6 +233,109 @@ describe('EnvioCorreosService', () => {
         where: { id: 9, estadoEnvio: ESTADOS_NOTIFICACION.PENDIENTE },
         data: { estadoEnvio: ESTADOS_NOTIFICACION.FALLIDA },
       });
+    });
+  });
+
+  describe('E12-H2 · publicidad en cola', () => {
+    const PUBLICIDAD = {
+      notificacionId: 11,
+      destinatario: 'camila@correo.cl',
+      nombre: 'Camila',
+    };
+    const CUENTA_QUE_ACEPTA: CuentaDestino = {
+      activo: true,
+      rol: 'cliente',
+      aceptaMarketingEmail: true,
+      fechaVerificacionCorreo: new Date('2026-10-01T00:00:00Z'),
+    };
+    const deCampana = (destino: {
+      usuario?: CuentaDestino | null;
+      lead?: { activo: boolean } | null;
+    }) =>
+      prisma.notificacion.findUnique.mockResolvedValue({
+        estadoEnvio: ESTADOS_NOTIFICACION.PENDIENTE,
+        asunto: 'Ofertas de noviembre',
+        tipo: 'campana',
+        pedidoId: null,
+        campanaId: 3,
+        usuario: destino.usuario ?? null,
+        lead: destino.lead ?? null,
+      });
+    const expectCancelada = () => {
+      expect(cliente.enviar).not.toHaveBeenCalled();
+      expect(prisma.notificacion.update).not.toHaveBeenCalled();
+      expect(prisma.notificacion.updateMany).toHaveBeenCalledWith({
+        where: { id: 11, estadoEnvio: ESTADOS_NOTIFICACION.PENDIENTE },
+        data: { estadoEnvio: ESTADOS_NOTIFICACION.CANCELADA },
+      });
+    };
+
+    it('E12-H2 · baja con correos pendientes: un suscriptor dado de baja no recibe la publicidad en cola y queda cancelada', async () => {
+      deCampana({ lead: { activo: false } });
+
+      await servicio.enviar('campana', PUBLICIDAD);
+
+      expectCancelada();
+    });
+
+    it.each([
+      ['que se dio de baja', { aceptaMarketingEmail: false }],
+      ['desactivada', { activo: false }],
+      ['sin el correo verificado', { fechaVerificacionCorreo: null }],
+    ])(
+      'E12-H2 · baja con correos pendientes: una cuenta %s no recibe la publicidad en cola y queda cancelada',
+      async (_caso, cambio) => {
+        deCampana({ usuario: { ...CUENTA_QUE_ACEPTA, ...cambio } });
+
+        await servicio.enviar('campana', PUBLICIDAD);
+
+        expectCancelada();
+      },
+    );
+
+    it('E12-H2 · baja con correos pendientes: publicidad sin cuenta ni suscriptor queda cancelada', async () => {
+      deCampana({});
+
+      await servicio.enviar('campana', PUBLICIDAD);
+
+      expectCancelada();
+    });
+
+    it.each([
+      ['una cuenta que acepta ofertas', { usuario: CUENTA_QUE_ACEPTA }],
+      ['un suscriptor confirmado', { lead: { activo: true } }],
+    ])(
+      'E12-H2 · consentimiento vigente: la publicidad para %s se envía',
+      async (_caso, destino) => {
+        deCampana(destino);
+
+        await servicio.enviar('campana', PUBLICIDAD);
+
+        expect(cliente.enviar).toHaveBeenCalledTimes(1);
+        expect(prisma.notificacion.updateMany).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              estadoEnvio: ESTADOS_NOTIFICACION.ENVIADA,
+            }) as unknown,
+          }),
+        );
+      },
+    );
+
+    it('E12-H2 · un correo que no es publicidad no revisa el consentimiento', async () => {
+      prisma.notificacion.findUnique.mockResolvedValue({
+        estadoEnvio: ESTADOS_NOTIFICACION.PENDIENTE,
+        asunto: 'Confirma tu correo',
+        tipo: 'confirmacion_correo',
+        pedidoId: null,
+        campanaId: null,
+        usuario: { ...CUENTA_QUE_ACEPTA, aceptaMarketingEmail: false },
+        lead: null,
+      });
+
+      await servicio.enviar(TRABAJOS_CORREO.CONFIRMACION_CORREO, DATOS);
+
+      expect(cliente.enviar).toHaveBeenCalledTimes(1);
     });
   });
 });
