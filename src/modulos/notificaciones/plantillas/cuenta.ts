@@ -5,6 +5,7 @@ import {
   enlaceVisible,
   type EnlacesPie,
   marco,
+  seccion,
   texto,
   textoPequeno,
   textoPlano,
@@ -47,6 +48,59 @@ export const correoVerificacionAprobada = ({
       enlaces: enlacesPie,
     }),
     texto: textoPlano(encabezado, mensaje, `${accion}: ${urlCatalogo}`, pie),
+  };
+};
+
+interface DatosRolProfesionalRetirado {
+  asunto: string;
+  nombre: string;
+  /** Lo que escribió el administrador al cambiar el rol (E13-H3). */
+  motivo: string;
+  urlCatalogo: string;
+  enlacesPie: EnlacesPie;
+}
+
+/**
+ * La cuenta profesional volvió a ser de cliente (E13-H3, criterio 4). Sin diseño en Figma: usa la
+ * base de «Verificación aprobada». PROPUESTA de texto por confirmar con el equipo. El motivo lo
+ * escribe el administrador y se escapa como cualquier otro dato.
+ */
+export const correoRolProfesionalRetirado = ({
+  asunto,
+  nombre,
+  motivo,
+  urlCatalogo,
+  enlacesPie,
+}: DatosRolProfesionalRetirado): CorreoRenderizado => {
+  const encabezado = 'Tu cuenta volvió a ser de cliente';
+  const mensaje = `Hola, ${nombre}. Tu cuenta en Cabello Perfecto dejó de ser profesional. Desde ahora compras a precio normal y ya no ves los productos exclusivos para profesionales. Tus pedidos anteriores no cambian.`;
+  const etiquetaMotivo = 'Motivo';
+  const sesion =
+    'Por seguridad cerramos tu sesión: vuelve a iniciarla para seguir comprando.';
+  const accion = 'Ir a la tienda';
+  const pie =
+    'Recibes este correo porque cambió el tipo de tu cuenta en Cabello Perfecto.';
+  return {
+    html: marco({
+      asunto,
+      cuerpo: [
+        titulo(encabezado),
+        texto(mensaje),
+        seccion(etiquetaMotivo, motivo),
+        texto(sesion),
+        boton(accion, urlCatalogo),
+      ].join(''),
+      pie,
+      enlaces: enlacesPie,
+    }),
+    texto: textoPlano(
+      encabezado,
+      mensaje,
+      `${etiquetaMotivo}: ${motivo}`,
+      sesion,
+      `${accion}: ${urlCatalogo}`,
+      pie,
+    ),
   };
 };
 

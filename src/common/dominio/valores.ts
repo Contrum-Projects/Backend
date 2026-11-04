@@ -246,6 +246,8 @@ export const TIPOS_NOTIFICACION = {
   VERIFICACION_APROBADA: 'verificacion_aprobada',
   /** E12-H1, decisión del 3 de noviembre de 2026: enlace para confirmar la suscripción a ofertas. */
   CONFIRMACION_SUSCRIPCION: 'confirmacion_suscripcion',
+  /** E13-H3, decisión del 4 de noviembre de 2026: el profesional volvió a ser cliente, con el motivo. */
+  ROL_PROFESIONAL_RETIRADO: 'rol_profesional_retirado',
 } as const;
 
 /**

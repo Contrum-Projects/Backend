@@ -45,6 +45,8 @@ export const TRABAJOS_CORREO = {
   VERIFICACION_APROBADA: 'verificacion-aprobada',
   /** Enlace para confirmar la suscripción a las ofertas, sin cuenta (E12-H1). */
   CONFIRMACION_SUSCRIPCION: 'confirmacion-suscripcion',
+  /** Aviso con el motivo de que la cuenta profesional volvió a ser de cliente (E13-H3). */
+  ROL_PROFESIONAL_RETIRADO: 'rol-profesional-retirado',
   /** Tarea repetible: reencola los correos pendientes si Redis se cayó o se vació (RNF-29). */
   REVISAR_PENDIENTES: 'revisar-pendientes',
 } as const;
@@ -129,6 +131,17 @@ export interface TrabajoVerificacionAprobada {
 }
 
 /**
+ * Datos del correo que avisa que la cuenta profesional volvió a ser de cliente (E13-H3). El motivo
+ * no viaja en el trabajo: se lee de HISTORIAL_ROL al enviar, así un correo reencolado sale igual
+ * y el texto no queda en Redis.
+ */
+export interface TrabajoRolProfesionalRetirado {
+  notificacionId: number;
+  destinatario: string;
+  nombre: string;
+}
+
+/**
  * Datos del correo que confirma la suscripción a las ofertas (E12-H1). El suscriptor no tiene
  * nombre: solo su correo. El enlace lleva el token firmado, por eso el trabajo se borra de Redis
  * al terminar, como los de cuenta.
@@ -157,6 +170,7 @@ export type TrabajoCorreo =
   | TrabajoCambioEstadoPedido
   | TrabajoPagoConfirmado
   | TrabajoVerificacionAprobada
+  | TrabajoRolProfesionalRetirado
   | TrabajoConfirmacionSuscripcion;
 
 /**
