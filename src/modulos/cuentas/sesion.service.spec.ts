@@ -31,7 +31,12 @@ const credenciales = () => ({
 describe('SesionService', () => {
   let hashContrasena: string;
   let prisma: {
-    usuario: { findUnique: ReturnType<typeof vi.fn> };
+    usuario: {
+      findUnique: ReturnType<typeof vi.fn>;
+      findUniqueOrThrow: ReturnType<typeof vi.fn>;
+    };
+    $queryRaw: ReturnType<typeof vi.fn>;
+    $transaction: ReturnType<typeof vi.fn>;
     sesion: {
       create: ReturnType<typeof vi.fn>;
       findMany: ReturnType<typeof vi.fn>;
@@ -78,13 +83,24 @@ describe('SesionService', () => {
 
   beforeEach(async () => {
     prisma = {
-      usuario: { findUnique: vi.fn().mockResolvedValue(usuario()) },
+      usuario: {
+        findUnique: vi.fn().mockResolvedValue(usuario()),
+        // Lo que se vuelve a leer con la fila bloqueada al crear la sesión
+        findUniqueOrThrow: vi
+          .fn()
+          .mockResolvedValue({ rol: ROLES.PROFESIONAL, activo: true }),
+      },
+      $queryRaw: vi.fn().mockResolvedValue([{ id: 7 }]),
+      $transaction: vi.fn(),
       sesion: {
         create: vi.fn().mockResolvedValue({ codigoPublico: SID }),
         findMany: vi.fn().mockResolvedValue([sesionVigente()]),
         updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
     };
+    prisma.$transaction.mockImplementation(
+      (fn: (tx: typeof prisma) => Promise<unknown>) => fn(prisma),
+    );
     intentos = {
       reservar: vi.fn().mockResolvedValue(0),
       descontar: vi.fn().mockResolvedValue(undefined),
@@ -104,6 +120,39 @@ describe('SesionService', () => {
   });
 
   describe('inicio de sesión correcto', () => {
+    it('E13-H3 · sesiones abiertas: un inicio simultáneo con el cambio de rol firma el token con el rol releído con la cuenta bloqueada', async () => {
+      // Leyó profesional antes de verificar la contraseña; al bloquear la cuenta ya es cliente
+      prisma.usuario.findUniqueOrThrow.mockResolvedValue({
+        rol: ROLES.CLIENTE,
+        activo: true,
+      });
+
+      const { sesion } = await servicio.iniciar(credenciales(), contexto);
+
+      const [consulta] = prisma.$queryRaw.mock.calls[0] as [
+        TemplateStringsArray,
+      ];
+      expect(consulta.join('?')).toContain('FOR UPDATE');
+      expect(sesion.usuario.rol).toBe(ROLES.CLIENTE);
+      const carga = await jwt.verifyAsync<CargaTokenAcceso>(
+        sesion.tokenAcceso,
+        { audience: AUDIENCIA_TOKEN_ACCESO },
+      );
+      expect(carga.rol).toBe(ROLES.CLIENTE);
+    });
+
+    it('E13-H3 · una desactivación simultánea con el inicio de sesión responde 403 y no crea la sesión', async () => {
+      prisma.usuario.findUniqueOrThrow.mockResolvedValue({
+        rol: ROLES.PROFESIONAL,
+        activo: false,
+      });
+
+      await expect(
+        servicio.iniciar(credenciales(), contexto),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.sesion.create).not.toHaveBeenCalled();
+    });
+
     it('E1-H2 · inicio de sesión correcto: entrega el token de acceso con el rol y los datos para el menú', async () => {
       const { sesion } = await servicio.iniciar(credenciales(), contexto);
 

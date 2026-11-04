@@ -112,6 +112,8 @@ export class EnvioCorreosService {
           },
         },
         lead: { select: { activo: true } },
+        usuarioId: true,
+        usuario: { select: { activo: true, rol: true } },
       },
     });
     // Ya resuelta o borrada: un trabajo repetido no vuelve a enviar
@@ -145,6 +147,7 @@ export class EnvioCorreosService {
     const { html, texto } = await this.contenido.construir(trabajo, datos, {
       asunto,
       pedidoId: notificacion.pedidoId,
+      usuarioId: notificacion.usuarioId,
     });
     await this.cliente.enviar({
       notificacionId: id,

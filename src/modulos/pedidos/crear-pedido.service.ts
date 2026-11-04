@@ -20,7 +20,7 @@ import {
 import { MAXIMO_INT4 } from '../../common/validacion/enteros.js';
 import type { Entorno } from '../../config/entorno.js';
 import type { Prisma } from '../../generated/prisma/client.js';
-import { bloquearCuenta } from '../../prisma/bloqueos.js';
+import { bloquearCuenta, ROL_CAMBIADO } from '../../prisma/bloqueos.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { CarritoService } from '../carrito/carrito.service.js';
 import type { Bulto } from '../despacho/cotizador-envio.js';
@@ -39,6 +39,8 @@ type Tx = Prisma.TransactionClient;
 
 export const CORREO_SIN_CONFIRMAR =
   'Debes confirmar tu correo antes de comprar.';
+/** El pedido nunca se arma con un precio distinto del que la persona vio en su carrito. */
+export { ROL_CAMBIADO };
 export const CARRITO_VACIO = 'El carrito está vacío.';
 export const PEDIDO_PENDIENTE =
   'Ya tienes un pedido pendiente de pago: págalo o espera a que se cancele antes de crear otro.';
@@ -187,8 +189,12 @@ export class CrearPedidoService {
         apellido: true,
         telefono: true,
         fechaVerificacionCorreo: true,
+        rol: true,
       },
     });
+    // Con la cuenta ya bloqueada: un pedido que esperaba mientras le bajaban el rol no sale al
+    // precio mayorista (E13-H3, criterio 2)
+    if (cuenta.rol !== rol) throw new ConflictException(ROL_CAMBIADO);
     if (!cuenta.fechaVerificacionCorreo) {
       throw new ForbiddenException(CORREO_SIN_CONFIRMAR);
     }

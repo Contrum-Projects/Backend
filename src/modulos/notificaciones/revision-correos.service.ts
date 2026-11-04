@@ -10,6 +10,7 @@ import {
   type TrabajoCorreo,
   type TrabajoCorreoConEnlace,
   type TrabajoPagoConfirmado,
+  type TrabajoRolProfesionalRetirado,
   type TrabajoStockBajoRecuperado,
   type TrabajoVerificacionAprobada,
 } from '../../colas/colas.js';
@@ -63,6 +64,7 @@ const TIPOS_QUE_ENVIA = [
   TIPOS_NOTIFICACION.CAMBIO_ESTADO_PEDIDO,
   TIPOS_NOTIFICACION.STOCK_BAJO,
   TIPOS_NOTIFICACION.VERIFICACION_APROBADA,
+  TIPOS_NOTIFICACION.ROL_PROFESIONAL_RETIRADO,
   TIPOS_NOTIFICACION.CONFIRMACION_SUSCRIPCION,
 ];
 
@@ -224,6 +226,11 @@ export class RevisionCorreosService {
       if (!usuario.activo || usuario.rol !== ROLES.PROFESIONAL) return null;
       const datos: TrabajoVerificacionAprobada = persona;
       return { trabajo: TRABAJOS_CORREO.VERIFICACION_APROBADA, datos };
+    }
+    if (tipo === TIPOS_NOTIFICACION.ROL_PROFESIONAL_RETIRADO) {
+      // El motivo se lee de HISTORIAL_ROL al enviar (E13-H3)
+      const datos: TrabajoRolProfesionalRetirado = persona;
+      return { trabajo: TRABAJOS_CORREO.ROL_PROFESIONAL_RETIRADO, datos };
     }
     if (!pedido) return null;
     if (tipo === TIPOS_NOTIFICACION.PAGO_CONFIRMADO) {

@@ -15,7 +15,7 @@ import {
 } from '../../common/dominio/valores.js';
 import type { Entorno } from '../../config/entorno.js';
 import type { Prisma } from '../../generated/prisma/client.js';
-import { bloquearCuenta } from '../../prisma/bloqueos.js';
+import { bloquearCuentaConRol } from '../../prisma/bloqueos.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import {
   stockVendible,
@@ -168,7 +168,7 @@ export class CarritoService {
     dto: AgregarArticuloCarritoDto,
   ): Promise<CarritoCuenta> {
     await this.prisma.$transaction(async (tx) => {
-      const usuarioId = await bloquearCuenta(tx, codigoPublico);
+      const usuarioId = await bloquearCuentaConRol(tx, codigoPublico, rol);
       const articulo = (
         await this.articulosALaVenta(tx, [dto.articuloId], rol)
       ).get(dto.articuloId);
@@ -221,7 +221,7 @@ export class CarritoService {
     dto: CambiarCantidadCarritoDto,
   ): Promise<CarritoCuenta> {
     await this.prisma.$transaction(async (tx) => {
-      const usuarioId = await bloquearCuenta(tx, codigoPublico);
+      const usuarioId = await bloquearCuentaConRol(tx, codigoPublico, rol);
       const carritoId = await this.exigirEnElCarrito(tx, usuarioId, articuloId);
       const articulo = (
         await this.articulosALaVenta(tx, [articuloId], rol)
@@ -251,7 +251,7 @@ export class CarritoService {
     articuloId: number,
   ): Promise<CarritoCuenta> {
     await this.prisma.$transaction(async (tx) => {
-      const usuarioId = await bloquearCuenta(tx, codigoPublico);
+      const usuarioId = await bloquearCuentaConRol(tx, codigoPublico, rol);
       const carritoId = await this.exigirEnElCarrito(tx, usuarioId, articuloId);
       await tx.itemCarrito.delete({
         where: { carritoId_articuloId: { carritoId, articuloId } },
@@ -303,7 +303,7 @@ export class CarritoService {
   ): Promise<CarritoUnido> {
     const ajustes: AjusteUnionCarrito[] = [];
     await this.prisma.$transaction(async (tx) => {
-      const usuarioId = await bloquearCuenta(tx, codigoPublico);
+      const usuarioId = await bloquearCuentaConRol(tx, codigoPublico, rol);
       const ids = articulos.map(({ articuloId }) => articuloId);
       const aLaVenta = await this.articulosALaVenta(tx, ids, rol);
       const stock = await stockVendible(

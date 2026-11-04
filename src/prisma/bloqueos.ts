@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '../generated/prisma/client.js';
 
 type Tx = Prisma.TransactionClient;
@@ -45,6 +45,31 @@ export const bloquearCuenta = async (
     WHERE codigo_publico = ${codigoPublico}
     FOR UPDATE`;
   if (!cuenta) throw new NotFoundException(noExiste);
+  return cuenta.id;
+};
+
+/**
+ * El rol de la cuenta cambió después de emitir el token (E13-H3 al bajarlo, E10-H4 al subirlo).
+ */
+export const ROL_CAMBIADO =
+  'El tipo de tu cuenta cambió. Inicia sesión de nuevo para ver tus precios antes de comprar.';
+
+/**
+ * Bloquea la cuenta como `bloquearCuenta` y exige que su rol siga siendo el del token: una
+ * escritura que esperaba el bloqueo mientras le bajaban el rol no actúa con el anterior (409).
+ * Así el carrito no vuelve a guardar un exclusivo ni muestra el mayorista (E13-H3, RNF-04).
+ */
+export const bloquearCuentaConRol = async (
+  tx: Tx,
+  codigoPublico: string,
+  rol: string,
+): Promise<number> => {
+  const [cuenta] = await tx.$queryRaw<{ id: number; rol: string }[]>`
+    SELECT id_usuario AS id, rol FROM usuario
+    WHERE codigo_publico = ${codigoPublico}
+    FOR UPDATE`;
+  if (!cuenta) throw new NotFoundException('La cuenta no existe.');
+  if (cuenta.rol !== rol) throw new ConflictException(ROL_CAMBIADO);
   return cuenta.id;
 };
 

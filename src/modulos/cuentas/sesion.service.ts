@@ -18,6 +18,7 @@ import {
 import type { Rol } from '../../common/dominio/roles.js';
 import { duracionAMs } from '../../config/duracion.js';
 import type { Entorno } from '../../config/entorno.js';
+import { bloquearCuenta } from '../../prisma/bloqueos.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { IniciarSesionDto } from './dto/iniciar-sesion.dto.js';
 import { IntentosSesion } from './intentos-sesion.js';
@@ -138,17 +139,31 @@ export class SesionService implements OnModuleInit {
       Date.now() +
         duracionAMs(this.config.get('JWT_REFRESH_TTL', { infer: true })),
     );
-    const { codigoPublico: sid } = await this.prisma.sesion.create({
-      select: { codigoPublico: true },
-      data: {
-        usuarioId: usuario.id,
-        tokenRefrescoHash: hash,
-        fechaExpiracion: vencimientoRefresco,
-        dispositivo: contexto.dispositivo?.slice(0, LARGO_MAXIMO_DISPOSITIVO),
-      },
+    // Con la fila de la cuenta bloqueada se vuelven a leer el rol y si está activa: un cambio de
+    // rol o una desactivación simultánea (E13) no deja una sesión nueva con el rol anterior, que
+    // nadie revocaría (RNF-28)
+    const { sid, rol } = await this.prisma.$transaction(async (tx) => {
+      await bloquearCuenta(tx, usuario.codigoPublico);
+      const actual = await tx.usuario.findUniqueOrThrow({
+        where: { id: usuario.id },
+        select: { rol: true, activo: true },
+      });
+      if (!actual.activo) {
+        throw new ForbiddenException('Tu cuenta está desactivada.');
+      }
+      const creada = await tx.sesion.create({
+        select: { codigoPublico: true },
+        data: {
+          usuarioId: usuario.id,
+          tokenRefrescoHash: hash,
+          fechaExpiracion: vencimientoRefresco,
+          dispositivo: contexto.dispositivo?.slice(0, LARGO_MAXIMO_DISPOSITIVO),
+        },
+      });
+      return { sid: creada.codigoPublico, rol: actual.rol };
     });
 
-    const sesion = await this.firmarAcceso(usuario, sid);
+    const sesion = await this.firmarAcceso({ ...usuario, rol }, sid);
     await this.intentos.confirmarExito(dto.email, contexto.ip);
 
     return { sesion, tokenRefresco, vencimientoRefresco };

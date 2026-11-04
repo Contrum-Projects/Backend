@@ -11,6 +11,7 @@ import {
   correoConfirmacion,
   correoInvitacion,
   correoRecuperacion,
+  correoRolProfesionalRetirado,
   correoVerificacionAprobada,
 } from './cuenta.js';
 import { correoCambioEstado, correoPagoConfirmado } from './pedido.js';
@@ -255,5 +256,43 @@ describe('Plantillas de correo', () => {
     expect(html).toContain('24 horas');
     expect(texto).toContain(enlace);
     expect(texto).not.toContain('<');
+  });
+
+  it('E13-H3 · profesional que vuelve a cliente: el correo lleva el motivo, el precio normal y que sus pedidos no cambian', () => {
+    const { html, texto } = correoRolProfesionalRetirado({
+      asunto: 'Tu cuenta volvió a ser de cliente',
+      nombre: 'Andrea',
+      motivo: 'Dejaste de ejercer como peluquera según nos informaste.',
+      urlCatalogo: 'https://tienda.cl/catalogo',
+      enlacesPie,
+    });
+
+    expect(html).toContain('Tu cuenta volvió a ser de cliente');
+    expect(html).toContain('Hola, Andrea.');
+    expect(html).toContain('compras a precio normal');
+    expect(html).toContain('productos exclusivos');
+    expect(html).toContain('Tus pedidos anteriores no cambian.');
+    expect(html).toContain(
+      'Dejaste de ejercer como peluquera según nos informaste.',
+    );
+    expect(html).toContain('href="https://tienda.cl/catalogo"');
+    expect(texto).toContain(
+      'Motivo: Dejaste de ejercer como peluquera según nos informaste.',
+    );
+    expect(texto).not.toContain('<');
+  });
+
+  it('E13-H3 · el motivo y el nombre del correo no se interpretan como HTML', () => {
+    const { html } = correoRolProfesionalRetirado({
+      asunto: 'A',
+      nombre: '<b>Andrea</b>',
+      motivo: '<script>alert(1)</script> motivo',
+      urlCatalogo: 'https://tienda.cl/catalogo',
+      enlacesPie,
+    });
+
+    expect(html).not.toContain('<b>Andrea</b>');
+    expect(html).not.toContain('<script>');
+    expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt; motivo');
   });
 });
