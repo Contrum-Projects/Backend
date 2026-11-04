@@ -19,6 +19,7 @@ import {
   CrearPedidoService,
   FALTA_ELEGIR_DATOS_FACTURACION,
   PEDIDO_PENDIENTE,
+  ROL_CAMBIADO,
   SIN_DATOS_FACTURACION,
 } from './crear-pedido.service.js';
 import type { CrearPedidoDto } from './dto/crear-pedido.dto.js';
@@ -47,6 +48,7 @@ const crearDb = () => {
         apellido: 'Soto',
         telefono: '+56911111111',
         fechaVerificacionCorreo: new Date(),
+        rol: ROLES.CLIENTE,
       }),
     },
     carrito: {
@@ -87,6 +89,16 @@ const crearDb = () => {
 };
 
 describe('CrearPedidoService', () => {
+  /** La cuenta es profesional también en la base, como en su token. */
+  const comoProfesional = () =>
+    db.usuario.findUniqueOrThrow.mockResolvedValue({
+      nombre: 'Marcela',
+      apellido: 'Soto',
+      telefono: '+56911111111',
+      fechaVerificacionCorreo: new Date(),
+      rol: ROLES.PROFESIONAL,
+    });
+
   let db: ReturnType<typeof crearDb>;
   let carrito: { articulosALaVenta: ReturnType<typeof vi.fn> };
   let ventaStock: {
@@ -213,6 +225,7 @@ describe('CrearPedidoService', () => {
   });
 
   it('E5-H3 · pedido creado: el profesional guarda la línea como mayorista con el precio de su rol', async () => {
+    comoProfesional();
     await servicio.crear(CUENTA, ROLES.PROFESIONAL, dtoRetiro());
 
     expect(carrito.articulosALaVenta).toHaveBeenCalledWith(
@@ -377,6 +390,7 @@ describe('CrearPedidoService', () => {
         apellido: 'Soto',
         telefono: null,
         fechaVerificacionCorreo: null,
+        rol: ROLES.CLIENTE,
       });
 
       await expect(
@@ -476,6 +490,7 @@ describe('CrearPedidoService', () => {
       apellido: 'Soto',
       telefono: null,
       fechaVerificacionCorreo: null,
+      rol: ROLES.CLIENTE,
     });
 
     const error = await servicio
@@ -558,6 +573,7 @@ describe('CrearPedidoService', () => {
         ]),
       );
 
+      comoProfesional();
       await servicio.crear(CUENTA, ROLES.PROFESIONAL, dtoRetiro());
 
       expect(datosPedido().detalles.create).toEqual([
@@ -593,6 +609,7 @@ describe('CrearPedidoService', () => {
         ]),
       );
 
+      comoProfesional();
       await servicio.crear(CUENTA, ROLES.PROFESIONAL, dtoRetiro());
 
       expect(datosPedido().detalles.create).toEqual([
@@ -613,6 +630,7 @@ describe('CrearPedidoService', () => {
         new Map([[30, { tipo: 'pack', neto: 1500 }]]),
       );
 
+      comoProfesional();
       await servicio.crear(CUENTA, ROLES.PROFESIONAL, dtoRetiro());
 
       expect(datosPedido().detalles.create[0]).toMatchObject({
@@ -656,6 +674,17 @@ describe('CrearPedidoService', () => {
       ),
     ).rejects.toBeInstanceOf(NotFoundException);
     expect(db.pedido.create).not.toHaveBeenCalled();
+  });
+
+  it('E13-H3 · sesiones abiertas: si el rol de la base ya no es el del token, responde 409 sin crear el pedido ni tocar el stock', async () => {
+    // Pidió como profesional y le bajaron el rol mientras esperaba el bloqueo de la cuenta
+    await expect(
+      servicio.crear(CUENTA, ROLES.PROFESIONAL, dtoRetiro()),
+    ).rejects.toThrow(new ConflictException(ROL_CAMBIADO));
+
+    expect(carrito.articulosALaVenta).not.toHaveBeenCalled();
+    expect(db.pedido.create).not.toHaveBeenCalled();
+    expect(ventaStock.descontarPorPedido).not.toHaveBeenCalled();
   });
 
   it('un total que no cabe en la columna responde 400', async () => {
