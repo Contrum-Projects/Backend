@@ -844,6 +844,22 @@ más reciente: al abrir una nueva tras un rechazo, los de la anterior ya no se p
 Nueva dependencia `@aws-sdk/s3-request-presigner` (fijada en la misma versión que `client-s3`) y
 nuevo método `AlmacenArchivos.urlTemporal`. Sin cambios al MER.
 
+Decisiones del 4 nov (E10-H5, SCRUM-66): `PUT /api/perfil-profesional/yo` (crea o reemplaza el
+perfil entero) y `GET /api/perfil-profesional/yo` (**404** si aún no lo completa). «Verificación
+aprobada» es tener el rol `profesional`: el cliente y el personal reciben **403** y sin sesión,
+**401**. Un cliente recién aprobado debe renovar la sesión para entrar. Al guardar, se bloquea la
+fila de la cuenta y el rol se vuelve a leer de la base (profesional y activa). **Obligatorios:**
+años de experiencia (entero de **0 a 40**), una modalidad de trabajo y al menos una especialidad,
+sin repetir. **Opcionales:** `nombreLugarTrabajo` (texto, hasta 150) y `redSocial` (texto, hasta
+255; no está en la historia y se agregó por decisión del equipo); `null`, un texto vacío o no
+enviarlos los deja sin valor. La comuna del perfil (`id_comuna`) no se pide aquí: se obtiene de otra
+parte. Si falta un obligatorio, **400** con un mensaje por cada dato que falta y no se guarda nada.
+**Modalidades y especialidades (PROPUESTA del 4 nov, por confirmar con la clienta):** las listas
+`MODALIDADES_TRABAJO` (7) y `ESPECIALIDADES` (16) de `valores.ts`; una sola modalidad, sin opción
+«otra» y fijas en el código. Siguen abiertas: modalidad múltiple (cambiaría RF-10.11 y el MER), la
+opción «otra», listas editables desde el panel y su relación con la segmentación de campañas (E12).
+Sin cambios al MER.
+
 **E12 Marketing.** Publicidad solo a quien la aceptó (cuenta activa con correo verificado o
 suscriptor confirmado); el consentimiento se revisa de nuevo al enviar. Baja desde cualquier
 correo, por dirección. Campaña con vista previa y confirmación; sale una vez y llega una vez a cada

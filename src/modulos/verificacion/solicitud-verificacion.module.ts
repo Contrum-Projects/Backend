@@ -7,6 +7,8 @@ import type { Entorno } from '../../config/entorno.js';
 import { ConsultaVerificacionController } from './consulta-verificacion.controller.js';
 import { ConsultaVerificacionService } from './consulta-verificacion.service.js';
 import { DocumentosVerificacionService } from './documentos-verificacion.service.js';
+import { PerfilProfesionalController } from './perfil-profesional.controller.js';
+import { PerfilProfesionalService } from './perfil-profesional.service.js';
 import { RevisionVerificacionController } from './revision-verificacion.controller.js';
 import { RevisionVerificacionService } from './revision-verificacion.service.js';
 import { SolicitudVerificacionController } from './solicitud-verificacion.controller.js';
@@ -25,7 +27,7 @@ import { ProveedorSituacionTributaria } from './sii/proveedor-situacion-tributar
  * almacén de archivos (E10-H2).
  * El personal resuelve las solicitudes en revisión manual (E10-H3) y las consulta con sus
  * documentos (E10-H7). Aprobada, la cuenta pasa a `profesional` y se encola el correo que lo avisa
- * (E10-H4).
+ * (E10-H4), que luego completa su perfil profesional (E10-H5).
  */
 @Module({
   imports: [AlmacenModule, BullModule.registerQueue({ name: COLAS.CORREOS })],
@@ -34,6 +36,7 @@ import { ProveedorSituacionTributaria } from './sii/proveedor-situacion-tributar
     RevisionVerificacionController,
     // Después de SolicitudVerificacionController: `GET /verificaciones/yo` va antes que `:codigoPublico`
     ConsultaVerificacionController,
+    PerfilProfesionalController,
   ],
   providers: [
     {
@@ -65,6 +68,7 @@ import { ProveedorSituacionTributaria } from './sii/proveedor-situacion-tributar
     DocumentosVerificacionService,
     RevisionVerificacionService,
     ConsultaVerificacionService,
+    PerfilProfesionalService,
   ],
 })
 export class SolicitudVerificacionModule {}
