@@ -5,8 +5,9 @@
  *
  * Si una lista cambia, actualízala aquí y en docs/reglas-de-negocio.md.
  * Listas que siguen abiertas (no las inventes): estados de envío (solo el
- * provisional de E5-H3); modalidades y especialidades. Los tipos de token y de
- * notificación crecen con cada historia que los necesita.
+ * provisional de E5-H3). Las modalidades y especialidades son una propuesta por
+ * confirmar con la clienta (E10-H5). Los tipos de token y de notificación crecen
+ * con cada historia que los necesita.
  */
 
 /** PEDIDO.estado_actual (Épica 8: ocho estados). */
@@ -283,6 +284,54 @@ export const ESTADOS_NOTIFICACION = {
   PENDIENTE: 'pendiente',
   ENVIADA: 'enviada',
   FALLIDA: 'fallida',
+} as const;
+
+/**
+ * PERFIL_PROFESIONAL.modalidad (E10-H5, propuesta del 4 de noviembre de 2026, por confirmar con la
+ * clienta): cómo trabaja el peluquero. Se elige una sola; sin opción «otra».
+ */
+export const MODALIDADES_TRABAJO = {
+  /** Trabaja con contrato o boleta en un salón ajeno. */
+  DEPENDIENTE_SALON: 'dependiente_salon',
+  /** Arrienda un puesto en un salón y atiende a sus propias clientas. */
+  ARRIENDO_SILLON: 'arriendo_sillon',
+  /** Dueña o dueño de un salón o peluquería. */
+  SALON_PROPIO: 'salon_propio',
+  /** Atiende en la casa de la clienta. */
+  DOMICILIO_CLIENTA: 'domicilio_clienta',
+  /** Recibe clientas en su propia casa. */
+  DOMICILIO_PROPIO: 'domicilio_propio',
+  /** Novias, fotografía, televisión o desfiles. */
+  EVENTOS_PRODUCCIONES: 'eventos_producciones',
+  /** Academia, instituto o capacitaciones de marca. */
+  DOCENTE: 'docente',
+} as const;
+
+/**
+ * PERFIL_PROFESIONAL.especialidades (E10-H5, propuesta del 4 de noviembre de 2026, por confirmar
+ * con la clienta): una o varias, sin repetir; sin opción «otra». Agrupadas como en la propuesta.
+ */
+export const ESPECIALIDADES = {
+  // Corte y peinado
+  CORTE_DAMA: 'corte_dama',
+  CORTE_VARON_BARBERIA: 'corte_varon_barberia',
+  PEINADOS_RECOGIDOS: 'peinados_recogidos',
+  BRUSHING_PLANCHADO: 'brushing_planchado',
+  // Color
+  COLORACION_TINTURAS: 'coloracion_tinturas',
+  MECHAS_BALAYAGE: 'mechas_balayage',
+  DECOLORACION_CORRECCION: 'decoloracion_correccion',
+  CANAS_MATIZACION: 'canas_matizacion',
+  // Tratamientos y alisados
+  ALISADOS: 'alisados',
+  PERMANENTE_ONDULACION: 'permanente_ondulacion',
+  TRATAMIENTOS_REPARACION: 'tratamientos_reparacion',
+  TRICOLOGIA: 'tricologia',
+  // Otros
+  EXTENSIONES_PELUCAS: 'extensiones_pelucas',
+  RIZADO_AFRO: 'rizado_afro',
+  PELUQUERIA_INFANTIL: 'peluqueria_infantil',
+  NOVIAS_EVENTOS: 'novias_eventos',
 } as const;
 
 export type Valor<T extends Record<string, string>> = T[keyof T];
