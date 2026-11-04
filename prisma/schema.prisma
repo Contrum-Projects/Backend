@@ -60,6 +60,8 @@ model Usuario {
   campanas               Campana[]
   entradasRecibidas      EntradaInventario[]
   movimientos            MovimientoInventario[]
+  cambiosRol             HistorialRol[]          @relation("RolCambiado")
+  cambiosRolHechos       HistorialRol[]          @relation("RolCambiadoPor")
 
   @@map("usuario")
 }
@@ -110,6 +112,23 @@ model Sesion {
 
   @@index([usuarioId])
   @@map("sesion")
+}
+
+/// Cada cambio de rol hecho desde el panel: quién lo hizo, cuándo y por qué (E13-H3, RF-13.04).
+model HistorialRol {
+  id            Int      @id @default(autoincrement()) @map("id_historial_rol")
+  usuarioId     Int      @map("id_usuario")
+  responsableId Int      @map("id_usuario_responsable")
+  rolAnterior   String   @map("rol_anterior") @db.VarChar(30)
+  rolNuevo      String   @map("rol_nuevo") @db.VarChar(30)
+  motivo        String?  @db.Text
+  fechaCambio   DateTime @default(now()) @map("fecha_cambio") @db.Timestamptz(6)
+
+  usuario     Usuario @relation("RolCambiado", fields: [usuarioId], references: [id])
+  responsable Usuario @relation("RolCambiadoPor", fields: [responsableId], references: [id])
+
+  @@index([usuarioId])
+  @@map("historial_rol")
 }
 
 // ─────────────────────────── Canal profesional ───────────────────────────

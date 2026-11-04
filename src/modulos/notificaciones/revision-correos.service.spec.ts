@@ -412,6 +412,25 @@ describe('RevisionCorreosService', () => {
     }
   });
 
+  it('E13-H3 · profesional que vuelve a cliente: el correo pendiente se reencola sin el motivo, que se lee al enviar', async () => {
+    prisma.notificacion.findMany.mockResolvedValue([
+      pendiente(TIPOS_NOTIFICACION.ROL_PROFESIONAL_RETIRADO, {
+        usuario: { ...USUARIO, rol: 'cliente' },
+      }),
+    ]);
+
+    await servicio.revisarPendientes();
+
+    const [nombre, datos, opciones] = correoEncolado();
+    expect(nombre).toBe(TRABAJOS_CORREO.ROL_PROFESIONAL_RETIRADO);
+    expect(opciones).toMatchObject({ jobId: 'correo-7', priority: 1 });
+    expect(datos).toEqual({
+      notificacionId: 7,
+      destinatario: USUARIO.email,
+      nombre: USUARIO.nombre,
+    });
+  });
+
   const LEAD = { email: 'visita@correo.cl', activo: false };
 
   it('E12-H1 · solicitud de suscripción: la confirmación pendiente se reencola con el mismo enlace firmado y prioridad de suscripción', async () => {

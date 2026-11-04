@@ -183,6 +183,34 @@ sesiones e invalida su invitación pendiente, en una transacción; el administra
 desactivarse a sí mismo (409) y quien crea, reinvita o desactiva debe seguir activo dentro de la
 transacción (403), así que siempre queda al menos un administrador activo. El guard JWT rechaza
 también las sesiones de cuentas desactivadas. No hay reactivación (no está en la historia).
+Decisiones del 4 nov (E13-H3, SCRUM-148, RF-13.04): `PATCH /api/cuentas/:codigoPublico/rol`
+(`{ rol, motivo? }`, UUID de la cuenta) con `personal.gestionar`; va en `cuentas` porque el
+profesional no es parte del personal. **Solo baja el rol:** administrador → `vendedor` o
+`bodeguero`, y profesional → `cliente`. Otro rol de destino responde 400; un cambio que no
+corresponde al rol actual (vendedor ↔ bodeguero, cliente, etc.), 409. **Motivo:** se recorta, de
+10 a 1000 caracteres; obligatorio al pasar a cliente (400 «El motivo es obligatorio al quitar el rol
+profesional.»), opcional para el personal. **Cambio al MER:** tabla `historial_rol`
+(`id_usuario`, `id_usuario_responsable`, `rol_anterior`, `rol_nuevo`, `motivo`, `fecha_cambio`):
+guarda cada cambio, quién y cuándo. En una transacción, con los administradores activos bloqueados
+(`FOR UPDATE`, como al desactivar) y luego la cuenta: quien pide debe seguir siendo administrador
+activo (403); cuenta desactivada, 409; **nunca queda la tienda sin administrador** (409 si es el
+único activo). El administrador **puede bajarse a sí mismo** si queda otro activo. Se guarda el rol y
+su historial y **se revocan todas las sesiones** de la cuenta (RNF-28): el token anterior responde
+401 y al volver a entrar el rol se lee de la base. **Profesional → cliente:** en la misma
+transacción se **quitan del carrito los artículos exclusivos** (formatos de productos y packs con
+`canal_venta = profesional`) y se registra la NOTIFICACION `rol_profesional_retirado`; el correo
+(asunto «Tu cuenta volvió a ser de cliente», **PROPUESTA** de texto, sin diseño en Figma) se encola
+después del commit y lleva el motivo, que se lee de `historial_rol` al enviar (no viaja en Redis).
+El precio mayorista deja de verse porque la sesión se revoca y el carrito ya calcula por rol. **Los
+pedidos ya creados no se tocan**, tampoco uno pendiente de pago (RNF-11). `POST /api/pedidos` relee
+el rol de la cuenta con la fila bloqueada y responde 409 si ya no es el del token: un pedido que
+esperaba el bloqueo no sale al precio mayorista. Por lo mismo (auditoría del 4 nov), las escrituras
+del carrito bloquean la cuenta con `bloquearCuentaConRol` y responden 409 `ROL_CAMBIADO` si el rol
+de la base ya no es el del token, y el **inicio de sesión** crea la sesión con la fila de la cuenta
+bloqueada y firma el token con el rol releído ahí: un login simultáneo con el cambio no queda con
+el rol anterior. El 409 también le puede tocar al cliente recién aprobado (E10-H4) que no renovó la
+sesión: el frontend debe renovarla ante ese 409. La verificación no cambia: el ex profesional no
+puede volver a solicitarla (sigue el 409 «ya fue aprobada»); el perfil profesional se conserva.
 
 **E3 Administración del catálogo.** Producto: nombre, descripción, marca (de una lista), categoría,
 canal de venta. Formatos con SKU y código de barras únicos, contenido, peso, medidas, stock mínimo,

@@ -1,8 +1,13 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
 import { precioConIva } from '../../common/dominio/montos.js';
 import { ROLES } from '../../common/dominio/roles.js';
 import type { Entorno } from '../../config/entorno.js';
+import { ROL_CAMBIADO } from '../../prisma/bloqueos.js';
 import type { PrismaService } from '../../prisma/prisma.service.js';
 import { CarritoService } from './carrito.service.js';
 import { MAXIMO_UNIDADES_LINEA } from './dto/articulo-carrito.dto.js';
@@ -35,7 +40,8 @@ const lineaPack = (articuloId: number, cantidad: number) => ({
 
 const crearDb = () => {
   const db = {
-    $queryRaw: vi.fn().mockResolvedValue([{ id: 7 }]),
+    // La fila de la cuenta bloqueada, con el rol que tiene en la base
+    $queryRaw: vi.fn().mockResolvedValue([{ id: 7, rol: ROLES.CLIENTE }]),
     carrito: {
       findFirst: vi.fn().mockResolvedValue(null),
       findUnique: vi.fn().mockResolvedValue({ id: 70 }),
@@ -579,12 +585,43 @@ describe('CarritoService', () => {
       ).toEqual({ precioMinoristaNeto: true });
 
       db.formatoProducto.findMany.mockClear();
+      db.$queryRaw.mockResolvedValue([{ id: 7, rol: ROLES.PROFESIONAL }]);
       await servicio.unir(CODIGO, ROLES.PROFESIONAL, [
         { articuloId: 11, cantidad: 1 },
       ]);
       expect(
         db.formatoProducto.findMany.mock.calls[0][0].select.articulo.select,
       ).toEqual({ precioMayoristaNeto: true });
+    });
+  });
+
+  describe('rol cambiado (E13-H3)', () => {
+    it('E13-H3 · profesional que vuelve a cliente: una escritura que esperaba el bloqueo con el token de profesional responde 409 y no guarda el exclusivo', async () => {
+      // Le bajaron el rol mientras esperaba: la base ya dice cliente
+      db.$queryRaw.mockResolvedValue([{ id: 7, rol: ROLES.CLIENTE }]);
+
+      for (const escribir of [
+        () =>
+          servicio.agregar(CODIGO, ROLES.PROFESIONAL, {
+            articuloId: 11,
+            cantidad: 1,
+          }),
+        () =>
+          servicio.cambiarCantidad(CODIGO, ROLES.PROFESIONAL, 11, {
+            cantidad: 2,
+          }),
+        () => servicio.quitar(CODIGO, ROLES.PROFESIONAL, 11),
+        () =>
+          servicio.unir(CODIGO, ROLES.PROFESIONAL, [
+            { articuloId: 11, cantidad: 1 },
+          ]),
+      ]) {
+        await expect(escribir()).rejects.toThrow(
+          new ConflictException(ROL_CAMBIADO),
+        );
+      }
+      expect(db.formatoProducto.findMany).not.toHaveBeenCalled();
+      expect(db.itemCarrito.delete).not.toHaveBeenCalled();
     });
   });
 

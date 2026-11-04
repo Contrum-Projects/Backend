@@ -7,10 +7,12 @@ import {
   type TrabajoCorreo,
   type TrabajoCorreoConEnlace,
   type TrabajoPagoConfirmado,
+  type TrabajoRolProfesionalRetirado,
   type TrabajoStockBajo,
   type TrabajoVerificacionAprobada,
 } from '../../colas/colas.js';
 import { precioConIva } from '../../common/dominio/montos.js';
+import { ROLES } from '../../common/dominio/roles.js';
 import {
   ESTADOS_PEDIDO,
   TIPOS_ENTREGA,
@@ -31,6 +33,7 @@ import {
   correoConfirmacion,
   correoInvitacion,
   correoRecuperacion,
+  correoRolProfesionalRetirado,
   correoVerificacionAprobada,
 } from './plantillas/cuenta.js';
 import {
@@ -46,6 +49,8 @@ import { correoConfirmacionSuscripcion } from './plantillas/suscripcion.js';
 export interface NotificacionACorreo {
   asunto: string;
   pedidoId: number | null;
+  /** La cuenta a la que va: el motivo del cambio de rol se lee de su historial (E13-H3). */
+  usuarioId?: number | null;
 }
 
 const PASOS_DESPACHO: [string, string][] = [
@@ -138,6 +143,11 @@ export class ContenidoCorreosService {
           urlCatalogo: this.rutas.catalogo,
           enlacesPie: this.rutas.pie,
         });
+      case TRABAJOS_CORREO.ROL_PROFESIONAL_RETIRADO:
+        return this.rolProfesionalRetirado(
+          datos as TrabajoRolProfesionalRetirado,
+          notificacion,
+        );
       default:
         throw new Error(`Trabajo de correo desconocido: ${trabajo}`);
     }
@@ -177,6 +187,32 @@ export class ContenidoCorreosService {
       enlace,
       horas: this.config.get('INVITACION_PERSONAL_HORAS', { infer: true }),
       enlacesPie,
+    });
+  }
+
+  /**
+   * E13-H3 · El motivo es el del último paso de profesional a cliente de esa cuenta: se lee al
+   * enviar, así un correo reencolado lo lleva igual y el texto no queda en Redis.
+   */
+  private async rolProfesionalRetirado(
+    { nombre }: TrabajoRolProfesionalRetirado,
+    { asunto, usuarioId }: NotificacionACorreo,
+  ): Promise<CorreoRenderizado> {
+    const cambio = await this.prisma.historialRol.findFirstOrThrow({
+      where: {
+        usuarioId: usuarioId ?? -1,
+        rolAnterior: ROLES.PROFESIONAL,
+        rolNuevo: ROLES.CLIENTE,
+      },
+      select: { motivo: true },
+      orderBy: { id: 'desc' },
+    });
+    return correoRolProfesionalRetirado({
+      asunto,
+      nombre,
+      motivo: cambio.motivo ?? '',
+      urlCatalogo: this.rutas.catalogo,
+      enlacesPie: this.rutas.pie,
     });
   }
 

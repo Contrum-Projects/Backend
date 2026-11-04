@@ -67,6 +67,7 @@ export class EnvioCorreosService {
         estadoEnvio: true,
         asunto: true,
         pedidoId: true,
+        usuarioId: true,
         usuario: { select: { activo: true, rol: true } },
       },
     });
@@ -96,6 +97,7 @@ export class EnvioCorreosService {
     const { html, texto } = await this.contenido.construir(trabajo, datos, {
       asunto,
       pedidoId: notificacion.pedidoId,
+      usuarioId: notificacion.usuarioId,
     });
     await this.cliente.enviar({
       notificacionId: id,
