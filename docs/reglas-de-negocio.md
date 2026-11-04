@@ -882,6 +882,18 @@ ubicaciones) bajo él, con `stockTotal`, `stockMinimo` y `faltante`, del que má
 se calcula al consultar, sin caché, y si ninguno está bajo su mínimo responde una lista vacía. Los
 formatos desactivados también salen, marcados con `activo = false`. PROPUESTA por confirmar: el
 reporte no pagina ni filtra (la historia no lo pide). Sin cambios al MER.
+Decisiones del 4 nov (E14-H2): `GET /api/reportes/ventas?desde=AAAA-MM-DD&hasta=AAAA-MM-DD` con
+`reportes.ver` (401 sin sesión, 403 sin el permiso). Ambas fechas son obligatorias e inclusivas, en
+hora de Chile: cuenta `fecha_pedido` desde las 00:00 de `desde` hasta antes de las 00:00 del día
+siguiente a `hasta` en `America/Santiago`. **400** si una fecha no es válida, si `hasta` es anterior
+a `desde` o si el período pasa de **366 días**. Solo cuentan los pedidos **pagados**: todo estado
+salvo `pendiente_pago` y `cancelado` (`ESTADOS_SIN_VENTA`). El tipo de cliente es el **precio
+aplicado al comprar** (`detalle_pedido.tipo_precio`, igual en todas las líneas del pedido), no el
+rol actual: si un cliente pasa a profesional, sus compras anteriores siguen siendo minoristas.
+Responde `minorista`, `mayorista` y `total`, cada uno con `pedidos`, `montoNeto`, `montoIva` y
+`montoTotal`: los montos cerrados del pedido, con el despacho incluido. Sin pedidos, todo en cero.
+Se calcula al consultar con una sola consulta agregada, sin caché (los montos no van a Redis).
+Sin cambios al MER.
 
 ## Rendimiento y operación
 
