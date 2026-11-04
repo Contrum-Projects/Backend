@@ -5,6 +5,11 @@
 export const LIMITES = {
   /** Registro y confirmación del correo (E1-H1, decisión del 14 oct 2026): 5/min. */
   REGISTRO: { limit: 5, ttl: 60_000 },
+  /**
+   * Suscribirse a las ofertas y confirmar la suscripción (E12-H1, RNF-09): 5/min por IP en cada
+   * ruta. Son públicas: frena llenar buzones ajenos con confirmaciones.
+   */
+  SUSCRIPCION: { limit: 5, ttl: 60_000 },
   /** Cierre de sesión en el dispositivo (E1-H3, decisión del 18 oct 2026): 30/min. */
   CIERRE_SESION: { limit: 30, ttl: 60_000 },
   /**
@@ -73,6 +78,16 @@ export const LIMITES = {
 export const LIMITE_RECUPERACION_POR_CORREO = {
   maximo: 3,
   ventanaMs: 60 * 60_000,
+} as const;
+
+/**
+ * Correos de confirmación de la suscripción a ofertas por dirección (E12-H1, RNF-09, decisión del
+ * 3 nov 2026): uno cada 15 min, desde cualquier IP. Frena llenar el buzón de alguien desde muchas
+ * IP. Se cuenta en PostgreSQL (NOTIFICACION), así rige aunque Redis no responda (RNF-32). Pasado el
+ * tope se responde lo mismo, sin enviar nada.
+ */
+export const LIMITE_CONFIRMACION_SUSCRIPCION = {
+  ventanaMs: 15 * 60_000,
 } as const;
 
 /**

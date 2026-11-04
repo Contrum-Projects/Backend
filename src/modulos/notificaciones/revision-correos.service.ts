@@ -6,6 +6,7 @@ import {
   COLAS,
   TRABAJOS_CORREO,
   type TrabajoCambioEstadoPedido,
+  type TrabajoConfirmacionSuscripcion,
   type TrabajoCorreo,
   type TrabajoCorreoConEnlace,
   type TrabajoPagoConfirmado,
@@ -27,6 +28,7 @@ import type { Entorno } from '../../config/entorno.js';
 import { bloquearCuenta } from '../../prisma/bloqueos.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { generarTokenCorreo } from '../cuentas/tokens.js';
+import { FirmaSuscripcion } from '../marketing/firma-suscripcion.js';
 import { ESTADOS_CON_AVISO } from '../pedidos/transiciones-estado-pedido.js';
 
 /** Margen para no tomar un correo que recién se está encolando después de su commit. */
@@ -61,12 +63,15 @@ const TIPOS_QUE_ENVIA = [
   TIPOS_NOTIFICACION.CAMBIO_ESTADO_PEDIDO,
   TIPOS_NOTIFICACION.STOCK_BAJO,
   TIPOS_NOTIFICACION.VERIFICACION_APROBADA,
+  TIPOS_NOTIFICACION.CONFIRMACION_SUSCRIPCION,
 ];
 
 interface Pendiente {
   id: number;
   tipo: string;
   intentos: number;
+  fechaCreacion: Date;
+  lead: { email: string; activo: boolean } | null;
   usuario: {
     id: number;
     codigoPublico: string;
@@ -101,6 +106,7 @@ export class RevisionCorreosService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService<Entorno, true>,
     @InjectQueue(COLAS.CORREOS) private readonly correos: Queue,
+    private readonly firmaSuscripcion: FirmaSuscripcion,
   ) {}
 
   async revisarPendientes(): Promise<void> {
@@ -114,6 +120,8 @@ export class RevisionCorreosService {
         id: true,
         tipo: true,
         intentos: true,
+        fechaCreacion: true,
+        lead: { select: { email: true, activo: true } },
         usuario: {
           select: {
             id: true,
@@ -163,7 +171,34 @@ export class RevisionCorreosService {
     if (pendiente.tipo in CORREOS_CON_ENLACE) {
       return this.recuperarConEnlace(pendiente);
     }
+    if (pendiente.tipo === TIPOS_NOTIFICACION.CONFIRMACION_SUSCRIPCION) {
+      return Promise.resolve(this.recuperarSuscripcion(pendiente));
+    }
     return Promise.resolve(this.recuperarAviso(pendiente));
+  }
+
+  /**
+   * El enlace de la suscripción está firmado, no guardado (E12-H1): se rearma igual, con la fecha
+   * de la notificación como emisión, así conserva el vencimiento original. Ya confirmada o con el
+   * enlace vencido, no hay nada que enviar.
+   */
+  private recuperarSuscripcion({
+    id: notificacionId,
+    fechaCreacion,
+    lead,
+  }: Pendiente): CorreoRecuperado | null {
+    if (!lead || lead.activo) return null;
+    const { enlace, vence } = this.firmaSuscripcion.enlace(
+      lead.email,
+      fechaCreacion,
+    );
+    if (vence.getTime() <= Date.now()) return null;
+    const datos: TrabajoConfirmacionSuscripcion = {
+      notificacionId,
+      destinatario: lead.email,
+      enlace,
+    };
+    return { trabajo: TRABAJOS_CORREO.CONFIRMACION_SUSCRIPCION, datos };
   }
 
   /** Los datos de estos correos se pueden rearmar desde la base. */

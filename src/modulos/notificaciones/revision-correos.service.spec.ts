@@ -11,6 +11,7 @@ import {
 import type { Entorno } from '../../config/entorno.js';
 import type { PrismaService } from '../../prisma/prisma.service.js';
 import { hashearTokenCorreo } from '../cuentas/tokens.js';
+import { FirmaSuscripcion } from '../marketing/firma-suscripcion.js';
 import { RevisionCorreosService } from './revision-correos.service.js';
 
 const USUARIO = {
@@ -28,10 +29,21 @@ const PEDIDO = {
   tipoEntrega: 'despacho',
 };
 
+const CONFIG_FIRMA: Record<string, unknown> = {
+  JWT_ACCESS_SECRET: 's'.repeat(32),
+  CONFIRMACION_CORREO_HORAS: 24,
+  URL_TIENDA: 'https://tienda.cl/',
+};
+const firmaSuscripcion = new FirmaSuscripcion({
+  get: (clave: string) => CONFIG_FIRMA[clave],
+} as unknown as ConfigService<Entorno, true>);
+
 const pendiente = (tipo: string, extra: object = {}) => ({
   id: 7,
   tipo,
   intentos: 0,
+  fechaCreacion: new Date(),
+  lead: null,
   usuario: USUARIO,
   pedido: null,
   ...extra,
@@ -102,6 +114,7 @@ describe('RevisionCorreosService', () => {
         true
       >,
       cola as unknown as Queue,
+      firmaSuscripcion,
     );
   });
 
@@ -390,6 +403,51 @@ describe('RevisionCorreosService', () => {
       prisma.notificacion.findMany.mockResolvedValue([
         pendiente(TIPOS_NOTIFICACION.VERIFICACION_APROBADA, {
           usuario: { ...USUARIO, ...cambio },
+        }),
+      ]);
+
+      await servicio.revisarPendientes();
+
+      expectFallida();
+    }
+  });
+
+  const LEAD = { email: 'visita@correo.cl', activo: false };
+
+  it('E12-H1 · solicitud de suscripción: la confirmación pendiente se reencola con el mismo enlace firmado y prioridad de suscripción', async () => {
+    const fechaCreacion = new Date(Date.now() - 10 * 60_000);
+    prisma.notificacion.findMany.mockResolvedValue([
+      pendiente(TIPOS_NOTIFICACION.CONFIRMACION_SUSCRIPCION, {
+        usuario: null,
+        lead: LEAD,
+        fechaCreacion,
+      }),
+    ]);
+
+    await servicio.revisarPendientes();
+
+    const [nombre, datos, opciones] = correoEncolado();
+    expect(nombre).toBe(TRABAJOS_CORREO.CONFIRMACION_SUSCRIPCION);
+    expect(opciones).toMatchObject({ jobId: 'correo-7', priority: 5 });
+    // Mismo enlace que se envió: conserva la emisión y el vencimiento originales
+    expect(datos).toEqual({
+      notificacionId: 7,
+      destinatario: LEAD.email,
+      enlace: firmaSuscripcion.enlace(LEAD.email, fechaCreacion).enlace,
+    });
+  });
+
+  it('E12-H1 · solicitud de suscripción: ya confirmada, con el enlace vencido o sin lead queda fallida', async () => {
+    for (const extra of [
+      { lead: { ...LEAD, activo: true } },
+      { lead: LEAD, fechaCreacion: new Date(Date.now() - 25 * 60 * 60_000) },
+      { lead: null },
+    ]) {
+      prisma.notificacion.updateMany.mockClear();
+      prisma.notificacion.findMany.mockResolvedValue([
+        pendiente(TIPOS_NOTIFICACION.CONFIRMACION_SUSCRIPCION, {
+          usuario: null,
+          ...extra,
         }),
       ]);
 

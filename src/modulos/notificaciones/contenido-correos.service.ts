@@ -3,9 +3,12 @@ import { ConfigService } from '@nestjs/config';
 import {
   TRABAJOS_CORREO,
   type TrabajoCambioEstadoPedido,
+  type TrabajoConfirmacionSuscripcion,
   type TrabajoCorreo,
   type TrabajoCorreoConEnlace,
+  type TrabajoPagoConfirmado,
   type TrabajoStockBajo,
+  type TrabajoVerificacionAprobada,
 } from '../../colas/colas.js';
 import { precioConIva } from '../../common/dominio/montos.js';
 import {
@@ -38,6 +41,7 @@ import {
   correoStockBajo,
   correoStockBajoRecuperado,
 } from './plantillas/stock-bajo.js';
+import { correoConfirmacionSuscripcion } from './plantillas/suscripcion.js';
 
 export interface NotificacionACorreo {
   asunto: string;
@@ -102,8 +106,24 @@ export class ContenidoCorreosService {
           datos as TrabajoCorreoConEnlace,
           notificacion.asunto,
         );
+      case TRABAJOS_CORREO.CONFIRMACION_SUSCRIPCION: {
+        const { destinatario, enlace } =
+          datos as TrabajoConfirmacionSuscripcion;
+        return correoConfirmacionSuscripcion({
+          asunto: notificacion.asunto,
+          destinatario,
+          enlace,
+          horas: this.config.get('CONFIRMACION_CORREO_HORAS', {
+            infer: true,
+          }),
+          enlacesPie: this.rutas.pie,
+        });
+      }
       case TRABAJOS_CORREO.PAGO_CONFIRMADO:
-        return this.pagoConfirmado(datos.nombre, notificacion);
+        return this.pagoConfirmado(
+          (datos as TrabajoPagoConfirmado).nombre,
+          notificacion,
+        );
       case TRABAJOS_CORREO.CAMBIO_ESTADO_PEDIDO:
         return this.cambioEstado(
           datos as TrabajoCambioEstadoPedido,
@@ -114,7 +134,7 @@ export class ContenidoCorreosService {
       case TRABAJOS_CORREO.VERIFICACION_APROBADA:
         return correoVerificacionAprobada({
           asunto: notificacion.asunto,
-          nombre: datos.nombre,
+          nombre: (datos as TrabajoVerificacionAprobada).nombre,
           urlCatalogo: this.rutas.catalogo,
           enlacesPie: this.rutas.pie,
         });

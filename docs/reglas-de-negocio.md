@@ -850,6 +850,27 @@ correo, por dirección. Campaña con vista previa y confirmación; sale una vez 
 dirección. Recordatorios de carrito a 1, 24 y 72 h, una serie por semana. Saludo de cumpleaños
 anual. Registrar apertura, clic y rebote. Todo correo publicitario lleva remitente y enlace de baja
 (RNF-26). Prioridad de correos: pedido y cuenta > suscripción > publicidad (RNF-16).
+Decisiones del 3 nov (E12-H1): `POST /api/marketing/suscripciones` `{ email }` es pública y responde
+**202** con el mismo mensaje para todo correo válido (no revela si ya estaba suscrito, pendiente,
+dado de baja o con cuenta). Un correo nuevo crea LEAD con `activo = false`, `fecha_baja` nula y
+`origen = 'formulario_web'` (`ORIGENES_LEAD`), y en la misma transacción una NOTIFICACION
+`confirmacion_suscripcion` (con `id_lead`); el correo se encola después del commit con la
+prioridad de suscripción, sin esperar la cola (un correo ya confirmado no se distingue por el tiempo
+de respuesta). Si ya está confirmado no se envía nada; si está pendiente o dado de baja se reenvía
+la confirmación sin tocar LEAD, **como máximo una cada 15 min por dirección**
+(`LIMITE_CONFIRMACION_SUSCRIPCION`, contado en NOTIFICACION con la fila de LEAD bloqueada, así rige
+desde cualquier IP y sin Redis). `POST /api/marketing/suscripciones/confirmar` `{ token }`
+deja `activo = true`, `fecha_baja` nula y `fecha_suscripcion` en la fecha de confirmación; confirmar
+dos veces responde lo mismo; enlace inválido o vencido, **400**. Como LEAD no guarda tokens, el enlace
+va **firmado** (RNF-08): correo + emisión + vencimiento con HMAC-SHA256, con clave derivada de
+`JWT_ACCESS_SECRET` con separación de dominio (sin variable nueva ni cambios al MER). Dura
+`CONFIRMACION_CORREO_HORAS` (24 h). Un enlace emitido antes de una baja ya no la deshace. Límite de
+5/min por IP en cada ruta (`LIMITES.SUSCRIPCION`). La revisión de pendientes (RNF-29) rearma el
+enlace con la fecha de la notificación, con el mismo vencimiento. PROPUESTA por confirmar con
+frontend: la pantalla de confirmación es `/suscripcion/confirmar?token=…`. El token va firmado pero
+no cifrado: el correo se puede leer en la URL. Decisión del equipo del 3 nov (opción A): lo resuelve
+frontend (SCRUM-138), con `Referrer-Policy: no-referrer` en esa página y quitando el token de la URL
+con `history.replaceState` antes de cargar analítica o scripts de terceros.
 
 **E14 Reportes.** Solo administrador. OE1 30 %, OE2 70 % en 48 h, OE3 80 %; ventas por período y
 tipo de cliente; carritos abandonados y recuperados; resultado de campañas; stock bajo el mínimo.

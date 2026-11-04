@@ -15,6 +15,7 @@ import {
 } from './cuenta.js';
 import { correoCambioEstado, correoPagoConfirmado } from './pedido.js';
 import { correoStockBajo, correoStockBajoRecuperado } from './stock-bajo.js';
+import { correoConfirmacionSuscripcion } from './suscripcion.js';
 
 const { pie: enlacesPie } = rutasTienda('https://tienda.cl/');
 const ENLACE = 'https://tienda.cl/confirmar-correo?token=abc&x=1';
@@ -235,5 +236,24 @@ describe('Plantillas de correo', () => {
 
     expect(html).not.toContain('<b>Andrea</b>');
     expect(html).toContain('&lt;b&gt;Andrea&lt;/b&gt;');
+  });
+
+  it('E12-H1 · solicitud de suscripción: el correo pide confirmar, lleva el enlace y su vigencia', () => {
+    const enlace = 'https://tienda.cl/suscripcion/confirmar?token=a.b.c.d';
+    const { html, texto } = correoConfirmacionSuscripcion({
+      asunto: 'Confirma tu suscripción a las ofertas',
+      destinatario: 'visita@correo.cl',
+      enlace,
+      horas: 24,
+      enlacesPie,
+    });
+
+    expect(html).toContain('Confirma tu suscripción');
+    expect(html).toContain('visita@correo.cl');
+    expect(html).toContain('Confirmar mi suscripción');
+    expect(html).toContain(`href="${escapar(enlace)}"`);
+    expect(html).toContain('24 horas');
+    expect(texto).toContain(enlace);
+    expect(texto).not.toContain('<');
   });
 });
