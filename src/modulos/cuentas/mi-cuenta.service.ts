@@ -31,6 +31,11 @@ export interface DatosPersonales {
   /** AAAA-MM-DD. */
   fechaNacimiento: string | null;
   genero: string | null;
+  /** Si recibe ofertas por correo y la última vez que las aceptó (E12-H2). */
+  consentimientoMarketing: {
+    acepta: boolean;
+    fechaConsentimiento: string | null;
+  };
 }
 
 const SELECCION_DATOS = {
@@ -42,16 +47,24 @@ const SELECCION_DATOS = {
   telefono: true,
   fechaNacimiento: true,
   genero: true,
+  aceptaMarketingEmail: true,
+  fechaConsentimientoMarketing: true,
 } as const;
 
 const aDatosPersonales = ({
   fechaNacimiento,
+  aceptaMarketingEmail,
+  fechaConsentimientoMarketing,
   ...datos
 }: Prisma.UsuarioGetPayload<{
   select: typeof SELECCION_DATOS;
 }>): DatosPersonales => ({
   ...datos,
   fechaNacimiento: fechaNacimiento?.toISOString().slice(0, 10) ?? null,
+  consentimientoMarketing: {
+    acepta: aceptaMarketingEmail,
+    fechaConsentimiento: fechaConsentimientoMarketing?.toISOString() ?? null,
+  },
 });
 
 /**

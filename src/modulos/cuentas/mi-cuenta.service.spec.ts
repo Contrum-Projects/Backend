@@ -23,6 +23,12 @@ const usuarioGuardado = {
   genero: null,
 };
 
+/** Columnas del consentimiento de publicidad (E12-H2): se responden juntas, no sueltas. */
+const consentimientoGuardado = {
+  aceptaMarketingEmail: true,
+  fechaConsentimientoMarketing: new Date('2026-11-04T15:00:00.000Z'),
+};
+
 const crearPrisma = () => {
   const tx = {
     $queryRaw: vi.fn().mockResolvedValue([{ id: 7 }]),
@@ -55,13 +61,20 @@ describe('MiCuentaService', () => {
 
   describe('obtener', () => {
     it('devuelve los datos con la fecha como AAAA-MM-DD y sin el id', async () => {
-      prisma.usuario.findUnique.mockResolvedValue(usuarioGuardado);
+      prisma.usuario.findUnique.mockResolvedValue({
+        ...usuarioGuardado,
+        ...consentimientoGuardado,
+      });
 
       const datos = await servicio.obtener(CODIGO);
 
       expect(datos).toEqual({
         ...usuarioGuardado,
         fechaNacimiento: '1990-05-21',
+        consentimientoMarketing: {
+          acepta: true,
+          fechaConsentimiento: '2026-11-04T15:00:00.000Z',
+        },
       });
       expect(
         prisma.usuario.findUnique.mock.calls[0][0].select,

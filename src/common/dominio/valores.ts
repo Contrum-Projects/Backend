@@ -251,6 +251,14 @@ export const TIPOS_NOTIFICACION = {
 } as const;
 
 /**
+ * Tipos de NOTIFICACION que son publicidad (E12-H2, decisión del 4 de noviembre de 2026), además de
+ * toda notificación con campaña. Antes de enviarlos se revisa de nuevo el consentimiento de la
+ * dirección. Lista abierta: cada historia que agregue un correo publicitario sin campaña suma su
+ * tipo aquí.
+ */
+export const TIPOS_NOTIFICACION_PUBLICIDAD: readonly string[] = [];
+
+/**
  * LEAD.origen (E12-H1, decisión del 3 de noviembre de 2026): de dónde vino la suscripción. Lista
  * abierta: por ahora solo el formulario público de la tienda.
  */
@@ -281,11 +289,16 @@ export const AJUSTES_UNION_CARRITO = {
   CANTIDAD_AJUSTADA: 'cantidad_ajustada',
 } as const;
 
-/** NOTIFICACION.estado_envio (decisión del 14 de octubre de 2026, E1-H1). */
+/**
+ * NOTIFICACION.estado_envio (decisión del 14 de octubre de 2026, E1-H1). `cancelada` (E12-H2,
+ * decisión del 4 de noviembre de 2026): publicidad que no se envió porque la dirección ya no la
+ * acepta.
+ */
 export const ESTADOS_NOTIFICACION = {
   PENDIENTE: 'pendiente',
   ENVIADA: 'enviada',
   FALLIDA: 'fallida',
+  CANCELADA: 'cancelada',
 } as const;
 
 /**

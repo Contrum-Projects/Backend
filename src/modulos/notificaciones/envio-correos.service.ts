@@ -6,7 +6,10 @@ import {
   type TrabajoCorreo,
 } from '../../colas/colas.js';
 import { ROLES } from '../../common/dominio/roles.js';
-import { ESTADOS_NOTIFICACION } from '../../common/dominio/valores.js';
+import {
+  ESTADOS_NOTIFICACION,
+  TIPOS_NOTIFICACION_PUBLICIDAD,
+} from '../../common/dominio/valores.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { asuntoCambioEstado } from '../pedidos/transiciones-estado-pedido.js';
 import { CLIENTE_CORREO, type ClienteCorreo } from './cliente-correo.js';
@@ -39,6 +42,37 @@ const sigueProfesional = (
   usuario: { activo: boolean; rol: string } | null,
 ): boolean => !!usuario?.activo && usuario.rol === ROLES.PROFESIONAL;
 
+/** Publicidad: todo correo de una campaña y los tipos marcados como tales (E12-H2). */
+const esPublicidad = (notificacion: {
+  tipo: string;
+  campanaId: number | null;
+}): boolean =>
+  typeof notificacion.campanaId === 'number' ||
+  TIPOS_NOTIFICACION_PUBLICIDAD.includes(notificacion.tipo);
+
+/**
+ * El consentimiento se revisa de nuevo al enviar (E12-H2): una cuenta activa, con el correo
+ * verificado, que acepta ofertas, o un suscriptor confirmado y sin baja. Sin destinatario, no.
+ */
+const aceptaPublicidad = (notificacion: {
+  usuario: {
+    activo: boolean;
+    aceptaMarketingEmail: boolean;
+    fechaVerificacionCorreo: Date | null;
+  } | null;
+  lead: { activo: boolean } | null;
+}): boolean => {
+  const { usuario, lead } = notificacion;
+  if (usuario) {
+    return (
+      usuario.activo &&
+      usuario.aceptaMarketingEmail &&
+      usuario.fechaVerificacionCorreo !== null
+    );
+  }
+  return !!lead?.activo;
+};
+
 /** Un cambio de estado reencolado avisa el estado actual: el asunto guardado puede ser anterior. */
 const asuntoDe = (
   trabajo: string,
@@ -66,13 +100,29 @@ export class EnvioCorreosService {
       select: {
         estadoEnvio: true,
         asunto: true,
+        tipo: true,
         pedidoId: true,
+        campanaId: true,
+        usuario: {
+          select: {
+            activo: true,
+            rol: true,
+            aceptaMarketingEmail: true,
+            fechaVerificacionCorreo: true,
+          },
+        },
+        lead: { select: { activo: true } },
         usuarioId: true,
         usuario: { select: { activo: true, rol: true } },
       },
     });
     // Ya resuelta o borrada: un trabajo repetido no vuelve a enviar
     if (notificacion?.estadoEnvio !== ESTADOS_NOTIFICACION.PENDIENTE) return;
+
+    if (esPublicidad(notificacion) && !aceptaPublicidad(notificacion)) {
+      await this.marcarCancelada(id);
+      return;
+    }
 
     if (
       trabajo === TRABAJOS_CORREO.STOCK_BAJO &&
@@ -121,6 +171,14 @@ export class EnvioCorreosService {
     await this.prisma.notificacion.updateMany({
       where: { id, estadoEnvio: ESTADOS_NOTIFICACION.PENDIENTE },
       data: { estadoEnvio: ESTADOS_NOTIFICACION.FALLIDA },
+    });
+  }
+
+  /** E12-H2 · Publicidad para una dirección que ya no la acepta: no se envía. */
+  async marcarCancelada(id: number): Promise<void> {
+    await this.prisma.notificacion.updateMany({
+      where: { id, estadoEnvio: ESTADOS_NOTIFICACION.PENDIENTE },
+      data: { estadoEnvio: ESTADOS_NOTIFICACION.CANCELADA },
     });
   }
 }

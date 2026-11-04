@@ -921,6 +921,25 @@ frontend: la pantalla de confirmación es `/suscripcion/confirmar?token=…`. El
 no cifrado: el correo se puede leer en la URL. Decisión del equipo del 3 nov (opción A): lo resuelve
 frontend (SCRUM-138), con `Referrer-Policy: no-referrer` en esa página y quitando el token de la URL
 con `history.replaceState` antes de cargar analítica o scripts de terceros.
+Decisiones del 4 nov (E12-H2): `PUT /api/cuentas/yo/consentimiento-marketing` `{ acepta }` (cliente y
+profesional; 401 sin sesión, 403 al personal; 400 si `acepta` falta o no es booleano) responde
+`{ acepta, fechaConsentimiento }`, que también sale en `GET /api/cuentas/yo` como
+`consentimientoMarketing`. Activar guarda `fecha_consentimiento_marketing`; repetirlo no la cambia;
+desactivar la **conserva** (última vez que aceptó). Desactivar también da de baja, en la misma
+transacción, la suscripción sin cuenta (LEAD) con el mismo correo, como la baja desde el correo
+(decisión del equipo del 4 nov: quien no quiere ofertas no las recibe por ningún registro);
+activar no la reactiva. `POST /api/marketing/bajas` `{ token }` es
+pública (`LIMITES.SUSCRIPCION`) y da de baja **la dirección** en una transacción: la cuenta queda
+con `acepta_marketing_email = false` y LEAD con `activo = false` y `fecha_baja` en la fecha de
+esta baja (aunque estuviera pendiente o ya de baja: así ningún enlace de confirmación anterior la
+activa). Responde 200 con el mismo mensaje exista o no la dirección y aunque se repita; firma
+inválida, **400**. El enlace va firmado (HMAC-SHA256 del correo, clave derivada de
+`JWT_ACCESS_SECRET` con su propio dominio, `FirmaBaja`) y **no vence**: la baja funciona desde
+cualquier correo antiguo. PROPUESTA por confirmar con frontend (SCRUM-139): la pantalla es
+`/suscripcion/baja?token=…`. Al enviar, todo correo de campaña o con tipo en
+`TIPOS_NOTIFICACION_PUBLICIDAD` revisa otra vez el consentimiento (cuenta activa, con correo
+verificado y que acepta; o LEAD activo); si no lo tiene, no se envía y queda **`cancelada`**
+(nuevo valor de `ESTADOS_NOTIFICACION`). Sin cambios al MER.
 
 **E14 Reportes.** Solo administrador. OE1 30 %, OE2 70 % en 48 h, OE3 80 %; ventas por período y
 tipo de cliente; carritos abandonados y recuperados; resultado de campañas; stock bajo el mínimo.
