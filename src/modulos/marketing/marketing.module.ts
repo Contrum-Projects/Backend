@@ -3,6 +3,9 @@ import { Module } from '@nestjs/common';
 import { COLAS } from '../../colas/colas.js';
 import { CarritoModule } from '../carrito/carrito.module.js';
 import { BajasController } from './bajas.controller.js';
+import { CampanasController } from './campanas.controller.js';
+import { CampanasService } from './campanas.service.js';
+import { HuellaCampana } from './huella-campana.js';
 import { BajasService } from './bajas.service.js';
 import { CarritosAbandonadosProcessor } from './carritos-abandonados.processor.js';
 import { CarritosAbandonadosService } from './carritos-abandonados.service.js';
@@ -27,8 +30,11 @@ import { SuscripcionesService } from './suscripciones.service.js';
     SuscripcionesController,
     BajasController,
     ConsentimientoController,
+    CampanasController,
   ],
   providers: [
+    CampanasService,
+    HuellaCampana,
     SuscripcionesService,
     BajasService,
     ConsentimientoService,
