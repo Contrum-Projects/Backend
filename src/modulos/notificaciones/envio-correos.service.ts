@@ -113,7 +113,6 @@ export class EnvioCorreosService {
         },
         lead: { select: { activo: true } },
         usuarioId: true,
-        usuario: { select: { activo: true, rol: true } },
       },
     });
     // Ya resuelta o borrada: un trabajo repetido no vuelve a enviar
