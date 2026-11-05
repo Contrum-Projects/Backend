@@ -975,6 +975,43 @@ exclusivo nunca se le nombra a un cliente (RNF-04), y un carrito sin ninguno no 
 pasa al enviar, queda `cancelada`). El correo nombra hasta 5 artículos con su cantidad, **sin precios**, con botón al carrito (PROPUESTA por confirmar con
 frontend: `/carrito`) y el enlace de baja firmado (`FirmaBaja`, RNF-26). Texto PROPUESTA por
 confirmar con el equipo.
+Decisiones del 5 nov (E12-H3, SCRUM-70): rutas en `/api/marketing/campanas` con
+`campanas.gestionar` (solo administrador; 401 sin sesión, 403 sin el permiso), identificadas por
+**id** (la campaña no tiene `codigoPublico` y solo la ve el panel). `POST` crea un borrador
+`envio_unico` con `{ asunto (1-200), cuerpo (1-10.000), segmento }`; `GET` lista (más nueva
+primero, paginado) y `GET /:id` da el detalle con los correos por estado; `PATCH /:id` edita solo
+un borrador (enviada: 409; cuerpo vacío: 400). El asunto va en una sola línea, sin caracteres de
+control (400; auditoría del 5 nov). **Cuerpo en texto plano:** se escapa siempre (el
+HTML no se interpreta); una línea en blanco separa párrafos. El correo usa la base de los demás,
+con el asunto como título, remitente y enlace de baja firmado (RNF-26); sin diseño en Figma.
+**Segmento** (JSON en `campana.segmento`): `tipos` (al menos uno de `TIPOS_DESTINATARIO_CAMPANA`:
+`cliente`, `profesional`, `suscriptor`) y, opcionales, `categorias` y `marcas` (hasta 50 cada
+una; deben existir, si no 400). Con categorías o marcas solo entran las cuentas con un pedido
+pagado (todo estado salvo `ESTADOS_SIN_VENTA`) con algún producto de esas categorías (incluidas
+sus subcategorías) **o** de esas marcas; un pack cuenta por sus formatos. Los suscriptores sin
+cuenta no tienen compras: pedirlos con un filtro de compras responde 400. **Vista previa:**
+`POST /:id/vista-previa` devuelve `{ asunto, html, texto, destinatarios, confirmacion }`; el
+enlace de baja de la vista previa lleva a `/suscripcion/baja` sin token (no da de baja a nadie).
+`confirmacion` es `emisión.firma`: un HMAC-SHA256 de id + asunto + cuerpo + segmento + emisión
+(clave derivada de `JWT_ACCESS_SECRET` con su propio dominio, `HuellaCampana`; sin variable ni
+columna nueva). **Vence a la hora** (`VIGENCIA_VISTA_PREVIA_MS`): pasada, 409 «más de una hora»
+y hay que pedir otra vista previa.
+**Envío:** `POST /:id/envio` `{ confirmacion }` responde **202** `{ id, fechaEnvio,
+destinatarios }`. En una transacción con la campaña bloqueada (`FOR UPDATE`): ya enviada, 409
+(CA2); huella distinta (cambió después de la vista previa), 409 «Pide otra vista previa»; sin
+destinatarios, 409 y sigue como borrador. Calcula ahí los destinatarios (CA3: cuentas activas,
+con correo verificado y que aceptan; LEAD activos; el personal nunca), **una vez por dirección**.
+Si el correo de un LEAD es el de una cuenta, **decide la cuenta** (decisión del 5 nov): la
+suscripción no hace recibir publicidad a una cuenta que no la acepta, que no verificó el correo o
+que es del personal. Luego el envío marca `fecha_encolado`, guarda el
+segmento usado y crea una NOTIFICACION `campana` (con `id_campana`) por dirección (RNF-12). Se
+encolan después del commit en `correos` con prioridad de publicidad, en lotes de 500; el asunto y
+el cuerpo se leen de la base al enviar, la revisión de pendientes las reencola (RNF-29) y al
+enviar se revisa otra vez el consentimiento (queda `cancelada`, E12-H2). En toda publicidad, esa
+revisión también exige que la cuenta siga siendo cliente o profesional y que un LEAD no tenga una
+cuenta con su mismo correo. La cola `campanas` no se
+usa. Una campaña enviada no se edita ni tiene vista previa (409). PROPUESTA por confirmar: texto
+del pie del correo y que la vista previa de una enviada responda 409. Sin cambios al MER.
 
 **E14 Reportes.** Solo administrador. OE1 30 %, OE2 70 % en 48 h, OE3 80 %; ventas por período y
 tipo de cliente; carritos abandonados y recuperados; resultado de campañas; stock bajo el mínimo.

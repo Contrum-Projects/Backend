@@ -97,6 +97,16 @@ export const texto = (contenido: string): string =>
     }),
   );
 
+/** Como `texto`, pero conserva los saltos de línea del párrafo (texto escrito en el panel). */
+export const textoConSaltos = (contenido: string): string =>
+  bloque(
+    parrafo(escapar(contenido).replace(/\n/g, '<br>'), {
+      tamano: 16,
+      linea: 1.5,
+      color: COLORES.textoPrincipal,
+    }),
+  );
+
 export const textoPequeno = (contenido: string): string =>
   bloque(
     parrafo(escapar(contenido), {

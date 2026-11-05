@@ -450,6 +450,39 @@ describe('RevisionCorreosService', () => {
     });
   });
 
+  it.each([
+    ['una cuenta', { usuario: USUARIO }, USUARIO.email],
+    [
+      'un suscriptor sin cuenta',
+      { usuario: null, lead: { email: 'visita@correo.cl', activo: true } },
+      'visita@correo.cl',
+    ],
+  ])(
+    'E12-H3 · CA1 · RNF-29 · el correo de campaña pendiente para %s se reencola con prioridad de publicidad',
+    async (_caso, destino, destinatario) => {
+      prisma.notificacion.findMany.mockResolvedValue([
+        pendiente(TIPOS_NOTIFICACION.CAMPANA, destino),
+      ]);
+
+      await servicio.revisarPendientes();
+
+      const [nombre, datos, opciones] = correoEncolado();
+      expect(nombre).toBe(TRABAJOS_CORREO.CAMPANA);
+      expect(opciones).toMatchObject({ jobId: 'correo-7', priority: 10 });
+      expect(datos).toEqual({ notificacionId: 7, destinatario });
+    },
+  );
+
+  it('E12-H3 · un correo de campaña pendiente sin cuenta ni suscriptor queda fallido', async () => {
+    prisma.notificacion.findMany.mockResolvedValue([
+      pendiente(TIPOS_NOTIFICACION.CAMPANA, { usuario: null, lead: null }),
+    ]);
+
+    await servicio.revisarPendientes();
+
+    expectFallida();
+  });
+
   const LEAD = { email: 'visita@correo.cl', activo: false };
 
   it('E12-H1 · solicitud de suscripción: la confirmación pendiente se reencola con el mismo enlace firmado y prioridad de suscripción', async () => {

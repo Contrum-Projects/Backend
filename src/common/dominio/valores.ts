@@ -215,6 +215,16 @@ export const TIPOS_CAMPANA = {
 } as const;
 
 /**
+ * A quién va una campaña (E12-H3, decisión del 5 de noviembre de 2026): cuentas cliente, cuentas
+ * profesional o suscriptores sin cuenta (LEAD). Va en `campana.segmento`.
+ */
+export const TIPOS_DESTINATARIO_CAMPANA = {
+  CLIENTE: 'cliente',
+  PROFESIONAL: 'profesional',
+  SUSCRIPTOR: 'suscriptor',
+} as const;
+
+/**
  * TOKEN_CORREO.tipo. Lista abierta: cada historia agrega el suyo.
  */
 export const TIPOS_TOKEN = {
@@ -250,6 +260,8 @@ export const TIPOS_NOTIFICACION = {
   ROL_PROFESIONAL_RETIRADO: 'rol_profesional_retirado',
   /** E12-H4, decisión del 4 de noviembre de 2026: recordatorio de un carrito abandonado (RF-12.04). */
   RECORDATORIO_CARRITO: 'recordatorio_carrito',
+  /** E12-H3, decisión del 5 de noviembre de 2026: correo de una campaña (lleva `id_campana`). */
+  CAMPANA: 'campana',
 } as const;
 
 /**

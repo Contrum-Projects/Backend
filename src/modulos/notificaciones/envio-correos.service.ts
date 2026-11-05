@@ -5,7 +5,11 @@ import {
   type TrabajoCambioEstadoPedido,
   type TrabajoCorreo,
 } from '../../colas/colas.js';
-import { type Rol, ROLES } from '../../common/dominio/roles.js';
+import {
+  type Rol,
+  ROLES,
+  ROLES_COMPRADOR,
+} from '../../common/dominio/roles.js';
 import {
   ESTADOS_NOTIFICACION,
   TIPOS_NOTIFICACION_PUBLICIDAD,
@@ -53,11 +57,14 @@ const esPublicidad = (notificacion: {
 
 /**
  * El consentimiento se revisa de nuevo al enviar (E12-H2): una cuenta activa, con el correo
- * verificado, que acepta ofertas, o un suscriptor confirmado y sin baja. Sin destinatario, no.
+ * verificado, que acepta ofertas y que compra en la tienda (el personal nunca recibe publicidad,
+ * E12-H3), o un suscriptor confirmado y sin baja. Sin destinatario, no. Que el suscriptor no tenga
+ * cuenta con el mismo correo lo revisa `EnvioCorreosService` en la base.
  */
 const aceptaPublicidad = (notificacion: {
   usuario: {
     activo: boolean;
+    rol: string;
     aceptaMarketingEmail: boolean;
     fechaVerificacionCorreo: Date | null;
   } | null;
@@ -67,6 +74,7 @@ const aceptaPublicidad = (notificacion: {
   if (usuario) {
     return (
       usuario.activo &&
+      ROLES_COMPRADOR.includes(usuario.rol as Rol) &&
       usuario.aceptaMarketingEmail &&
       usuario.fechaVerificacionCorreo !== null
     );
@@ -113,7 +121,7 @@ export class EnvioCorreosService {
             fechaVerificacionCorreo: true,
           },
         },
-        lead: { select: { activo: true } },
+        lead: { select: { activo: true, email: true } },
         usuarioId: true,
         fechaCreacion: true,
       },
@@ -121,7 +129,11 @@ export class EnvioCorreosService {
     // Ya resuelta o borrada: un trabajo repetido no vuelve a enviar
     if (notificacion?.estadoEnvio !== ESTADOS_NOTIFICACION.PENDIENTE) return;
 
-    if (esPublicidad(notificacion) && !aceptaPublicidad(notificacion)) {
+    if (
+      esPublicidad(notificacion) &&
+      (!aceptaPublicidad(notificacion) ||
+        (await this.suscriptorConCuenta(notificacion)))
+    ) {
       await this.marcarCancelada(id);
       return;
     }
@@ -161,6 +173,7 @@ export class EnvioCorreosService {
       asunto,
       pedidoId: notificacion.pedidoId,
       usuarioId: notificacion.usuarioId,
+      campanaId: notificacion.campanaId,
     });
     await this.cliente.enviar({
       notificacionId: id,
@@ -205,6 +218,22 @@ export class EnvioCorreosService {
       rol as Rol,
     );
     return vendibles.size > 0;
+  }
+
+  /**
+   * E12-H3 (decisión del 5 de noviembre de 2026): si el correo de un suscriptor sin cuenta ya es el
+   * de una cuenta, decide la cuenta. La publicidad no le llega por el LEAD aunque la cuenta no la
+   * acepte o sea del personal. Ambos correos se guardan en minúsculas (`Correo`).
+   */
+  private async suscriptorConCuenta(notificacion: {
+    usuario: unknown;
+    lead: { email: string } | null;
+  }): Promise<boolean> {
+    if (notificacion.usuario || !notificacion.lead) return false;
+    const cuentas = await this.prisma.usuario.count({
+      where: { email: notificacion.lead.email },
+    });
+    return cuentas > 0;
   }
 
   /** Reintentos agotados: solo cambia la notificación, nunca la cuenta ni el pedido. */

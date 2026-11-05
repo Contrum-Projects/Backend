@@ -16,6 +16,11 @@ describe('ContenidoCorreosService', () => {
         findFirstOrThrow: vi.fn().mockResolvedValue({ motivo: MOTIVO }),
       },
       itemCarrito: { findMany: vi.fn().mockResolvedValue([]) },
+      campana: {
+        findUnique: vi.fn().mockResolvedValue({
+          cuerpo: 'Llegó la línea reparadora.\n\n<b>Solo</b> esta semana.',
+        }),
+      },
       carrito: {
         findUnique: vi.fn().mockResolvedValue({ usuario: { rol: 'cliente' } }),
       },
@@ -48,6 +53,38 @@ describe('ContenidoCorreosService', () => {
       ),
     };
   };
+
+  it('E12-H3 · CA1 campaña enviada: el correo lleva el cuerpo de la campaña leído al enviar y el enlace de baja de esa dirección', async () => {
+    const { servicio, prisma, firmaBaja } = crear();
+
+    const { html, texto } = await servicio.construir(
+      TRABAJOS_CORREO.CAMPANA,
+      { notificacionId: 9, destinatario: 'camila@correo.cl' },
+      { asunto: 'Novedades', pedidoId: null, campanaId: 4 },
+    );
+
+    expect(prisma.campana.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 4 } }),
+    );
+    expect(firmaBaja.enlace).toHaveBeenCalledWith('camila@correo.cl');
+    expect(html).toContain('Llegó la línea reparadora.');
+    expect(html).toContain('&lt;b&gt;Solo&lt;/b&gt;');
+    expect(html).toContain('firma-camila@correo.cl');
+    expect(texto).toContain('Dejar de recibir ofertas');
+  });
+
+  it('E12-H3 · un correo de campaña cuya campaña no existe falla y queda para los reintentos', async () => {
+    const { servicio, prisma } = crear();
+    prisma.campana.findUnique.mockResolvedValue(null);
+
+    await expect(
+      servicio.construir(
+        TRABAJOS_CORREO.CAMPANA,
+        { notificacionId: 9, destinatario: 'camila@correo.cl' },
+        { asunto: 'Novedades', pedidoId: null, campanaId: 4 },
+      ),
+    ).rejects.toThrow();
+  });
 
   let siguienteArticulo = 1;
 

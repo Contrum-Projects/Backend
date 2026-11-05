@@ -49,6 +49,7 @@ export const conPlazoDeCola = <T>(operacion: Promise<T>): Promise<T> =>
 const PRIORIDAD_POR_TRABAJO: Record<string, number> = {
   [TRABAJOS_CORREO.CONFIRMACION_SUSCRIPCION]: PRIORIDAD_CORREO.SUSCRIPCION,
   [TRABAJOS_CORREO.RECORDATORIO_CARRITO]: PRIORIDAD_CORREO.PUBLICIDAD,
+  [TRABAJOS_CORREO.CAMPANA]: PRIORIDAD_CORREO.PUBLICIDAD,
 };
 
 /** Prioridad con que se encola un trabajo de la cola de correos (RNF-16). */
