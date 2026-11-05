@@ -8,6 +8,18 @@ export const hoyEnLaTienda = (ahora = new Date()) =>
   );
 
 /**
+ * Lunes (AAAA-MM-DD) de la semana de esa fecha, de lunes a domingo en la zona horaria de la tienda.
+ * Dos instantes con el mismo lunes son de la misma semana (E12-H4).
+ */
+export const lunesDeLaSemana = (fecha: Date): string => {
+  const dia = new Date(`${hoyEnLaTienda(fecha)}T00:00:00Z`);
+  // getUTCDay: 0 es domingo; los días desde el lunes van de 0 a 6
+  const desdeElLunes = (dia.getUTCDay() + 6) % 7;
+  dia.setUTCDate(dia.getUTCDate() - desdeElLunes);
+  return dia.toISOString().slice(0, 10);
+};
+
+/**
  * Una fecha AAAA-MM-DD como el `Date` que Prisma usa para una columna `@db.Date` (medianoche
  * UTC). `null` sigue siendo `null` y `undefined` (no cambiar) sigue siendo `undefined`.
  */

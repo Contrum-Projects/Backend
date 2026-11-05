@@ -19,13 +19,18 @@ export const COLAS = {
   OCR: 'ocr',
   /** Envío de campañas de marketing. */
   CAMPANAS: 'campanas',
-  /** Tareas con plazo: vencimiento del pago (15 min), recordatorio de carrito, etc. (RNF-31). */
+  /** Tareas con plazo del pago: vencimiento a los 15 min (RNF-31). */
   PLAZOS: 'plazos',
   /**
    * Consulta del estado de los envíos (E7-H3). Va aparte de `plazos`: un worker toma cualquier
    * trabajo de su cola y un courier lento atrasaría la cancelación por impago (RNF-31).
    */
   SEGUIMIENTO_ENVIOS: 'seguimiento-envios',
+  /**
+   * Recordatorios de carritos abandonados (E12-H4). Va aparte de `plazos` por lo mismo que el
+   * seguimiento: un worker toma cualquier trabajo de su cola, y esta tarea vive en otro módulo.
+   */
+  CARRITOS_ABANDONADOS: 'carritos-abandonados',
 } as const;
 
 /** Nombres de los trabajos de la cola de correos. */
@@ -47,6 +52,8 @@ export const TRABAJOS_CORREO = {
   CONFIRMACION_SUSCRIPCION: 'confirmacion-suscripcion',
   /** Aviso con el motivo de que la cuenta profesional volvió a ser de cliente (E13-H3). */
   ROL_PROFESIONAL_RETIRADO: 'rol-profesional-retirado',
+  /** Recordatorio de un carrito abandonado, que es publicidad (E12-H4). */
+  RECORDATORIO_CARRITO: 'recordatorio-carrito',
   /** Tarea repetible: reencola los correos pendientes si Redis se cayó o se vació (RNF-29). */
   REVISAR_PENDIENTES: 'revisar-pendientes',
 } as const;
@@ -68,6 +75,12 @@ export const TRABAJOS_PLAZO = {
 export const TRABAJOS_SEGUIMIENTO = {
   /** Tarea repetible: consulta al courier el estado de los envíos en camino (E7-H3). */
   ACTUALIZAR_ENVIOS: 'actualizar-envios',
+} as const;
+
+/** Nombres de los trabajos de la cola de carritos abandonados. */
+export const TRABAJOS_CARRITO_ABANDONADO = {
+  /** Tarea repetible: envía los recordatorios que ya vencieron (E12-H4). */
+  RECORDAR: 'recordar-carritos',
 } as const;
 
 /** Datos de una notificación de Mercado Pago por procesar: el resto está en EVENTO_PAGO. */
@@ -162,6 +175,16 @@ export interface TrabajoStockBajoRecuperado {
   nombre: string;
 }
 
+/**
+ * Datos del recordatorio de un carrito abandonado (E12-H4). Los artículos no viajan en el trabajo:
+ * se leen del carrito al enviar, así un correo reencolado sale igual (RNF-29).
+ */
+export interface TrabajoRecordatorioCarrito {
+  notificacionId: number;
+  destinatario: string;
+  nombre: string;
+}
+
 /** Lo que puede traer un trabajo de envío de la cola de correos. */
 export type TrabajoCorreo =
   | TrabajoCorreoConEnlace
@@ -171,7 +194,8 @@ export type TrabajoCorreo =
   | TrabajoPagoConfirmado
   | TrabajoVerificacionAprobada
   | TrabajoRolProfesionalRetirado
-  | TrabajoConfirmacionSuscripcion;
+  | TrabajoConfirmacionSuscripcion
+  | TrabajoRecordatorioCarrito;
 
 /**
  * Prioridad de los correos (RNF-16): en BullMQ, número menor = sale antes.

@@ -240,6 +240,8 @@ export const rutasTienda = (urlTienda: string) => {
     inventario: `${base}/panel/inventario`,
     /** PROPUESTA por confirmar con frontend (E10-H4). */
     catalogo: `${base}/catalogo`,
+    /** PROPUESTA por confirmar con frontend (E12-H4). */
+    carrito: `${base}/carrito`,
   };
 };
 
@@ -253,7 +255,12 @@ interface MarcoCorreo {
   enlaces?: EnlacesPie;
   /** Cabecera con la marca «Panel»: correos para el personal. */
   panel?: boolean;
+  /** Enlace para dejar de recibir publicidad: obligatorio en todo correo publicitario (RNF-26). */
+  baja?: string;
 }
+
+/** Texto del enlace de baja en el pie de la publicidad (RNF-26). */
+export const ETIQUETA_BAJA = 'Dejar de recibir ofertas';
 
 /** Cabecera con el logo, cuerpo y pie, comunes a todos los correos. */
 export const marco = ({
@@ -262,6 +269,7 @@ export const marco = ({
   pie,
   enlaces,
   panel,
+  baja,
 }: MarcoCorreo): string => {
   const marcaPanel = panel
     ? `<td style="padding-left:12px;font-family:${FUENTE_CUERPO};font-size:14px;font-weight:600;letter-spacing:0.2px;color:${COLORES.logo};">Panel</td>`
@@ -269,6 +277,9 @@ export const marco = ({
   const estiloPie = `font-family:${FUENTE_CUERPO};font-size:12px;font-weight:500;line-height:1.35;letter-spacing:0.4px;color:${COLORES.textoSecundario};`;
   const filaEnlaces = enlaces
     ? `<p style="margin:6px 0 0 0;${estiloPie}">${enlacePie('Ayuda', enlaces.ayuda)} · ${enlacePie('Términos y condiciones', enlaces.terminos)} · ${enlacePie('Política de privacidad', enlaces.privacidad)}</p>`
+    : '';
+  const filaBaja = baja
+    ? `<p style="margin:6px 0 0 0;${estiloPie}"><a href="${escapar(baja)}" style="color:${COLORES.textoSecundario};text-decoration:underline;">${ETIQUETA_BAJA}</a></p>`
     : '';
 
   return `<!doctype html>
@@ -278,7 +289,7 @@ export const marco = ({
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background-color:${COLORES.superficie};border-radius:12px;overflow:hidden;">
 <tr><td style="padding:16px 40px;background-color:${COLORES.profundo};"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td><img src="cid:${ID_LOGO}" width="74" height="44" alt="Cabello Perfecto" style="display:block;border:0;"></td>${marcaPanel}</tr></table></td></tr>
 <tr><td style="padding:36px 40px 16px 40px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0">${cuerpo}</table></td></tr>
-<tr><td style="padding:24px 40px;background-color:${COLORES.huesoOscuro};"><p style="margin:0;${estiloPie}">${escapar(pie)}</p>${filaEnlaces}</td></tr>
+<tr><td style="padding:24px 40px;background-color:${COLORES.huesoOscuro};"><p style="margin:0;${estiloPie}">${escapar(pie)}</p>${filaBaja}${filaEnlaces}</td></tr>
 </table></td></tr></table></body></html>`;
 };
 

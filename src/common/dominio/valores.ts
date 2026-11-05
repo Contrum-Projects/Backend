@@ -248,6 +248,8 @@ export const TIPOS_NOTIFICACION = {
   CONFIRMACION_SUSCRIPCION: 'confirmacion_suscripcion',
   /** E13-H3, decisión del 4 de noviembre de 2026: el profesional volvió a ser cliente, con el motivo. */
   ROL_PROFESIONAL_RETIRADO: 'rol_profesional_retirado',
+  /** E12-H4, decisión del 4 de noviembre de 2026: recordatorio de un carrito abandonado (RF-12.04). */
+  RECORDATORIO_CARRITO: 'recordatorio_carrito',
 } as const;
 
 /**
@@ -256,7 +258,9 @@ export const TIPOS_NOTIFICACION = {
  * dirección. Lista abierta: cada historia que agregue un correo publicitario sin campaña suma su
  * tipo aquí.
  */
-export const TIPOS_NOTIFICACION_PUBLICIDAD: readonly string[] = [];
+export const TIPOS_NOTIFICACION_PUBLICIDAD: readonly string[] = [
+  TIPOS_NOTIFICACION.RECORDATORIO_CARRITO,
+];
 
 /**
  * LEAD.origen (E12-H1, decisión del 3 de noviembre de 2026): de dónde vino la suscripción. Lista
@@ -292,7 +296,7 @@ export const AJUSTES_UNION_CARRITO = {
 /**
  * NOTIFICACION.estado_envio (decisión del 14 de octubre de 2026, E1-H1). `cancelada` (E12-H2,
  * decisión del 4 de noviembre de 2026): publicidad que no se envió porque la dirección ya no la
- * acepta.
+ * acepta, o un recordatorio de carrito que ya no corresponde porque el carrito cambió (E12-H4).
  */
 export const ESTADOS_NOTIFICACION = {
   PENDIENTE: 'pendiente',

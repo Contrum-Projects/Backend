@@ -940,6 +940,29 @@ cualquier correo antiguo. PROPUESTA por confirmar con frontend (SCRUM-139): la p
 `TIPOS_NOTIFICACION_PUBLICIDAD` revisa otra vez el consentimiento (cuenta activa, con correo
 verificado y que acepta; o LEAD activo); si no lo tiene, no se envía y queda **`cancelada`**
 (nuevo valor de `ESTADOS_NOTIFICACION`). Sin cambios al MER.
+Decisiones del 4 nov (E12-H4): sin rutas. Un job repetible cada 30 s (RNF-31) en su propia cola
+`carritos-abandonados` revisa los carritos **con artículos** de cuentas cliente o profesional
+activas, con correo verificado y que aceptan publicidad. Los plazos (1, 24 y 72 h) se cuentan desde
+`fechaActualizacion` del carrito, que cambia con cada modificación y con la compra (que lo vacía).
+El abandono se registra **sin cambios al MER**: `fecha_recordatorio` es el inicio de la última serie
+y `recordatorios_enviados` el último recordatorio enviado de ella (1 a 3); cada recordatorio es una
+NOTIFICACION `recordatorio_carrito` (en `TIPOS_NOTIFICACION_PUBLICIDAD`, prioridad de publicidad),
+de donde E14 puede contar abandonos y recuperaciones. Registrar un recordatorio no cuenta como cambio
+(conserva `fechaActualizacion`). La serie sigue solo si empezó después del último cambio: comprar o
+modificar el carrito la corta (CA2). **Semana = lunes a domingo en hora de Chile:** una serie nueva
+no empieza en la semana en que **empezó** la anterior (CA3; confirmado el 5 nov: una serie que empezó
+el domingo no impide otra el lunes). Si el abandono quedó bloqueado por la semana, la semana
+siguiente sale el recordatorio que toca por los plazos desde el último cambio (puede ser el 2.º o
+el 3.º, o ninguno pasadas 96 h), no se reinicia en el 1.º (confirmado el 5 nov). Si la tarea se atrasó y venció el plazo
+siguiente, sale ese y no los atrasados; un carrito sin cambios hace **96 h** o más ya no se recuerda.
+Cada envío va con la cuenta bloqueada (como los cambios del carrito) y en una transacción con su
+NOTIFICACION; se encola después del commit. Al enviar se revisa otra vez el consentimiento y, si el
+carrito cambió después de decidirse o quedó vacío, el correo queda `cancelada`. Solo cuentan los
+artículos que la tienda le vende hoy a esa cuenta (la regla de `articulosALaVenta` del carrito): un
+exclusivo nunca se le nombra a un cliente (RNF-04), y un carrito sin ninguno no se recuerda (y si
+pasa al enviar, queda `cancelada`). El correo nombra hasta 5 artículos con su cantidad, **sin precios**, con botón al carrito (PROPUESTA por confirmar con
+frontend: `/carrito`) y el enlace de baja firmado (`FirmaBaja`, RNF-26). Texto PROPUESTA por
+confirmar con el equipo.
 
 **E14 Reportes.** Solo administrador. OE1 30 %, OE2 70 % en 48 h, OE3 80 %; ventas por período y
 tipo de cliente; carritos abandonados y recuperados; resultado de campañas; stock bajo el mínimo.

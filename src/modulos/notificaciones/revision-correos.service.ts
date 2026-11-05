@@ -10,6 +10,7 @@ import {
   type TrabajoCorreo,
   type TrabajoCorreoConEnlace,
   type TrabajoPagoConfirmado,
+  type TrabajoRecordatorioCarrito,
   type TrabajoRolProfesionalRetirado,
   type TrabajoStockBajoRecuperado,
   type TrabajoVerificacionAprobada,
@@ -66,6 +67,7 @@ const TIPOS_QUE_ENVIA = [
   TIPOS_NOTIFICACION.VERIFICACION_APROBADA,
   TIPOS_NOTIFICACION.ROL_PROFESIONAL_RETIRADO,
   TIPOS_NOTIFICACION.CONFIRMACION_SUSCRIPCION,
+  TIPOS_NOTIFICACION.RECORDATORIO_CARRITO,
 ];
 
 interface Pendiente {
@@ -231,6 +233,11 @@ export class RevisionCorreosService {
       // El motivo se lee de HISTORIAL_ROL al enviar (E13-H3)
       const datos: TrabajoRolProfesionalRetirado = persona;
       return { trabajo: TRABAJOS_CORREO.ROL_PROFESIONAL_RETIRADO, datos };
+    }
+    if (tipo === TIPOS_NOTIFICACION.RECORDATORIO_CARRITO) {
+      // El consentimiento y los cambios del carrito se revisan al enviar (E12-H2, E12-H4)
+      const datos: TrabajoRecordatorioCarrito = persona;
+      return { trabajo: TRABAJOS_CORREO.RECORDATORIO_CARRITO, datos };
     }
     if (!pedido) return null;
     if (tipo === TIPOS_NOTIFICACION.PAGO_CONFIRMADO) {

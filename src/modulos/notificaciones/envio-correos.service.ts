@@ -5,12 +5,13 @@ import {
   type TrabajoCambioEstadoPedido,
   type TrabajoCorreo,
 } from '../../colas/colas.js';
-import { ROLES } from '../../common/dominio/roles.js';
+import { type Rol, ROLES } from '../../common/dominio/roles.js';
 import {
   ESTADOS_NOTIFICACION,
   TIPOS_NOTIFICACION_PUBLICIDAD,
 } from '../../common/dominio/valores.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { CarritoService } from '../carrito/carrito.service.js';
 import { asuntoCambioEstado } from '../pedidos/transiciones-estado-pedido.js';
 import { CLIENTE_CORREO, type ClienteCorreo } from './cliente-correo.js';
 import { ContenidoCorreosService } from './contenido-correos.service.js';
@@ -91,6 +92,7 @@ export class EnvioCorreosService {
     private readonly prisma: PrismaService,
     private readonly contenido: ContenidoCorreosService,
     @Inject(CLIENTE_CORREO) private readonly cliente: ClienteCorreo,
+    private readonly carritoService: CarritoService,
   ) {}
 
   async enviar(trabajo: string, datos: TrabajoCorreo): Promise<void> {
@@ -113,12 +115,24 @@ export class EnvioCorreosService {
         },
         lead: { select: { activo: true } },
         usuarioId: true,
+        fechaCreacion: true,
       },
     });
     // Ya resuelta o borrada: un trabajo repetido no vuelve a enviar
     if (notificacion?.estadoEnvio !== ESTADOS_NOTIFICACION.PENDIENTE) return;
 
     if (esPublicidad(notificacion) && !aceptaPublicidad(notificacion)) {
+      await this.marcarCancelada(id);
+      return;
+    }
+    if (
+      trabajo === TRABAJOS_CORREO.RECORDATORIO_CARRITO &&
+      !(await this.recordatorioVigente(
+        notificacion.usuarioId,
+        notificacion.usuario?.rol,
+        notificacion.fechaCreacion,
+      ))
+    ) {
       await this.marcarCancelada(id);
       return;
     }
@@ -163,6 +177,34 @@ export class EnvioCorreosService {
         fechaEnvio: new Date(),
       },
     });
+  }
+
+  /**
+   * E12-H4 · CA2: si el cliente compró o modificó el carrito después de decidirse el recordatorio
+   * (un reintento o un correo reencolado), ya no corresponde enviarlo. Tampoco si ninguno de sus
+   * artículos sigue a la venta para la cuenta (RNF-04: un exclusivo no se le ofrece a un cliente).
+   */
+  private async recordatorioVigente(
+    usuarioId: number | null,
+    rol: string | undefined,
+    decidido: Date,
+  ): Promise<boolean> {
+    if (usuarioId === null || !rol) return false;
+    const carrito = await this.prisma.carrito.findUnique({
+      where: { usuarioId },
+      select: {
+        fechaActualizacion: true,
+        items: { select: { articuloId: true } },
+      },
+    });
+    if (!carrito || carrito.items.length === 0) return false;
+    if (carrito.fechaActualizacion.getTime() > decidido.getTime()) return false;
+    const vendibles = await this.carritoService.articulosALaVenta(
+      this.prisma,
+      carrito.items.map((item) => item.articuloId),
+      rol as Rol,
+    );
+    return vendibles.size > 0;
   }
 
   /** Reintentos agotados: solo cambia la notificación, nunca la cuenta ni el pedido. */

@@ -1,6 +1,7 @@
 import { TRABAJOS_CORREO } from '../../colas/colas.js';
 import { ESTADOS_NOTIFICACION } from '../../common/dominio/valores.js';
 import type { PrismaService } from '../../prisma/prisma.service.js';
+import type { CarritoService } from '../carrito/carrito.service.js';
 import { type ClienteCorreo, ErrorEnvioCorreo } from './cliente-correo.js';
 import type { ContenidoCorreosService } from './contenido-correos.service.js';
 import { EnvioCorreosService } from './envio-correos.service.js';
@@ -26,8 +27,10 @@ describe('EnvioCorreosService', () => {
       update: ReturnType<typeof vi.fn>;
       updateMany: ReturnType<typeof vi.fn>;
     };
+    carrito: { findUnique: ReturnType<typeof vi.fn> };
   };
   let cliente: { enviar: ReturnType<typeof vi.fn> };
+  let carritoService: { articulosALaVenta: ReturnType<typeof vi.fn> };
   let servicio: EnvioCorreosService;
 
   beforeEach(() => {
@@ -41,14 +44,22 @@ describe('EnvioCorreosService', () => {
         update: vi.fn().mockResolvedValue({}),
         updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
+      carrito: { findUnique: vi.fn() },
     };
     cliente = { enviar: vi.fn().mockResolvedValue(undefined) };
+    carritoService = {
+      articulosALaVenta: vi.fn(
+        (_cliente: unknown, ids: number[]) =>
+          new Map(ids.map((id) => [id, { tipo: 'formato' }])),
+      ),
+    };
     servicio = new EnvioCorreosService(
       prisma as unknown as PrismaService,
       {
         construir: vi.fn().mockReturnValue({ html: '<p>h</p>', texto: 't' }),
       } as unknown as ContenidoCorreosService,
       cliente as unknown as ClienteCorreo,
+      carritoService as unknown as CarritoService,
     );
   });
 
@@ -351,6 +362,99 @@ describe('EnvioCorreosService', () => {
         aceptaMarketingEmail: true,
         fechaVerificacionCorreo: true,
       });
+    });
+  });
+  describe('E12-H4 · recordatorio de carrito', () => {
+    const RECORDATORIO = {
+      notificacionId: 12,
+      destinatario: 'camila@correo.cl',
+      nombre: 'Camila',
+    };
+    const DECIDIDO = new Date('2026-11-04T16:00:00.000Z');
+    const recordatorio = (aceptaMarketingEmail = true) =>
+      prisma.notificacion.findUnique.mockResolvedValue({
+        estadoEnvio: ESTADOS_NOTIFICACION.PENDIENTE,
+        asunto: 'Tus productos te esperan',
+        tipo: 'recordatorio_carrito',
+        pedidoId: null,
+        campanaId: null,
+        usuarioId: 20,
+        fechaCreacion: DECIDIDO,
+        usuario: {
+          activo: true,
+          rol: 'cliente',
+          aceptaMarketingEmail,
+          fechaVerificacionCorreo: new Date('2026-10-01T00:00:00Z'),
+        },
+        lead: null,
+      });
+    const carrito = (fechaActualizacion: Date, items: number) =>
+      prisma.carrito.findUnique.mockResolvedValue({
+        fechaActualizacion,
+        items: Array.from({ length: items }, (_, i) => ({
+          articuloId: 100 + i,
+        })),
+      });
+    const expectCancelada = () => {
+      expect(cliente.enviar).not.toHaveBeenCalled();
+      expect(prisma.notificacion.updateMany).toHaveBeenCalledWith({
+        where: { id: 12, estadoEnvio: ESTADOS_NOTIFICACION.PENDIENTE },
+        data: { estadoEnvio: ESTADOS_NOTIFICACION.CANCELADA },
+      });
+    };
+
+    it('E12-H4 · CA1 serie de recordatorios: con el carrito sin cambios desde que se decidió, se envía', async () => {
+      recordatorio();
+      carrito(new Date('2026-11-04T15:00:00.000Z'), 2);
+
+      await servicio.enviar(TRABAJOS_CORREO.RECORDATORIO_CARRITO, RECORDATORIO);
+
+      expect(prisma.carrito.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { usuarioId: 20 } }),
+      );
+      expect(cliente.enviar).toHaveBeenCalledTimes(1);
+    });
+
+    it('E12-H4 · CA1 serie de recordatorios: es publicidad; si ya no acepta ofertas, queda cancelado', async () => {
+      recordatorio(false);
+      carrito(new Date('2026-11-04T15:00:00.000Z'), 2);
+
+      await servicio.enviar(TRABAJOS_CORREO.RECORDATORIO_CARRITO, RECORDATORIO);
+
+      expectCancelada();
+    });
+
+    it('E12-H4 · CA2 compra o cambio del carrito: si lo modificó después de decidirse, el recordatorio en cola queda cancelado', async () => {
+      recordatorio();
+      carrito(new Date('2026-11-04T16:05:00.000Z'), 2);
+
+      await servicio.enviar(TRABAJOS_CORREO.RECORDATORIO_CARRITO, RECORDATORIO);
+
+      expectCancelada();
+    });
+
+    it('E12-H4 · CA2 compra o cambio del carrito: si compró y el carrito quedó vacío, el recordatorio en cola queda cancelado', async () => {
+      recordatorio();
+      carrito(new Date('2026-11-04T15:00:00.000Z'), 0);
+
+      await servicio.enviar(TRABAJOS_CORREO.RECORDATORIO_CARRITO, RECORDATORIO);
+
+      expectCancelada();
+    });
+
+    it('E12-H4 · RNF-04 · si ningún artículo sigue a la venta para su rol (por ejemplo, pasó a exclusivo), el recordatorio en cola queda cancelado', async () => {
+      recordatorio();
+      carrito(new Date('2026-11-04T15:00:00.000Z'), 2);
+      carritoService.articulosALaVenta.mockResolvedValue(new Map());
+
+      await servicio.enviar(TRABAJOS_CORREO.RECORDATORIO_CARRITO, RECORDATORIO);
+
+      expect(carritoService.articulosALaVenta).toHaveBeenCalledWith(
+        prisma,
+        [100, 101],
+        'cliente',
+      );
+      expectCancelada();
     });
   });
 });
