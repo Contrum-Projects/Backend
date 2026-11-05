@@ -337,5 +337,20 @@ describe('EnvioCorreosService', () => {
 
       expect(cliente.enviar).toHaveBeenCalledTimes(1);
     });
+
+    it('E12-H2 · la consulta de la notificación trae, en una sola selección de la cuenta, lo que revisan el consentimiento y los avisos por rol', async () => {
+      deCampana({ usuario: CUENTA_QUE_ACEPTA });
+
+      await servicio.enviar(TRABAJOS_CORREO.CONFIRMACION_CORREO, PUBLICIDAD);
+
+      const { select } = prisma.notificacion.findUnique.mock.calls[0][0];
+      expect(select.usuarioId).toBe(true);
+      expect(select.usuario.select).toEqual({
+        activo: true,
+        rol: true,
+        aceptaMarketingEmail: true,
+        fechaVerificacionCorreo: true,
+      });
+    });
   });
 });
