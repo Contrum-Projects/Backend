@@ -7,12 +7,13 @@ import {
   type TrabajoCorreo,
   type TrabajoCorreoConEnlace,
   type TrabajoPagoConfirmado,
+  type TrabajoRecordatorioCarrito,
   type TrabajoRolProfesionalRetirado,
   type TrabajoStockBajo,
   type TrabajoVerificacionAprobada,
 } from '../../colas/colas.js';
 import { precioConIva } from '../../common/dominio/montos.js';
-import { ROLES } from '../../common/dominio/roles.js';
+import { type Rol, ROLES } from '../../common/dominio/roles.js';
 import {
   ESTADOS_PEDIDO,
   TIPOS_ENTREGA,
@@ -20,6 +21,8 @@ import {
 } from '../../common/dominio/valores.js';
 import type { Entorno } from '../../config/entorno.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { CarritoService } from '../carrito/carrito.service.js';
+import { FirmaBaja } from '../marketing/firma-baja.js';
 import {
   type CorreoRenderizado,
   fechaConHora,
@@ -44,6 +47,7 @@ import {
   correoStockBajo,
   correoStockBajoRecuperado,
 } from './plantillas/stock-bajo.js';
+import { correoRecordatorioCarrito } from './plantillas/carrito.js';
 import { correoConfirmacionSuscripcion } from './plantillas/suscripcion.js';
 
 export interface NotificacionACorreo {
@@ -95,6 +99,8 @@ export class ContenidoCorreosService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService<Entorno, true>,
+    private readonly firmaBaja: FirmaBaja,
+    private readonly carritoService: CarritoService,
   ) {}
 
   construir(
@@ -146,6 +152,11 @@ export class ContenidoCorreosService {
       case TRABAJOS_CORREO.ROL_PROFESIONAL_RETIRADO:
         return this.rolProfesionalRetirado(
           datos as TrabajoRolProfesionalRetirado,
+          notificacion,
+        );
+      case TRABAJOS_CORREO.RECORDATORIO_CARRITO:
+        return this.recordatorioCarrito(
+          datos as TrabajoRecordatorioCarrito,
           notificacion,
         );
       default:
@@ -212,6 +223,66 @@ export class ContenidoCorreosService {
       nombre,
       motivo: cambio.motivo ?? '',
       urlCatalogo: this.rutas.catalogo,
+      enlacesPie: this.rutas.pie,
+    });
+  }
+
+  /**
+   * E12-H4 · Los artículos se leen del carrito al enviar, sin precios: así un correo reencolado
+   * muestra el carrito de ese momento (RNF-29). El enlace de baja va firmado y no vence (RNF-26).
+   */
+  private async recordatorioCarrito(
+    { nombre, destinatario }: TrabajoRecordatorioCarrito,
+    { asunto, usuarioId }: NotificacionACorreo,
+  ): Promise<CorreoRenderizado> {
+    const carrito = await this.prisma.carrito.findUnique({
+      where: { usuarioId: usuarioId ?? -1 },
+      select: { usuario: { select: { rol: true } } },
+    });
+    const todos = await this.prisma.itemCarrito.findMany({
+      where: { carrito: { usuarioId: usuarioId ?? -1 } },
+      select: {
+        articuloId: true,
+        cantidad: true,
+        articulo: {
+          select: {
+            formato: {
+              select: {
+                nombreFormato: true,
+                producto: { select: { nombre: true } },
+              },
+            },
+            pack: { select: { nombre: true } },
+          },
+        },
+      },
+      orderBy: [{ fechaAgregado: 'asc' }, { articuloId: 'asc' }],
+    });
+    // Solo lo que la tienda le vende hoy a esa cuenta: un exclusivo no se le nombra a un cliente
+    // (RNF-04). Si no queda ninguno, el envío ya lo canceló antes de armar el correo
+    const vendibles = carrito
+      ? await this.carritoService.articulosALaVenta(
+          this.prisma,
+          todos.map((item) => item.articuloId),
+          carrito.usuario.rol as Rol,
+        )
+      : new Map<number, unknown>();
+    const items = todos.filter((item) => vendibles.has(item.articuloId));
+
+    return correoRecordatorioCarrito({
+      asunto,
+      nombre,
+      articulos: items.map(({ cantidad, articulo }) => ({
+        descripcion: [
+          articulo.formato?.producto.nombre ?? articulo.pack?.nombre ?? '',
+          articulo.formato?.nombreFormato,
+        ]
+          .filter(Boolean)
+          .join(' · '),
+        cantidad,
+      })),
+      urlCarrito: this.rutas.carrito,
+      enlaceBaja: this.firmaBaja.enlace(destinatario),
       enlacesPie: this.rutas.pie,
     });
   }

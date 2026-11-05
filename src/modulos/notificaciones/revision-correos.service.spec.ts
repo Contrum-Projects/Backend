@@ -431,6 +431,25 @@ describe('RevisionCorreosService', () => {
     });
   });
 
+  it('E12-H4 · RNF-29 · el recordatorio de carrito pendiente se reencola con prioridad de publicidad; el carrito y el consentimiento se revisan al enviar', async () => {
+    prisma.notificacion.findMany.mockResolvedValue([
+      pendiente(TIPOS_NOTIFICACION.RECORDATORIO_CARRITO, {
+        usuario: { ...USUARIO, rol: 'cliente' },
+      }),
+    ]);
+
+    await servicio.revisarPendientes();
+
+    const [nombre, datos, opciones] = correoEncolado();
+    expect(nombre).toBe(TRABAJOS_CORREO.RECORDATORIO_CARRITO);
+    expect(opciones).toMatchObject({ jobId: 'correo-7', priority: 10 });
+    expect(datos).toEqual({
+      notificacionId: 7,
+      destinatario: USUARIO.email,
+      nombre: USUARIO.nombre,
+    });
+  });
+
   const LEAD = { email: 'visita@correo.cl', activo: false };
 
   it('E12-H1 · solicitud de suscripción: la confirmación pendiente se reencola con el mismo enlace firmado y prioridad de suscripción', async () => {
