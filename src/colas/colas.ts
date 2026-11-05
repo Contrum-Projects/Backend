@@ -17,7 +17,10 @@ export const COLAS = {
   EVENTOS_PAGO: 'eventos-pago',
   /** OCR de antecedentes de la verificación profesional. */
   OCR: 'ocr',
-  /** Envío de campañas de marketing. */
+  /**
+   * Envío de campañas de marketing. Sin uso por ahora: E12-H3 crea las NOTIFICACION al confirmar y
+   * las encola en `correos` (decisión del 5 de noviembre de 2026).
+   */
   CAMPANAS: 'campanas',
   /** Tareas con plazo del pago: vencimiento a los 15 min (RNF-31). */
   PLAZOS: 'plazos',
@@ -59,6 +62,8 @@ export const TRABAJOS_CORREO = {
   ROL_PROFESIONAL_RETIRADO: 'rol-profesional-retirado',
   /** Recordatorio de un carrito abandonado, que es publicidad (E12-H4). */
   RECORDATORIO_CARRITO: 'recordatorio-carrito',
+  /** Correo de una campaña, que es publicidad (E12-H3). */
+  CAMPANA: 'campana',
   /** Tarea repetible: reencola los correos pendientes si Redis se cayó o se vació (RNF-29). */
   REVISAR_PENDIENTES: 'revisar-pendientes',
 } as const;
@@ -196,6 +201,15 @@ export interface TrabajoRecordatorioCarrito {
   nombre: string;
 }
 
+/**
+ * Datos de un correo de campaña (E12-H3). El asunto y el cuerpo no viajan en el trabajo: se leen
+ * de CAMPANA al enviar, así un correo reencolado sale igual y el texto no queda en Redis (RNF-29).
+ */
+export interface TrabajoCampana {
+  notificacionId: number;
+  destinatario: string;
+}
+
 /** Lo que puede traer un trabajo de envío de la cola de correos. */
 export type TrabajoCorreo =
   | TrabajoCorreoConEnlace
@@ -206,7 +220,8 @@ export type TrabajoCorreo =
   | TrabajoVerificacionAprobada
   | TrabajoRolProfesionalRetirado
   | TrabajoConfirmacionSuscripcion
-  | TrabajoRecordatorioCarrito;
+  | TrabajoRecordatorioCarrito
+  | TrabajoCampana;
 
 /**
  * Prioridad de los correos (RNF-16): en BullMQ, número menor = sale antes.

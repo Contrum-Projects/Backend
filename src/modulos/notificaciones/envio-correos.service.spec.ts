@@ -28,6 +28,7 @@ describe('EnvioCorreosService', () => {
       updateMany: ReturnType<typeof vi.fn>;
     };
     carrito: { findUnique: ReturnType<typeof vi.fn> };
+    usuario: { count: ReturnType<typeof vi.fn> };
   };
   let cliente: { enviar: ReturnType<typeof vi.fn> };
   let carritoService: { articulosALaVenta: ReturnType<typeof vi.fn> };
@@ -45,6 +46,7 @@ describe('EnvioCorreosService', () => {
         updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
       carrito: { findUnique: vi.fn() },
+      usuario: { count: vi.fn().mockResolvedValue(0) },
     };
     cliente = { enviar: vi.fn().mockResolvedValue(undefined) };
     carritoService = {
@@ -261,7 +263,7 @@ describe('EnvioCorreosService', () => {
     };
     const deCampana = (destino: {
       usuario?: CuentaDestino | null;
-      lead?: { activo: boolean } | null;
+      lead?: { activo: boolean; email?: string } | null;
     }) =>
       prisma.notificacion.findUnique.mockResolvedValue({
         estadoEnvio: ESTADOS_NOTIFICACION.PENDIENTE,
@@ -332,6 +334,71 @@ describe('EnvioCorreosService', () => {
         );
       },
     );
+
+    it.each([
+      ['dejó de aceptar ofertas', { aceptaMarketingEmail: false }],
+      ['ya no tiene el correo verificado', { fechaVerificacionCorreo: null }],
+    ])(
+      'E12-H3 · CA3 destinatarios sin consentimiento: si la cuenta %s después de confirmar la campaña, su correo queda cancelado',
+      async (_caso, cambio) => {
+        deCampana({ usuario: { ...CUENTA_QUE_ACEPTA, ...cambio } });
+
+        await servicio.enviar(TRABAJOS_CORREO.CAMPANA, {
+          notificacionId: 11,
+          destinatario: 'camila@correo.cl',
+        });
+
+        expectCancelada();
+      },
+    );
+
+    it('E12-H3 · si la cuenta pasó a ser del personal después de confirmar la campaña, su correo queda cancelado', async () => {
+      deCampana({ usuario: { ...CUENTA_QUE_ACEPTA, rol: 'vendedor' } });
+
+      await servicio.enviar(TRABAJOS_CORREO.CAMPANA, {
+        notificacionId: 11,
+        destinatario: 'camila@correo.cl',
+      });
+
+      expectCancelada();
+    });
+
+    it('E12-H3 · si el correo del suscriptor es el de una cuenta, decide la cuenta: la publicidad por el LEAD queda cancelada', async () => {
+      deCampana({ lead: { activo: true, email: 'camila@correo.cl' } });
+      prisma.usuario.count.mockResolvedValue(1);
+
+      await servicio.enviar(TRABAJOS_CORREO.CAMPANA, {
+        notificacionId: 11,
+        destinatario: 'camila@correo.cl',
+      });
+
+      expect(prisma.usuario.count).toHaveBeenCalledWith({
+        where: { email: 'camila@correo.cl' },
+      });
+      expectCancelada();
+    });
+
+    it('E12-H3 · CA1 el correo de campaña se arma con el cuerpo de su campaña', async () => {
+      deCampana({ usuario: CUENTA_QUE_ACEPTA });
+      const construir = vi.fn().mockReturnValue({ html: 'h', texto: 't' });
+      const conCampana = new EnvioCorreosService(
+        prisma as unknown as PrismaService,
+        { construir } as unknown as ContenidoCorreosService,
+        cliente as unknown as ClienteCorreo,
+        carritoService as unknown as CarritoService,
+      );
+
+      await conCampana.enviar(TRABAJOS_CORREO.CAMPANA, {
+        notificacionId: 11,
+        destinatario: 'camila@correo.cl',
+      });
+
+      expect(construir).toHaveBeenCalledWith(
+        TRABAJOS_CORREO.CAMPANA,
+        expect.anything(),
+        expect.objectContaining({ campanaId: 3 }),
+      );
+    });
 
     it('E12-H2 · un correo que no es publicidad no revisa el consentimiento', async () => {
       prisma.notificacion.findUnique.mockResolvedValue({

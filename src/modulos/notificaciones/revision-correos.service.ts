@@ -6,6 +6,7 @@ import {
   COLAS,
   TRABAJOS_CORREO,
   type TrabajoCambioEstadoPedido,
+  type TrabajoCampana,
   type TrabajoConfirmacionSuscripcion,
   type TrabajoCorreo,
   type TrabajoCorreoConEnlace,
@@ -68,6 +69,7 @@ const TIPOS_QUE_ENVIA = [
   TIPOS_NOTIFICACION.ROL_PROFESIONAL_RETIRADO,
   TIPOS_NOTIFICACION.CONFIRMACION_SUSCRIPCION,
   TIPOS_NOTIFICACION.RECORDATORIO_CARRITO,
+  TIPOS_NOTIFICACION.CAMPANA,
 ];
 
 interface Pendiente {
@@ -178,7 +180,25 @@ export class RevisionCorreosService {
     if (pendiente.tipo === TIPOS_NOTIFICACION.CONFIRMACION_SUSCRIPCION) {
       return Promise.resolve(this.recuperarSuscripcion(pendiente));
     }
+    if (pendiente.tipo === TIPOS_NOTIFICACION.CAMPANA) {
+      return Promise.resolve(this.recuperarCampana(pendiente));
+    }
     return Promise.resolve(this.recuperarAviso(pendiente));
+  }
+
+  /**
+   * E12-H3 · Va a una cuenta o a un suscriptor sin cuenta. El consentimiento se revisa al enviar
+   * (E12-H2) y el cuerpo se lee de la campaña, así que basta con la dirección.
+   */
+  private recuperarCampana({
+    id: notificacionId,
+    usuario,
+    lead,
+  }: Pendiente): CorreoRecuperado | null {
+    const destinatario = usuario?.email ?? lead?.email;
+    if (!destinatario) return null;
+    const datos: TrabajoCampana = { notificacionId, destinatario };
+    return { trabajo: TRABAJOS_CORREO.CAMPANA, datos };
   }
 
   /**

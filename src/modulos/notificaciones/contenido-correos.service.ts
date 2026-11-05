@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import {
   TRABAJOS_CORREO,
   type TrabajoCambioEstadoPedido,
+  type TrabajoCampana,
   type TrabajoConfirmacionSuscripcion,
   type TrabajoCorreo,
   type TrabajoCorreoConEnlace,
@@ -47,6 +48,7 @@ import {
   correoStockBajo,
   correoStockBajoRecuperado,
 } from './plantillas/stock-bajo.js';
+import { correoCampana } from './plantillas/campana.js';
 import { correoRecordatorioCarrito } from './plantillas/carrito.js';
 import { correoConfirmacionSuscripcion } from './plantillas/suscripcion.js';
 
@@ -55,6 +57,8 @@ export interface NotificacionACorreo {
   pedidoId: number | null;
   /** La cuenta a la que va: el motivo del cambio de rol se lee de su historial (E13-H3). */
   usuarioId?: number | null;
+  /** La campaña del correo: su cuerpo se lee de CAMPANA al enviar (E12-H3). */
+  campanaId?: number | null;
 }
 
 const PASOS_DESPACHO: [string, string][] = [
@@ -159,6 +163,8 @@ export class ContenidoCorreosService {
           datos as TrabajoRecordatorioCarrito,
           notificacion,
         );
+      case TRABAJOS_CORREO.CAMPANA:
+        return this.campana(datos as TrabajoCampana, notificacion);
       default:
         throw new Error(`Trabajo de correo desconocido: ${trabajo}`);
     }
@@ -223,6 +229,27 @@ export class ContenidoCorreosService {
       nombre,
       motivo: cambio.motivo ?? '',
       urlCatalogo: this.rutas.catalogo,
+      enlacesPie: this.rutas.pie,
+    });
+  }
+
+  /**
+   * E12-H3 · El cuerpo se lee de la campaña al enviar (no viaja en Redis). Una campaña ya enviada
+   * no se puede editar, así que es el mismo texto de la vista previa confirmada.
+   */
+  private async campana(
+    { destinatario }: TrabajoCampana,
+    { asunto, campanaId }: NotificacionACorreo,
+  ): Promise<CorreoRenderizado> {
+    const campana = await this.prisma.campana.findUnique({
+      where: { id: campanaId ?? -1 },
+      select: { cuerpo: true },
+    });
+    if (!campana) throw new Error('El correo no tiene su campaña');
+    return correoCampana({
+      asunto,
+      cuerpo: campana.cuerpo,
+      enlaceBaja: this.firmaBaja.enlace(destinatario),
       enlacesPie: this.rutas.pie,
     });
   }

@@ -17,12 +17,55 @@ import {
 import { correoCambioEstado, correoPagoConfirmado } from './pedido.js';
 import { correoStockBajo, correoStockBajoRecuperado } from './stock-bajo.js';
 import { correoConfirmacionSuscripcion } from './suscripcion.js';
+import { correoCampana, parrafosDe } from './campana.js';
 
 const { pie: enlacesPie } = rutasTienda('https://tienda.cl/');
 const ENLACE = 'https://tienda.cl/confirmar-correo?token=abc&x=1';
 const FECHA = new Date('2026-10-11T20:05:00.000Z');
 
 describe('Plantillas de correo', () => {
+  describe('Campaña', () => {
+    const BAJA = 'https://tienda.cl/suscripcion/baja?token=t';
+
+    it('E12-H3 · CA1 campaña enviada: el asunto es el título, el cuerpo va en párrafos y lleva remitente y baja (RNF-26)', () => {
+      const { html, texto } = correoCampana({
+        asunto: 'Nueva línea reparadora',
+        cuerpo: 'Hola:\r\n\r\nLlegó la línea.\nEncuéntrala en la tienda.',
+        enlaceBaja: BAJA,
+        enlacesPie,
+      });
+
+      expect(html).toContain('Nueva línea reparadora');
+      expect(html).toContain('Llegó la línea.<br>Encuéntrala en la tienda.');
+      expect(html).toContain(escapar(BAJA));
+      expect(html).toContain('Dejar de recibir ofertas');
+      expect(texto).toContain('Hola:\n\nLlegó la línea.\nEncuéntrala');
+      expect(texto).toContain(`Dejar de recibir ofertas: ${BAJA}`);
+    });
+
+    it('E12-H3 · el cuerpo de la campaña es texto plano: el HTML no se interpreta', () => {
+      const { html } = correoCampana({
+        asunto: '<img src=x onerror=alert(1)>',
+        cuerpo:
+          '<script>alert(1)</script><a href="https://otro.sitio">aquí</a>',
+        enlaceBaja: BAJA,
+        enlacesPie,
+      });
+
+      expect(html).not.toContain('<script>');
+      expect(html).not.toContain('<img src=x');
+      expect(html).not.toContain('href="https://otro.sitio"');
+      expect(html).toContain('&lt;script&gt;');
+    });
+
+    it('E12-H3 · las líneas en blanco separan párrafos y los vacíos se descartan', () => {
+      expect(parrafosDe('  uno \n\n\n dos\nsigue \n \n')).toEqual([
+        'uno',
+        'dos\nsigue',
+      ]);
+    });
+  });
+
   it('E1-H6 · correo enviado: la confirmación lleva el texto del diseño, el enlace y el logo', () => {
     const { html, texto } = correoConfirmacion({
       asunto: 'Confirma tu correo',
