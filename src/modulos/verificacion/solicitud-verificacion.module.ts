@@ -7,6 +7,8 @@ import type { Entorno } from '../../config/entorno.js';
 import { ConsultaVerificacionController } from './consulta-verificacion.controller.js';
 import { ConsultaVerificacionService } from './consulta-verificacion.service.js';
 import { DocumentosVerificacionService } from './documentos-verificacion.service.js';
+import { LimpiezaVerificacionProcessor } from './limpieza-verificacion.processor.js';
+import { LimpiezaVerificacionService } from './limpieza-verificacion.service.js';
 import { PerfilProfesionalController } from './perfil-profesional.controller.js';
 import { PerfilProfesionalService } from './perfil-profesional.service.js';
 import { RevisionVerificacionController } from './revision-verificacion.controller.js';
@@ -27,10 +29,17 @@ import { ProveedorSituacionTributaria } from './sii/proveedor-situacion-tributar
  * almacén de archivos (E10-H2).
  * El personal resuelve las solicitudes en revisión manual (E10-H3) y las consulta con sus
  * documentos (E10-H7). Aprobada, la cuenta pasa a `profesional` y se encola el correo que lo avisa
- * (E10-H4), que luego completa su perfil profesional (E10-H5).
+ * (E10-H4), que luego completa su perfil profesional (E10-H5). Una tarea programada elimina los
+ * archivos 30 días después de resuelta la solicitud (E10-H6).
  */
 @Module({
-  imports: [AlmacenModule, BullModule.registerQueue({ name: COLAS.CORREOS })],
+  imports: [
+    AlmacenModule,
+    BullModule.registerQueue(
+      { name: COLAS.CORREOS },
+      { name: COLAS.LIMPIEZA_VERIFICACIONES },
+    ),
+  ],
   controllers: [
     SolicitudVerificacionController,
     RevisionVerificacionController,
@@ -69,6 +78,8 @@ import { ProveedorSituacionTributaria } from './sii/proveedor-situacion-tributar
     RevisionVerificacionService,
     ConsultaVerificacionService,
     PerfilProfesionalService,
+    LimpiezaVerificacionService,
+    LimpiezaVerificacionProcessor,
   ],
 })
 export class SolicitudVerificacionModule {}

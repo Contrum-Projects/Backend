@@ -894,6 +894,18 @@ parte. Si falta un obligatorio, **400** con un mensaje por cada dato que falta y
 opción «otra», listas editables desde el panel y su relación con la segmentación de campañas (E12).
 Sin cambios al MER.
 
+Decisiones del 5 nov (E10-H6, SCRUM-67): sin rutas nuevas. Una tarea programada (job repetible de
+BullMQ en la cola `limpieza-verificaciones`, **cada hora**) borra de R2 los archivos de las
+solicitudes `aprobada` o `rechazada` con `fecha_resolucion` de hace **30 × 24 horas o más** (justo
+30 días ya se elimina; menos, o sin resolver, se conserva). Del antecedente solo se borra el
+archivo: quedan `tipo`, `nombre_archivo`, `hash_archivo` y `ubicacion_archivo` (obligatoria), y se
+registra `fecha_eliminacion_archivo`, desde la que E10-H7 responde 410. La solicitud, su resolución
+y la consulta al SII no se tocan. Primero se borra en R2 y después se registra la fecha (con la
+condición de que siga vacía): si la base falla, la pasada siguiente vuelve a borrar sin error; si
+R2 falla con un archivo, se sigue con los demás y ese queda para la pasada siguiente. Sin R2
+configurado la tarea no marca nada. Los logs nunca llevan la ubicación del archivo. Sin cambios al
+MER.
+
 **E12 Marketing.** Publicidad solo a quien la aceptó (cuenta activa con correo verificado o
 suscriptor confirmado); el consentimiento se revisa de nuevo al enviar. Baja desde cualquier
 correo, por dirección. Campaña con vista previa y confirmación; sale una vez y llega una vez a cada
