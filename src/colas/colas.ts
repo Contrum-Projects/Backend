@@ -31,6 +31,11 @@ export const COLAS = {
    * seguimiento: un worker toma cualquier trabajo de su cola, y esta tarea vive en otro módulo.
    */
   CARRITOS_ABANDONADOS: 'carritos-abandonados',
+  /**
+   * Eliminación de los archivos de verificación que ya no hacen falta (E10-H6). Va aparte de
+   * `plazos`: borrar en R2 puede tardar y no debe atrasar la cancelación por impago (RNF-31).
+   */
+  LIMPIEZA_VERIFICACIONES: 'limpieza-verificaciones',
 } as const;
 
 /** Nombres de los trabajos de la cola de correos. */
@@ -81,6 +86,12 @@ export const TRABAJOS_SEGUIMIENTO = {
 export const TRABAJOS_CARRITO_ABANDONADO = {
   /** Tarea repetible: envía los recordatorios que ya vencieron (E12-H4). */
   RECORDAR: 'recordar-carritos',
+} as const;
+
+/** Nombres de los trabajos de la cola de limpieza de verificaciones. */
+export const TRABAJOS_LIMPIEZA_VERIFICACION = {
+  /** Tarea repetible: elimina los archivos de solicitudes resueltas hace 30 días (E10-H6). */
+  ELIMINAR_ARCHIVOS: 'eliminar-archivos',
 } as const;
 
 /** Datos de una notificación de Mercado Pago por procesar: el resto está en EVENTO_PAGO. */
