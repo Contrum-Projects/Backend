@@ -13,12 +13,15 @@ import type { UsuarioAutenticado } from './carga-token.js';
 
 const CLAVE_PERMISO = 'permiso';
 
-/** Permiso que exige la ruta o el controlador (RF-13.03). Va con `PermisosGuard`. */
-export const RequierePermiso = (permiso: Permiso) =>
-  SetMetadata(CLAVE_PERMISO, permiso);
+/**
+ * Permiso que exige la ruta o el controlador (RF-13.03). Va con `PermisosGuard`. Con varios,
+ * basta tener uno: la búsqueda de formatos la usan el catálogo y el registro de inventario.
+ */
+export const RequierePermiso = (...permisos: [Permiso, ...Permiso[]]) =>
+  SetMetadata(CLAVE_PERMISO, permisos);
 
 /**
- * Exige que el rol de la cuenta tenga el permiso de `@RequierePermiso(...)` según
+ * Exige que el rol de la cuenta tenga alguno de los permisos de `@RequierePermiso(...)` según
  * `PERMISOS_POR_ROL` (RNF-03): 403 si no. Va después de `JwtAutenticacionGuard`, que deja la
  * cuenta en la petición: `@UseGuards(JwtAutenticacionGuard, PermisosGuard)`. Sin
  * `@RequierePermiso` niega el acceso, para que olvidar el decorador no abra la ruta. Cliente y
@@ -29,7 +32,7 @@ export class PermisosGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
 
   canActivate(contexto: ExecutionContext): boolean {
-    const permiso = this.reflector.getAllAndOverride<Permiso | undefined>(
+    const permisos = this.reflector.getAllAndOverride<Permiso[] | undefined>(
       CLAVE_PERMISO,
       [contexto.getHandler(), contexto.getClass()],
     );
@@ -37,7 +40,7 @@ export class PermisosGuard implements CanActivate {
       .switchToHttp()
       .getRequest<Request & { usuario?: UsuarioAutenticado }>();
     if (!usuario) throw new UnauthorizedException('Debes iniciar sesión.');
-    if (!permiso || !tienePermiso(usuario.rol, permiso)) {
+    if (!permisos?.some((permiso) => tienePermiso(usuario.rol, permiso))) {
       throw new ForbiddenException('No tienes permiso para esta acción.');
     }
     return true;

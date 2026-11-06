@@ -23,6 +23,14 @@ import {
   SELECCION_IMAGEN,
 } from './imagenes.service.js';
 import { errorDeCampo } from '../../common/errores/error-de-campo.js';
+import { precioConIva } from '../../common/dominio/montos.js';
+import { escaparComodines } from '../../common/validacion/texto-busqueda.js';
+import { POR_PAGINA } from '../../common/validacion/paginacion.js';
+import type { ListarFormatosDto } from './dto/listar-formatos.dto.js';
+import type {
+  FormatoBuscadoDto,
+  ListadoFormatosBuscadosDto,
+} from './dto/formato-buscado.dto.js';
 
 /**
  * Lo que el panel ve de un formato. Incluye la fecha de vencimiento, que la tienda nunca
@@ -143,6 +151,90 @@ export class FormatosService {
       orderBy: [{ esPredeterminado: 'desc' }, { id: 'asc' }],
     });
     return filas.map((fila) => this.aRespuesta(fila));
+  }
+
+  /**
+   * Busca formatos para armar un pack (E3-H6 criterio 2) y para registrar entradas, salidas,
+   * ajustes y transferencias (E4): solo formatos activos de productos activos, nunca packs, por
+   * nombre del producto, nombre del formato o SKU. Cada uno con su stock en ubicaciones activas de
+   * bodegas activas y su precio minorista (el mayorista no va: lo ve también bodega, RNF-04).
+   */
+  async buscar(
+    filtros: ListarFormatosDto,
+  ): Promise<ListadoFormatosBuscadosDto> {
+    const pagina = filtros.pagina ?? 1;
+    const limite = filtros.limite ?? POR_PAGINA;
+    const texto = filtros.buscar
+      ? {
+          contains: escaparComodines(filtros.buscar),
+          mode: 'insensitive' as const,
+        }
+      : undefined;
+    const where: Prisma.FormatoProductoWhereInput = {
+      articulo: { activo: true },
+      producto: { activo: true },
+      OR: texto
+        ? [
+            { producto: { nombre: texto } },
+            { nombreFormato: texto },
+            { articulo: { sku: texto } },
+          ]
+        : undefined,
+    };
+    const [filas, total] = await this.prisma.$transaction([
+      this.prisma.formatoProducto.findMany({
+        where,
+        select: {
+          id: true,
+          nombreFormato: true,
+          articulo: { select: { sku: true, precioMinoristaNeto: true } },
+          producto: { select: { id: true, nombre: true, canalVenta: true } },
+        },
+        orderBy: [
+          { producto: { nombre: 'asc' } },
+          { nombreFormato: 'asc' },
+          { id: 'asc' },
+        ],
+        skip: (pagina - 1) * limite,
+        take: limite,
+      }),
+      this.prisma.formatoProducto.count({ where }),
+    ]);
+    const stock = await this.stockActivo(filas.map((fila) => fila.id));
+    const porcentajeIva = this.config.get('IVA_PORCENTAJE', { infer: true });
+    const items = filas.map((fila): FormatoBuscadoDto => {
+      const neto = fila.articulo.precioMinoristaNeto?.toNumber() ?? null;
+      return {
+        formatoId: fila.id,
+        sku: fila.articulo.sku,
+        nombreFormato: fila.nombreFormato,
+        producto: { id: fila.producto.id, nombre: fila.producto.nombre },
+        canalVenta: fila.producto.canalVenta as FormatoBuscadoDto['canalVenta'],
+        stockTotal: stock.get(fila.id) ?? 0,
+        precioMinoristaNeto: neto,
+        precioMinoristaConIva:
+          neto === null ? null : precioConIva(neto, porcentajeIva),
+      };
+    });
+    return { items, total, pagina, limite };
+  }
+
+  /** Unidades de cada formato en ubicaciones activas de bodegas activas. */
+  private async stockActivo(formatoIds: number[]) {
+    if (formatoIds.length === 0) {
+      return new Map<number, number>();
+    }
+    const filas = await this.prisma.existencia.groupBy({
+      by: ['formatoId'],
+      where: {
+        formatoId: { in: formatoIds },
+        ubicacion: { activa: true, bodega: { activa: true } },
+      },
+      _sum: { cantidad: true },
+    });
+    return new Map(
+      filas.map((fila) => [fila.formatoId, fila._sum.cantidad ?? 0]),
+    );
   }
 
   /**

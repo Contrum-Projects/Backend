@@ -295,6 +295,14 @@ de Chile; el término no puede ser anterior al inicio (400). `PATCH` cambia solo
 `null` quita una fecha y `componentes` reemplaza la lista completa; si cambian el canal o los
 componentes se revisan otra vez las reglas, con la fila del pack bloqueada. El panel devuelve
 `vigente` calculado con el día de hoy.
+Búsqueda de formatos (SCRUM-150, 6 nov): `GET /api/catalogo/formatos?buscar=&pagina=&limite=`
+la usan el armado de packs y el registro de inventario (entradas, salidas, ajustes y
+transferencias), así que acepta `catalogo.gestionar` **o** `inventario.registrar`
+(`@RequierePermiso` con varios permisos: basta uno). Devuelve solo formatos activos de productos
+activos, nunca packs, buscando en el nombre del producto, el del formato y el SKU, ordenados por
+producto y formato. Cada uno lleva el canal del producto, `stockTotal` (ubicaciones activas de
+bodegas activas, vendan o no en línea) y el precio minorista neto y con IVA (`precioConIva`); el
+mayorista no va, porque bodega también la ve (RNF-04).
 
 **E2 Catálogo público.** Precio según rol calculado en el backend. Disponibilidad desde el stock
 vendible (solo bodegas con `abasteceVentaOnline`); la de un pack es la de su componente más escaso.
