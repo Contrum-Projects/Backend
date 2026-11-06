@@ -267,6 +267,8 @@ interface MarcoCorreo {
   panel?: boolean;
   /** Enlace para dejar de recibir publicidad: obligatorio en todo correo publicitario (RNF-26). */
   baja?: string;
+  /** Imagen invisible que registra la apertura: solo en la publicidad (E12-H6). */
+  seguimiento?: string | null;
 }
 
 /** Texto del enlace de baja en el pie de la publicidad (RNF-26). */
@@ -280,6 +282,7 @@ export const marco = ({
   enlaces,
   panel,
   baja,
+  seguimiento,
 }: MarcoCorreo): string => {
   const marcaPanel = panel
     ? `<td style="padding-left:12px;font-family:${FUENTE_CUERPO};font-size:14px;font-weight:600;letter-spacing:0.2px;color:${COLORES.logo};">Panel</td>`
@@ -291,6 +294,9 @@ export const marco = ({
   const filaBaja = baja
     ? `<p style="margin:6px 0 0 0;${estiloPie}"><a href="${escapar(baja)}" style="color:${COLORES.textoSecundario};text-decoration:underline;">${ETIQUETA_BAJA}</a></p>`
     : '';
+  const imagenSeguimiento = seguimiento
+    ? `<img src="${escapar(seguimiento)}" width="1" height="1" alt="" style="display:block;width:1px;height:1px;border:0;">`
+    : '';
 
   return `<!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapar(asunto)}</title><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces&display=swap" rel="stylesheet"></head>
@@ -300,7 +306,7 @@ export const marco = ({
 <tr><td style="padding:16px 40px;background-color:${COLORES.profundo};"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td><img src="cid:${ID_LOGO}" width="74" height="44" alt="Cabello Perfecto" style="display:block;border:0;"></td>${marcaPanel}</tr></table></td></tr>
 <tr><td style="padding:36px 40px 16px 40px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0">${cuerpo}</table></td></tr>
 <tr><td style="padding:24px 40px;background-color:${COLORES.huesoOscuro};"><p style="margin:0;${estiloPie}">${escapar(pie)}</p>${filaBaja}${filaEnlaces}</td></tr>
-</table></td></tr></table></body></html>`;
+</table>${imagenSeguimiento}</td></tr></table></body></html>`;
 };
 
 /** Versión en texto plano: párrafos separados por una línea en blanco. */

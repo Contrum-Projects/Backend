@@ -10,6 +10,12 @@ export const LIMITES = {
    * ruta. Son públicas: frena llenar buzones ajenos con confirmaciones.
    */
   SUSCRIPCION: { limit: 5, ttl: 60_000 },
+  /**
+   * Imagen de apertura y enlaces de clic de la publicidad (E12-H6, decisión del 5 nov 2026): 120/min
+   * por IP. Holgado porque Gmail y otros cargan las imágenes desde sus propios servidores, que
+   * comparten IP entre muchos destinatarios; frena llenar la base probando enlaces.
+   */
+  SEGUIMIENTO_CORREO: { limit: 120, ttl: 60_000 },
   /** Cierre de sesión en el dispositivo (E1-H3, decisión del 18 oct 2026): 30/min. */
   CIERRE_SESION: { limit: 30, ttl: 60_000 },
   /**

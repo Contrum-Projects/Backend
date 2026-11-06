@@ -14,9 +14,14 @@ import { ConsentimientoService } from './consentimiento.service.js';
 import { CumpleanosController } from './cumpleanos.controller.js';
 import { CumpleanosService } from './cumpleanos.service.js';
 import { FirmaBaja } from './firma-baja.js';
+import { FirmaSeguimiento } from './firma-seguimiento.js';
 import { FirmaSuscripcion } from './firma-suscripcion.js';
 import { SaludosCumpleanosProcessor } from './saludos-cumpleanos.processor.js';
 import { SaludosCumpleanosService } from './saludos-cumpleanos.service.js';
+import { RebotesController } from './rebotes.controller.js';
+import { RebotesService } from './rebotes.service.js';
+import { SeguimientoController } from './seguimiento.controller.js';
+import { SeguimientoService } from './seguimiento.service.js';
 import { SuscripcionesController } from './suscripciones.controller.js';
 import { SuscripcionesService } from './suscripciones.service.js';
 
@@ -37,6 +42,8 @@ import { SuscripcionesService } from './suscripciones.service.js';
     ConsentimientoController,
     CampanasController,
     CumpleanosController,
+    SeguimientoController,
+    RebotesController,
   ],
   providers: [
     CampanasService,
@@ -46,12 +53,15 @@ import { SuscripcionesService } from './suscripciones.service.js';
     ConsentimientoService,
     FirmaSuscripcion,
     FirmaBaja,
+    FirmaSeguimiento,
+    SeguimientoService,
+    RebotesService,
     CarritosAbandonadosService,
     CarritosAbandonadosProcessor,
     CumpleanosService,
     SaludosCumpleanosService,
     SaludosCumpleanosProcessor,
   ],
-  exports: [FirmaSuscripcion, FirmaBaja],
+  exports: [FirmaSuscripcion, FirmaBaja, FirmaSeguimiento],
 })
 export class MarketingModule {}

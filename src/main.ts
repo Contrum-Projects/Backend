@@ -11,6 +11,8 @@ import { configurarApp } from './configurar-app.js';
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     bufferLogs: true,
+    // La firma de los avisos de Resend se calcula sobre el cuerpo tal como llegó (E12-H6)
+    rawBody: true,
   });
   const config = app.get(ConfigService<Entorno, true>);
 

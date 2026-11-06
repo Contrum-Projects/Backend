@@ -33,6 +33,24 @@ docker compose up -d --build  # db, redis, migraciones y api
 curl localhost:3000/api/salud
 ```
 
+### Seguimiento de los correos publicitarios (E12-H6)
+
+Las aperturas, los clics y los rebotes de la publicidad necesitan dos pasos por ambiente, fuera del
+código. Sin ellos la API funciona igual: los correos salen sin seguimiento y los rebotes no se
+registran.
+
+1. **`URL_API` en `.env`**: la dirección pública de esta API, sin `/api` (en local
+   `http://localhost:3000`; en producción, el dominio del backend). La imagen de apertura y los
+   enlaces de clic apuntan ahí. Es distinta en cada ambiente, por eso va en el entorno.
+2. **Webhook en Resend** (panel de Resend → Webhooks → Add endpoint):
+   - URL: `<URL_API>/api/marketing/rebotes`; evento: `email.bounced`.
+   - Copia el *signing secret* (`whsec_…`) a `RESEND_WEBHOOK_SECRET` en `.env`. Es una credencial
+     (RNF-10): solo en el entorno, nunca en el repositorio. Sin él la ruta responde 503.
+   - Resend tiene que poder llegar a la URL: en local no lo hará sin un túnel (por ejemplo ngrok).
+   - Conviene una cuenta o un dominio de Resend por ambiente, para que los avisos de desarrollo no
+     lleguen a producción. Si comparten cuenta, un rebote solo marca un correo cuyo destinatario
+     coincide.
+
 ## Scripts
 
 | Script | Qué hace |

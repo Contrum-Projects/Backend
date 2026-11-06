@@ -6,6 +6,12 @@ import { LOGO_PNG_BASE64 } from './plantillas/logo.js';
 
 export const CLIENTE_CORREO = Symbol('CLIENTE_CORREO');
 
+/**
+ * Etiqueta de Resend con el id de la NOTIFICACION: vuelve en sus avisos y así un rebote se asocia
+ * a su correo sin guardar el id de Resend (E12-H6).
+ */
+export const ETIQUETA_NOTIFICACION = 'notificacion';
+
 /** Sin respuesta en este plazo, el envío cuenta como fallido y se reintenta. */
 const ESPERA_MAXIMA_ENVIO_MS = 15_000;
 
@@ -55,6 +61,12 @@ export class ClienteResend implements ClienteCorreo {
                 content: LOGO_PNG_BASE64,
                 contentType: 'image/png',
                 contentId: ID_LOGO,
+              },
+            ],
+            tags: [
+              {
+                name: ETIQUETA_NOTIFICACION,
+                value: String(mensaje.notificacionId),
               },
             ],
           },

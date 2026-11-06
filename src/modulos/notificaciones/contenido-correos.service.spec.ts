@@ -5,6 +5,7 @@ import type { Entorno } from '../../config/entorno.js';
 import type { PrismaService } from '../../prisma/prisma.service.js';
 import type { CarritoService } from '../carrito/carrito.service.js';
 import type { FirmaBaja } from '../marketing/firma-baja.js';
+import type { FirmaSeguimiento } from '../marketing/firma-seguimiento.js';
 import { ContenidoCorreosService } from './contenido-correos.service.js';
 
 const MOTIVO = 'Dejó de ejercer como peluquera según nos informó.';
@@ -48,15 +49,22 @@ describe('ContenidoCorreosService', () => {
           `https://tienda.cl/suscripcion/baja?token=firma-${email}`,
       ),
     };
+    // Por defecto, sin URL_API: sin imagen de apertura y con los enlaces tal cual
+    const seguimiento = {
+      enlaceApertura: vi.fn((): string | null => null),
+      enlaceClic: vi.fn((_id: number, destino: string) => destino),
+    };
     return {
       prisma,
       firmaBaja,
       carritoService,
+      seguimiento,
       servicio: new ContenidoCorreosService(
         prisma as unknown as PrismaService,
         config,
         firmaBaja as unknown as FirmaBaja,
         carritoService as unknown as CarritoService,
+        seguimiento as unknown as FirmaSeguimiento,
       ),
     };
   };
@@ -294,5 +302,104 @@ describe('ContenidoCorreosService', () => {
     expect(html).toContain('Hola, Andrea.');
     expect(texto).toContain(`Motivo: ${MOTIVO}`);
     expect(texto).toContain('https://tienda.cl/catalogo');
+  });
+
+  describe('E12-H6 · seguimiento de la publicidad', () => {
+    const conSeguimiento = () => {
+      const creado = crear();
+      creado.seguimiento.enlaceApertura.mockImplementation(
+        () => 'https://api.tienda.cl/apertura/9',
+      );
+      creado.seguimiento.enlaceClic.mockImplementation(
+        (id: number, destino: string) =>
+          `https://api.tienda.cl/clic/${id}?destino=${destino}`,
+      );
+      return creado;
+    };
+
+    it('E12-H6 · CA1 apertura y clic: la campaña lleva la imagen de apertura de su notificación y sus enlaces pasan por el seguimiento, menos el de baja', async () => {
+      const { servicio, seguimiento } = conSeguimiento();
+
+      const { html, texto } = await servicio.construir(
+        TRABAJOS_CORREO.CAMPANA,
+        { notificacionId: 9, destinatario: 'camila@correo.cl' },
+        { asunto: 'Novedades', pedidoId: null, campanaId: 4 },
+      );
+
+      expect(seguimiento.enlaceApertura).toHaveBeenCalledWith(9);
+      expect(html).toContain('<img src="https://api.tienda.cl/apertura/9"');
+      expect(html).toContain(
+        'https://api.tienda.cl/clic/9?destino=https://tienda.cl/privacidad',
+      );
+      expect(html).toContain(
+        'href="https://tienda.cl/suscripcion/baja?token=firma-camila@correo.cl"',
+      );
+      expect(texto).not.toContain('apertura');
+    });
+
+    it('E12-H6 · CA1 apertura y clic: el recordatorio de carrito lleva la imagen y su botón al carrito pasa por el seguimiento', async () => {
+      const { servicio, prisma } = conSeguimiento();
+      prisma.itemCarrito.findMany.mockResolvedValue([
+        formato('Shampoo Reparador', '300 ml', 2),
+      ]);
+
+      const { html, texto } = await servicio.construir(
+        TRABAJOS_CORREO.RECORDATORIO_CARRITO,
+        {
+          notificacionId: 12,
+          destinatario: 'camila@correo.cl',
+          nombre: 'Camila',
+        },
+        { asunto: 'Tus productos te esperan', pedidoId: null, usuarioId: 20 },
+      );
+
+      expect(html).toContain('<img src="https://api.tienda.cl/apertura/9"');
+      expect(html).toContain(
+        'https://api.tienda.cl/clic/12?destino=https://tienda.cl/carrito',
+      );
+      expect(texto).toContain(
+        'Ver mi carrito: https://api.tienda.cl/clic/12?destino=https://tienda.cl/carrito',
+      );
+    });
+
+    it('E12-H6 · CA1 apertura y clic: el saludo de cumpleaños lleva la imagen y su botón a la tienda pasa por el seguimiento', async () => {
+      const { servicio } = conSeguimiento();
+
+      const { html } = await servicio.construir(
+        TRABAJOS_CORREO.CUMPLEANOS,
+        {
+          notificacionId: 30,
+          destinatario: 'camila@correo.cl',
+          nombre: 'Camila',
+        },
+        { asunto: '¡Feliz cumpleaños!', pedidoId: null, usuarioId: 20 },
+      );
+
+      expect(html).toContain('<img src="https://api.tienda.cl/apertura/9"');
+      expect(html).toContain(
+        'https://api.tienda.cl/clic/30?destino=https://tienda.cl/catalogo',
+      );
+      expect(html).toContain(
+        'href="https://tienda.cl/suscripcion/baja?token=firma-camila@correo.cl"',
+      );
+    });
+
+    it('E12-H6 · un correo que no es publicidad no lleva seguimiento', async () => {
+      const { servicio, seguimiento } = conSeguimiento();
+
+      const { html } = await servicio.construir(
+        TRABAJOS_CORREO.VERIFICACION_APROBADA,
+        {
+          notificacionId: 15,
+          destinatario: 'andrea@correo.cl',
+          nombre: 'Andrea',
+        },
+        { asunto: 'Ya eres profesional', pedidoId: null },
+      );
+
+      expect(seguimiento.enlaceApertura).not.toHaveBeenCalled();
+      expect(seguimiento.enlaceClic).not.toHaveBeenCalled();
+      expect(html).not.toContain('api.tienda.cl');
+    });
   });
 });

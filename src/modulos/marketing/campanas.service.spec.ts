@@ -426,7 +426,7 @@ describe('CampanasService', () => {
     });
   });
 
-  it('E12-H3 · el detalle cuenta los correos de la campaña por estado', async () => {
+  it('E12-H3 · el detalle cuenta los correos de la campaña por estado, también los rebotados (E12-H6)', async () => {
     prisma.campana.findFirst.mockResolvedValue({
       ...FILA,
       fechaEncolado: new Date(),
@@ -434,17 +434,19 @@ describe('CampanasService', () => {
     prisma.notificacion.groupBy.mockResolvedValue([
       { estadoEnvio: ESTADOS_NOTIFICACION.ENVIADA, _count: { _all: 5 } },
       { estadoEnvio: ESTADOS_NOTIFICACION.CANCELADA, _count: { _all: 2 } },
+      { estadoEnvio: ESTADOS_NOTIFICACION.REBOTADA, _count: { _all: 1 } },
     ]);
 
     const detalle = await servicio.obtener(4);
 
     expect(detalle.enviada).toBe(true);
     expect(detalle.envios).toEqual({
-      total: 7,
+      total: 8,
       pendientes: 0,
       enviados: 5,
       fallidos: 0,
       cancelados: 2,
+      rebotados: 1,
     });
   });
 });
