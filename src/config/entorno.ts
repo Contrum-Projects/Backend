@@ -96,6 +96,18 @@ export const esquemaEntorno = z
     /** Obligatorio con la clave de Resend. Su dominio debe estar verificado allá. */
     CORREO_REMITENTE: opcional(z.string()),
     /**
+     * Secreto con que Resend firma sus avisos (E12-H6): `whsec_…`, en el detalle del webhook en
+     * Resend. Sin él la app arranca, pero el aviso de rebote responde 503 y no se registra nada.
+     */
+    RESEND_WEBHOOK_SECRET: opcional(
+      z.string().regex(/^whsec_[A-Za-z0-9+/=]+$/),
+    ),
+    /**
+     * Dirección pública de esta API, sin `/api` (E12-H6): la imagen de apertura y los enlaces de
+     * clic de la publicidad apuntan a ella. Sin ella los correos salen sin seguimiento.
+     */
+    URL_API: opcional(z.url().transform((v) => v.replace(/\/+$/, ''))),
+    /**
      * Clave de la API de Gemini (E4-H1, decisión del 2 nov 2026). Sin ella la app arranca, pero
      * sugerir la descripción desde la foto responde 503 y se escribe a mano.
      */

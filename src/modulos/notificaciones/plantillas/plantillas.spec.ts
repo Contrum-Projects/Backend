@@ -58,6 +58,26 @@ describe('Plantillas de correo', () => {
       expect(html).toContain('&lt;script&gt;');
     });
 
+    it('E12-H6 · CA1 apertura: con seguimiento, el correo lleva la imagen invisible; sin él, ninguna', () => {
+      const datos = {
+        asunto: 'Novedades',
+        cuerpo: 'Hola.',
+        enlaceBaja: BAJA,
+        enlacesPie,
+      };
+      const conImagen = correoCampana({
+        ...datos,
+        seguimiento: 'https://api.tienda.cl/apertura/9.firma',
+      });
+      const sinImagen = correoCampana(datos);
+
+      expect(conImagen.html).toContain(
+        '<img src="https://api.tienda.cl/apertura/9.firma" width="1" height="1" alt=""',
+      );
+      expect(conImagen.texto).not.toContain('apertura');
+      expect(sinImagen.html).not.toContain('width="1" height="1"');
+    });
+
     it('E12-H3 · las líneas en blanco separan párrafos y los vacíos se descartan', () => {
       expect(parrafosDe('  uno \n\n\n dos\nsigue \n \n')).toEqual([
         'uno',

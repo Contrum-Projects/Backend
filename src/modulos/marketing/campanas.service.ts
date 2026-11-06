@@ -75,6 +75,8 @@ export interface EnviosCampana {
   enviados: number;
   fallidos: number;
   cancelados: number;
+  /** E12-H6: el servidor de destino los rechazó. */
+  rebotados: number;
 }
 
 export interface CampanaPanel {
@@ -194,6 +196,7 @@ export class CampanasService {
       enviados: de(ESTADOS_NOTIFICACION.ENVIADA),
       fallidos: de(ESTADOS_NOTIFICACION.FALLIDA),
       cancelados: de(ESTADOS_NOTIFICACION.CANCELADA),
+      rebotados: de(ESTADOS_NOTIFICACION.REBOTADA),
     };
     return { ...this.aRespuesta(fila), envios };
   }
@@ -435,4 +438,5 @@ const SIN_ENVIOS: EnviosCampana = {
   enviados: 0,
   fallidos: 0,
   cancelados: 0,
+  rebotados: 0,
 };

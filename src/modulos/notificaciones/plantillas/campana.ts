@@ -15,6 +15,8 @@ interface DatosCampana {
   /** Enlace firmado de baja (RNF-26). En la vista previa, la pantalla de baja sin token. */
   enlaceBaja: string;
   enlacesPie: EnlacesPie;
+  /** Imagen de apertura (E12-H6). La vista previa no la lleva: no es un envío. */
+  seguimiento?: string | null;
 }
 
 /** Párrafos del cuerpo: los separa una línea en blanco; dentro de cada uno se conservan los saltos. */
@@ -36,6 +38,7 @@ export const correoCampana = ({
   cuerpo,
   enlaceBaja,
   enlacesPie,
+  seguimiento,
 }: DatosCampana): CorreoRenderizado => {
   const parrafos = parrafosDe(cuerpo);
   const pie =
@@ -48,6 +51,7 @@ export const correoCampana = ({
       pie,
       enlaces: enlacesPie,
       baja: enlaceBaja,
+      seguimiento,
     }),
     texto: textoPlano(
       asunto,

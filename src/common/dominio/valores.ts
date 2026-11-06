@@ -315,12 +315,15 @@ export const AJUSTES_UNION_CARRITO = {
  * NOTIFICACION.estado_envio (decisión del 14 de octubre de 2026, E1-H1). `cancelada` (E12-H2,
  * decisión del 4 de noviembre de 2026): publicidad que no se envió porque la dirección ya no la
  * acepta, o un recordatorio de carrito que ya no corresponde porque el carrito cambió (E12-H4).
+ * `rebotada` (E12-H6, decisión del 5 de noviembre de 2026): el servidor de destino lo rechazó
+ * para siempre, según el aviso de Resend; su dirección deja de recibir publicidad.
  */
 export const ESTADOS_NOTIFICACION = {
   PENDIENTE: 'pendiente',
   ENVIADA: 'enviada',
   FALLIDA: 'fallida',
   CANCELADA: 'cancelada',
+  REBOTADA: 'rebotada',
 } as const;
 
 /**

@@ -975,6 +975,38 @@ exclusivo nunca se le nombra a un cliente (RNF-04), y un carrito sin ninguno no 
 pasa al enviar, queda `cancelada`). El correo nombra hasta 5 artículos con su cantidad, **sin precios**, con botón al carrito (PROPUESTA por confirmar con
 frontend: `/carrito`) y el enlace de baja firmado (`FirmaBaja`, RNF-26). Texto PROPUESTA por
 confirmar con el equipo.
+Decisiones del 5 nov (E12-H6, SCRUM-73): **seguimiento propio, solo en la publicidad** (correos de
+campaña y tipos de `TIPOS_NOTIFICACION_PUBLICIDAD`). No se usa el de Resend, que se activa por
+dominio y reescribiría también los enlaces con token de los correos de cuenta (RNF-08). Cada
+correo publicitario lleva una imagen invisible
+`GET /api/marketing/seguimiento/apertura/:token` y sus enlaces pasan por
+`GET /api/marketing/seguimiento/clic/:token?destino=…` (302), salvo el de baja, que va directo. El
+token es el id de la NOTIFICACION firmado con HMAC-SHA256 (`FirmaSeguimiento`, clave derivada de
+`JWT_ACCESS_SECRET` con su propio dominio); el del clic firma también el destino, que además debe
+ser de `URL_TIENDA`; otro destino o una firma inválida llevan a la portada de la tienda
+(auditoría del 5 nov): no hay redirección abierta. **Excepción a RNF-07** (decisión del equipo
+del 5 nov): el token deja ver el id correlativo de la NOTIFICACION. No se puede falsificar ni da
+acceso a ningún dato; solo permite estimar cuántos correos envía la tienda, y se aceptó ese riesgo
+bajo. **No
+vence.** Se guarda solo la **primera** fecha (`fecha_apertura`, `fecha_clic`, con la condición de
+que siga nula); un clic también cuenta como apertura si faltaba, porque muchos programas de correo
+bloquean las imágenes. Con una firma inválida o la base caída la imagen responde igual y el clic
+redirige igual, sin registrar. Rutas públicas con límite de **120/min por IP**
+(`LIMITES.SEGUIMIENTO_CORREO`, holgado porque Gmail carga las imágenes desde servidores
+compartidos). Las URL salen de la variable nueva `URL_API` (dirección pública de la API, sin
+`/api`); sin ella los correos salen sin seguimiento. **Rebotes:** `POST /api/marketing/rebotes` es el
+webhook de Resend (evento `email.bounced`, rechazo permanente). Se valida la firma Standard Webhooks
+(`svix-id`, `svix-timestamp`, `svix-signature`) sobre el cuerpo tal como llegó (`rawBody: true` en
+el arranque), con `RESEND_WEBHOOK_SECRET` (`whsec_…`); sin ella responde 503 y con firma inválida o
+de hace más de 5 minutos, 401. Otros eventos, y un rebote marcado `Transient` (pasajero), responden
+200 sin hacer nada. Cada envío lleva la etiqueta de Resend `notificacion=<id>`, que vuelve en el
+aviso. Cuenta el rebote de **cualquier** correo (decisión del 5 nov): en una transacción la
+NOTIFICACION pasa a **`rebotada`** (nuevo valor de `ESTADOS_NOTIFICACION`, solo desde `pendiente` o
+`enviada`), **solo si su destinatario está entre las direcciones del aviso** (auditoría del 5 nov:
+otro ambiente que comparta la cuenta de Resend repite ids), y cada dirección del aviso queda **como con la baja
+desde el correo** (cuenta sin `acepta_marketing_email`, LEAD inactivo con `fecha_baja`), así la
+revisión de consentimiento al enviar ya no le manda publicidad. El mismo aviso otra vez deja todo
+igual. El detalle de una campaña cuenta también los `rebotados`. Sin cambios al MER.
 Decisiones del 5 nov (E12-H3, SCRUM-70): rutas en `/api/marketing/campanas` con
 `campanas.gestionar` (solo administrador; 401 sin sesión, 403 sin el permiso), identificadas por
 **id** (la campaña no tiene `codigoPublico` y solo la ve el panel). `POST` crea un borrador

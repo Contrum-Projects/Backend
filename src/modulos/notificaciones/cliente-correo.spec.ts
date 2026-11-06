@@ -48,6 +48,15 @@ describe('Clientes de correo', () => {
     expect(opciones).toEqual({ idempotencyKey: 'notificacion-7' });
   });
 
+  it('E12-H6 · CA2 correo rebotado: cada envío lleva la etiqueta con el id de su notificación, que vuelve en el aviso de rebote', async () => {
+    enviarResend.mockResolvedValue({ data: { id: 'x' }, error: null });
+
+    await cliente.enviar(MENSAJE);
+
+    const [correo] = enviarResend.mock.calls[0];
+    expect(correo.tags).toEqual([{ name: 'notificacion', value: '7' }]);
+  });
+
   it('E1-H6 · envío fallido: un rechazo de Resend, que llega como dato, lanza un error', async () => {
     enviarResend.mockResolvedValue({
       data: null,

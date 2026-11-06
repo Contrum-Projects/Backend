@@ -29,6 +29,8 @@ interface DatosRecordatorioCarrito {
   /** Enlace firmado de baja (RNF-26). */
   enlaceBaja: string;
   enlacesPie: EnlacesPie;
+  /** Imagen de apertura (E12-H6). */
+  seguimiento?: string | null;
 }
 
 const unidades = (cantidad: number): string =>
@@ -47,6 +49,7 @@ export const correoRecordatorioCarrito = ({
   urlCarrito,
   enlaceBaja,
   enlacesPie,
+  seguimiento,
 }: DatosRecordatorioCarrito): CorreoRenderizado => {
   const encabezado = 'Dejaste productos en tu carrito';
   const mensaje = `Hola, ${nombre}. Guardamos tu carrito para que termines tu compra cuando quieras.`;
@@ -81,6 +84,7 @@ export const correoRecordatorioCarrito = ({
       pie,
       enlaces: enlacesPie,
       baja: enlaceBaja,
+      seguimiento,
     }),
     texto: textoPlano(
       encabezado,
