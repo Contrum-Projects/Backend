@@ -23,6 +23,16 @@ export const ESTADOS_PEDIDO = {
 } as const;
 
 /**
+ * Un pedido es venta desde que se paga (decisión del 4 nov 2026): quedan fuera los que esperan el
+ * pago y los cancelados. Un pedido pagado ya no se cancela (E8-H3). Lo usan los reportes (E14) y
+ * el filtro de compras de las campañas (E12-H3).
+ */
+export const ESTADOS_SIN_VENTA: readonly string[] = [
+  ESTADOS_PEDIDO.PENDIENTE_PAGO,
+  ESTADOS_PEDIDO.CANCELADO,
+];
+
+/**
  * PAGO.estado (E6-H1, decisión del 30 de octubre de 2026). Cada intento que Mercado Pago crea es
  * un pago: `pending` e `in_process` quedan pendientes; `rejected` y `cancelled`, rechazados. Un
  * pedido tiene a lo más un pago aprobado.
