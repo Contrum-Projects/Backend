@@ -10,6 +10,7 @@ import {
   type TrabajoConfirmacionSuscripcion,
   type TrabajoCorreo,
   type TrabajoCorreoConEnlace,
+  type TrabajoCumpleanos,
   type TrabajoPagoConfirmado,
   type TrabajoRecordatorioCarrito,
   type TrabajoRolProfesionalRetirado,
@@ -70,6 +71,7 @@ const TIPOS_QUE_ENVIA = [
   TIPOS_NOTIFICACION.CONFIRMACION_SUSCRIPCION,
   TIPOS_NOTIFICACION.RECORDATORIO_CARRITO,
   TIPOS_NOTIFICACION.CAMPANA,
+  TIPOS_NOTIFICACION.CUMPLEANOS,
 ];
 
 interface Pendiente {
@@ -258,6 +260,11 @@ export class RevisionCorreosService {
       // El consentimiento y los cambios del carrito se revisan al enviar (E12-H2, E12-H4)
       const datos: TrabajoRecordatorioCarrito = persona;
       return { trabajo: TRABAJOS_CORREO.RECORDATORIO_CARRITO, datos };
+    }
+    if (tipo === TIPOS_NOTIFICACION.CUMPLEANOS) {
+      // El consentimiento y el día se revisan al enviar; el saludo se lee de CAMPANA (E12-H5)
+      const datos: TrabajoCumpleanos = persona;
+      return { trabajo: TRABAJOS_CORREO.CUMPLEANOS, datos };
     }
     if (!pedido) return null;
     if (tipo === TIPOS_NOTIFICACION.PAGO_CONFIRMADO) {

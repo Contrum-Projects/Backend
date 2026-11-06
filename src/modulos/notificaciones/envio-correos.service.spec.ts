@@ -428,6 +428,7 @@ describe('EnvioCorreosService', () => {
         rol: true,
         aceptaMarketingEmail: true,
         fechaVerificacionCorreo: true,
+        fechaNacimiento: true,
       });
     });
   });
@@ -522,6 +523,92 @@ describe('EnvioCorreosService', () => {
         'cliente',
       );
       expectCancelada();
+    });
+  });
+
+  describe('saludo de cumpleaños (E12-H5)', () => {
+    const SALUDO = {
+      notificacionId: 30,
+      destinatario: 'camila@correo.cl',
+      nombre: 'Camila',
+    };
+    /** Jueves 5 de noviembre de 2026, 9:00 en Chile. */
+    const CREADO = new Date('2026-11-05T12:00:00.000Z');
+    const NACIMIENTO = new Date('1990-11-05T00:00:00.000Z');
+    const saludo = (
+      aceptaMarketingEmail = true,
+      fechaNacimiento: Date | null = NACIMIENTO,
+    ) =>
+      prisma.notificacion.findUnique.mockResolvedValue({
+        estadoEnvio: ESTADOS_NOTIFICACION.PENDIENTE,
+        asunto: '¡Feliz cumpleaños!',
+        tipo: 'cumpleanos',
+        pedidoId: null,
+        campanaId: null,
+        usuarioId: 20,
+        fechaCreacion: CREADO,
+        usuario: {
+          activo: true,
+          rol: 'cliente',
+          aceptaMarketingEmail,
+          fechaVerificacionCorreo: new Date('2026-10-01T00:00:00Z'),
+          fechaNacimiento,
+        },
+        lead: null,
+      });
+    const expectCancelado = () => {
+      expect(cliente.enviar).not.toHaveBeenCalled();
+      expect(prisma.notificacion.updateMany).toHaveBeenCalledWith({
+        where: { id: 30, estadoEnvio: ESTADOS_NOTIFICACION.PENDIENTE },
+        data: { estadoEnvio: ESTADOS_NOTIFICACION.CANCELADA },
+      });
+    };
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('E12-H5 · CA1 saludo enviado: el mismo día del cumpleaños en Chile, se envía', async () => {
+      vi.useFakeTimers({ now: new Date('2026-11-06T02:59:00.000Z') });
+      saludo();
+
+      await servicio.enviar(TRABAJOS_CORREO.CUMPLEANOS, SALUDO);
+
+      expect(cliente.enviar).toHaveBeenCalledTimes(1);
+    });
+
+    it('E12-H5 · CA3 sin consentimiento: si dejó de aceptar publicidad antes del envío, el saludo queda cancelado', async () => {
+      vi.useFakeTimers({ now: CREADO });
+      saludo(false);
+
+      await servicio.enviar(TRABAJOS_CORREO.CUMPLEANOS, SALUDO);
+
+      expectCancelado();
+    });
+
+    it.each([
+      ['borró su fecha de nacimiento', null],
+      ['cambió su fecha a otro día', new Date('1990-12-24T00:00:00.000Z')],
+    ])(
+      'E12-H5 · CA3 sin fecha: si %s antes del envío, el saludo queda cancelado',
+      async (_caso, fechaNacimiento) => {
+        vi.useFakeTimers({ now: CREADO });
+        saludo(true, fechaNacimiento);
+
+        await servicio.enviar(TRABAJOS_CORREO.CUMPLEANOS, SALUDO);
+
+        expectCancelado();
+      },
+    );
+
+    it('E12-H5 · CA1 saludo enviado: uno atrasado que llega al día siguiente en Chile no sale y queda cancelado', async () => {
+      // 0:00 del 6 de noviembre en Chile
+      vi.useFakeTimers({ now: new Date('2026-11-06T03:00:00.000Z') });
+      saludo();
+
+      await servicio.enviar(TRABAJOS_CORREO.CUMPLEANOS, SALUDO);
+
+      expectCancelado();
     });
   });
 });

@@ -20,6 +20,13 @@ describe('ContenidoCorreosService', () => {
         findUnique: vi.fn().mockResolvedValue({
           cuerpo: 'Llegó la línea reparadora.\n\n<b>Solo</b> esta semana.',
         }),
+        // Saludo de cumpleaños configurado, con la oferta activa (E12-H5)
+        findFirst: vi.fn().mockResolvedValue({
+          cuerpo: 'Te deseamos un gran día.',
+          segmento: JSON.stringify({
+            oferta: { activa: true, texto: '20 % en <b>toda</b> la tienda' },
+          }),
+        }),
       },
       carrito: {
         findUnique: vi.fn().mockResolvedValue({ usuario: { rol: 'cliente' } }),
@@ -187,6 +194,78 @@ describe('ContenidoCorreosService', () => {
     expect(html).toContain('Producto 5 · 1 L');
     expect(html).not.toContain('Producto 6');
     expect(texto).toContain('Y 2 artículos más.');
+  });
+
+  const CUMPLEANOS = {
+    notificacionId: 30,
+    destinatario: 'camila@correo.cl',
+    nombre: 'Camila',
+  };
+  const NOTIFICACION_CUMPLEANOS = {
+    asunto: '¡Feliz cumpleaños!',
+    pedidoId: null,
+    usuarioId: 20,
+    campanaId: 4,
+  };
+
+  it('E12-H5 · CA2 saludo con oferta: con la oferta activa al enviar, el correo la incluye escapada, con el saludo y el enlace de baja', async () => {
+    const { servicio, prisma, firmaBaja } = crear();
+
+    const { html, texto } = await servicio.construir(
+      TRABAJOS_CORREO.CUMPLEANOS,
+      CUMPLEANOS,
+      NOTIFICACION_CUMPLEANOS,
+    );
+
+    expect(prisma.campana.findFirst).toHaveBeenCalledWith({
+      where: { tipo: 'cumpleanos' },
+      orderBy: { id: 'asc' },
+      select: { cuerpo: true, segmento: true },
+    });
+    expect(html).toContain('Hola, Camila:');
+    expect(html).toContain('Te deseamos un gran día.');
+    expect(html).toContain('Tu regalo de cumpleaños');
+    expect(html).toContain('20 % en &lt;b&gt;toda&lt;/b&gt; la tienda');
+    expect(html).not.toContain('<b>toda</b>');
+    expect(texto).toContain(
+      'Tu regalo de cumpleaños: 20 % en <b>toda</b> la tienda',
+    );
+    expect(firmaBaja.enlace).toHaveBeenCalledWith('camila@correo.cl');
+    expect(texto).toContain('firma-camila@correo.cl');
+  });
+
+  it('E12-H5 · CA2 saludo con oferta: con la oferta desactivada, el correo sale sin ella', async () => {
+    const { servicio, prisma } = crear();
+    prisma.campana.findFirst.mockResolvedValue({
+      cuerpo: 'Te deseamos un gran día.',
+      segmento: JSON.stringify({
+        oferta: { activa: false, texto: '20 % en toda la tienda' },
+      }),
+    });
+
+    const { html, texto } = await servicio.construir(
+      TRABAJOS_CORREO.CUMPLEANOS,
+      CUMPLEANOS,
+      NOTIFICACION_CUMPLEANOS,
+    );
+
+    expect(html).toContain('Te deseamos un gran día.');
+    expect(html).not.toContain('Tu regalo de cumpleaños');
+    expect(texto).not.toContain('20 % en toda la tienda');
+  });
+
+  it('E12-H5 · CA1 saludo enviado: sin configurar, sale el saludo por defecto y sin oferta', async () => {
+    const { servicio, prisma } = crear();
+    prisma.campana.findFirst.mockResolvedValue(null);
+
+    const { html } = await servicio.construir(
+      TRABAJOS_CORREO.CUMPLEANOS,
+      CUMPLEANOS,
+      { ...NOTIFICACION_CUMPLEANOS, campanaId: null },
+    );
+
+    expect(html).toContain('queremos desearte un muy feliz cumpleaños');
+    expect(html).not.toContain('Tu regalo de cumpleaños');
   });
 
   it('E13-H3 · profesional que vuelve a cliente: el correo lleva el motivo del último cambio de profesional a cliente de esa cuenta', async () => {

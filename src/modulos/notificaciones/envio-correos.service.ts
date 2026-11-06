@@ -5,6 +5,7 @@ import {
   type TrabajoCambioEstadoPedido,
   type TrabajoCorreo,
 } from '../../colas/colas.js';
+import { hoyEnLaTienda } from '../../common/dominio/fechas.js';
 import {
   type Rol,
   ROLES,
@@ -16,6 +17,7 @@ import {
 } from '../../common/dominio/valores.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { CarritoService } from '../carrito/carrito.service.js';
+import { esCumpleanosHoy } from '../marketing/regla-cumpleanos.js';
 import { asuntoCambioEstado } from '../pedidos/transiciones-estado-pedido.js';
 import { CLIENTE_CORREO, type ClienteCorreo } from './cliente-correo.js';
 import { ContenidoCorreosService } from './contenido-correos.service.js';
@@ -46,6 +48,22 @@ const puedeRecibirStockBajo = (
 const sigueProfesional = (
   usuario: { activo: boolean; rol: string } | null,
 ): boolean => !!usuario?.activo && usuario.rol === ROLES.PROFESIONAL;
+
+/**
+ * E12-H5 · El saludo sale el mismo día de Chile en que se decidió y solo si la cuenta sigue de
+ * cumpleaños hoy: con la fecha borrada o cambiada a otro día, ya no corresponde (CA3).
+ */
+const sigueDeCumpleanos = (
+  fechaCreacion: Date,
+  usuario: { fechaNacimiento: Date | null } | null,
+): boolean => {
+  const ahora = new Date();
+  return (
+    hoyEnLaTienda(fechaCreacion) === hoyEnLaTienda(ahora) &&
+    !!usuario?.fechaNacimiento &&
+    esCumpleanosHoy(usuario.fechaNacimiento, ahora)
+  );
+};
 
 /** Publicidad: todo correo de una campaña y los tipos marcados como tales (E12-H2). */
 const esPublicidad = (notificacion: {
@@ -119,6 +137,7 @@ export class EnvioCorreosService {
             rol: true,
             aceptaMarketingEmail: true,
             fechaVerificacionCorreo: true,
+            fechaNacimiento: true,
           },
         },
         lead: { select: { activo: true, email: true } },
@@ -144,6 +163,16 @@ export class EnvioCorreosService {
         notificacion.usuario?.rol,
         notificacion.fechaCreacion,
       ))
+    ) {
+      await this.marcarCancelada(id);
+      return;
+    }
+
+    // E12-H5 · El saludo es del día del cumpleaños: uno atrasado (Redis caído, reintentos) no sale
+    // al día siguiente, ni si la cuenta borró su fecha de nacimiento o la cambió a otro día (CA3)
+    if (
+      trabajo === TRABAJOS_CORREO.CUMPLEANOS &&
+      !sigueDeCumpleanos(notificacion.fechaCreacion, notificacion.usuario)
     ) {
       await this.marcarCancelada(id);
       return;
