@@ -89,6 +89,17 @@ export const ESTADOS_DOCUMENTO = {
   EMITIDO: 'emitido',
 } as const;
 
+/**
+ * Estado de la factura de un pedido en el panel de facturas (`GET /api/gestion/facturas`, SCRUM-55;
+ * decisión del 6 nov, SCRUM-150). No es una columna: se deduce de si el pedido que pidió factura ya
+ * tiene su DOCUMENTO_TRIBUTARIO registrado. Sin factura registrada, el campo `factura` del pedido
+ * viene `null`.
+ */
+export const ESTADOS_FACTURA_GESTION = {
+  POR_EMITIR: 'por_emitir',
+  EMITIDA: 'emitida',
+} as const;
+
 /** ARTICULO_VENTA.tipo: discriminador del supertipo. */
 export const TIPOS_ARTICULO = {
   FORMATO: 'formato',

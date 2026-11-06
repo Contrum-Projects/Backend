@@ -691,6 +691,7 @@ Con despacho, la cotización va antes de la transacción: si Chilexpress no resp
 antes que este 409. PROPUESTAS por confirmar: (1) Mostrar solo el id de transacción como
 presentación de la boleta, que E9-H4 dejó para esta historia. (2) El código 409, que la historia no
 define. Sin cambios al MER.
+Decisión del 6 nov (SCRUM-150), para cuando se haga SCRUM-55 (panel de facturas, `GET /api/gestion/facturas`): el estado de la factura de cada pedido es `ESTADOS_FACTURA_GESTION` (`por_emitir` o `emitida`), deducido de si ya tiene su documento registrado; sin factura registrada, el campo `factura` viene `null`.
 
 **E8 Pedidos.** Estados: pendiente de pago, pagado, en preparación, despachado, entregado, listo
 para retiro, retirado, cancelado (`ESTADOS_PEDIDO`). Cada cambio guarda fecha, quién y comentario,
