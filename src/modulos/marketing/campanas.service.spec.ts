@@ -316,7 +316,7 @@ describe('CampanasService', () => {
 
       expect(vista.destinatarios).toBe(2);
       expect(vista.html).toContain('Llegó la línea reparadora.');
-      expect(vista.html).toContain('https://tienda.cl/suscripcion/baja"');
+      expect(vista.html).toContain('https://tienda.cl/ofertas/baja"');
       expect(
         huella.verificar(
           {

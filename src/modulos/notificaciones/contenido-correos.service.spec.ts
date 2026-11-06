@@ -46,7 +46,7 @@ describe('ContenidoCorreosService', () => {
     const firmaBaja = {
       enlace: vi.fn(
         (email: string) =>
-          `https://tienda.cl/suscripcion/baja?token=firma-${email}`,
+          `https://tienda.cl/ofertas/baja?token=firma-${email}`,
       ),
     };
     // Por defecto, sin URL_API: sin imagen de apertura y con los enlaces tal cual
@@ -144,13 +144,13 @@ describe('ContenidoCorreosService', () => {
     expect(html).toContain('Dúo Hidratación');
     expect(html).toContain('https://tienda.cl/carrito');
     expect(html).toContain(
-      'https://tienda.cl/suscripcion/baja?token=firma-camila@correo.cl',
+      'https://tienda.cl/ofertas/baja?token=firma-camila@correo.cl',
     );
     expect(html).toContain('Dejar de recibir ofertas');
     expect(html).not.toMatch(/\$\d/);
     expect(texto).toContain('- Shampoo Reparador · 300 ml: 2 unidades');
     expect(texto).toContain(
-      'Dejar de recibir ofertas: https://tienda.cl/suscripcion/baja?token=firma-camila@correo.cl',
+      'Dejar de recibir ofertas: https://tienda.cl/ofertas/baja?token=firma-camila@correo.cl',
     );
   });
 
@@ -328,11 +328,10 @@ describe('ContenidoCorreosService', () => {
 
       expect(seguimiento.enlaceApertura).toHaveBeenCalledWith(9);
       expect(html).toContain('<img src="https://api.tienda.cl/apertura/9"');
+      // SCRUM-150: el pie no enlaza páginas que la tienda aún no tiene
+      expect(html).not.toContain('Política de privacidad');
       expect(html).toContain(
-        'https://api.tienda.cl/clic/9?destino=https://tienda.cl/privacidad',
-      );
-      expect(html).toContain(
-        'href="https://tienda.cl/suscripcion/baja?token=firma-camila@correo.cl"',
+        'href="https://tienda.cl/ofertas/baja?token=firma-camila@correo.cl"',
       );
       expect(texto).not.toContain('apertura');
     });
@@ -380,7 +379,7 @@ describe('ContenidoCorreosService', () => {
         'https://api.tienda.cl/clic/30?destino=https://tienda.cl/catalogo',
       );
       expect(html).toContain(
-        'href="https://tienda.cl/suscripcion/baja?token=firma-camila@correo.cl"',
+        'href="https://tienda.cl/ofertas/baja?token=firma-camila@correo.cl"',
       );
     });
 

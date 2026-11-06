@@ -24,8 +24,37 @@ const ENLACE = 'https://tienda.cl/confirmar-correo?token=abc&x=1';
 const FECHA = new Date('2026-10-11T20:05:00.000Z');
 
 describe('Plantillas de correo', () => {
+  describe('Rutas de la tienda (SCRUM-150)', () => {
+    it('SCRUM-150 · el enlace del pedido lleva a la página de la cuenta que existe en la tienda', () => {
+      expect(rutasTienda('https://tienda.cl/').pedido('ABC 1')).toBe(
+        'https://tienda.cl/cuenta/pedidos/ABC%201',
+      );
+    });
+
+    it('SCRUM-150 · el pie no enlaza páginas que la tienda aún no tiene, y muestra solo las que sí', () => {
+      expect(enlacesPie).toEqual({
+        ayuda: null,
+        terminos: null,
+        privacidad: null,
+      });
+      const { html } = correoConfirmacion({
+        asunto: 'A',
+        destinatario: 'camila@correo.cl',
+        enlace: ENLACE,
+        enlacesPie: {
+          ayuda: null,
+          terminos: 'https://tienda.cl/terminos-y-condiciones',
+          privacidad: null,
+        },
+      });
+      expect(html).toContain('Términos y condiciones</a>');
+      expect(html).not.toContain('Ayuda</a>');
+      expect(html).not.toContain('Política de privacidad');
+    });
+  });
+
   describe('Campaña', () => {
-    const BAJA = 'https://tienda.cl/suscripcion/baja?token=t';
+    const BAJA = 'https://tienda.cl/ofertas/baja?token=t';
 
     it('E12-H3 · CA1 campaña enviada: el asunto es el título, el cuerpo va en párrafos y lleva remitente y baja (RNF-26)', () => {
       const { html, texto } = correoCampana({
@@ -99,7 +128,7 @@ describe('Plantillas de correo', () => {
     expect(html).toContain('Confirmar mi correo');
     expect(html).toContain(`href="${escapar(ENLACE)}"`);
     expect(html).toContain('cid:logo-cabello-perfecto');
-    expect(html).toContain('https://tienda.cl/ayuda');
+    expect(html).not.toContain('Ayuda</a>');
     expect(texto).toContain(ENLACE);
     expect(texto).not.toContain('<');
   });
@@ -138,7 +167,7 @@ describe('Plantillas de correo', () => {
       total: 16980,
       iva: 2711,
       entrega: 'Despacho a domicilio · Av. Ejemplo 1234, Ñuñoa',
-      urlPedido: 'https://tienda.cl/mis-pedidos/ABC',
+      urlPedido: 'https://tienda.cl/cuenta/pedidos/ABC',
       enlacesPie,
     };
 
@@ -188,7 +217,7 @@ describe('Plantillas de correo', () => {
         codigoSeguimiento: '7891234560',
         direccion: 'Av. Ejemplo 1234, Ñuñoa',
       },
-      urlPedido: 'https://tienda.cl/mis-pedidos/ABC',
+      urlPedido: 'https://tienda.cl/cuenta/pedidos/ABC',
       enlacesPie,
     };
 

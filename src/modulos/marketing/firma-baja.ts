@@ -40,11 +40,11 @@ export class FirmaBaja {
   }
 
   /**
-   * Enlace de la pantalla de baja de la tienda. La ruta es una PROPUESTA por confirmar con frontend
-   * (SCRUM-139).
+   * Enlace de la pantalla de baja de la tienda (`cp-frontend/app/(tienda)/ofertas/baja`, SCRUM-139;
+   * alineado en SCRUM-150).
    */
   enlace(email: string): string {
-    return `${this.urlTienda}/suscripcion/baja?token=${encodeURIComponent(this.firmar(email))}`;
+    return `${this.urlTienda}/ofertas/baja?token=${encodeURIComponent(this.firmar(email))}`;
   }
 
   firmar(email: string): string {

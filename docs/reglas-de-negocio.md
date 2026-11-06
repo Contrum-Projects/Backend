@@ -148,8 +148,11 @@ estado actual del pedido, con el asunto de ese estado, y queda `fallida` si ese 
 `RESEND_API_KEY` reemplaza a `SMTP_URL`; sin ella, fuera de producción, los correos se simulan y solo
 se registra el id de la notificación; en producción la app no arranca sin ella, y con ella
 `CORREO_REMITENTE` es obligatorio. `CORREOS_WORKER_ACTIVO=false` apaga el worker (los e2e leen los
-enlaces desde la cola). Sin cambios al MER. **PROPUESTA por confirmar con frontend:** las rutas
-`/ayuda`, `/terminos`, `/privacidad`, `/mis-pedidos/<código>` y `/panel/inventario` de los correos.
+enlaces desde la cola). Sin cambios al MER. Rutas de los correos (alineadas
+con el frontend el 6 nov, SCRUM-150): el pedido lleva a `/cuenta/pedidos/<código>` y el stock bajo a
+`/panel/inventario`. El pie **no enlaza** ayuda, términos ni privacidad mientras esas páginas no
+existan en la tienda (sus textos están pendientes); cuando existan irán a `/ayuda`,
+`/terminos-y-condiciones` y `/politica-de-privacidad`.
 
 **E13 Personal y acceso.** El administrador crea y desactiva cuentas del personal; la desactivada
 pierde el acceso de inmediato. Cada acción del panel exige un permiso del rol (guard en backend).
@@ -947,8 +950,8 @@ esta baja (aunque estuviera pendiente o ya de baja: así ningún enlace de confi
 activa). Responde 200 con el mismo mensaje exista o no la dirección y aunque se repita; firma
 inválida, **400**. El enlace va firmado (HMAC-SHA256 del correo, clave derivada de
 `JWT_ACCESS_SECRET` con su propio dominio, `FirmaBaja`) y **no vence**: la baja funciona desde
-cualquier correo antiguo. PROPUESTA por confirmar con frontend (SCRUM-139): la pantalla es
-`/suscripcion/baja?token=…`. Al enviar, todo correo de campaña o con tipo en
+cualquier correo antiguo. La pantalla es `/ofertas/baja?token=…` (la de la
+tienda, SCRUM-139; alineado el 6 nov, SCRUM-150). Al enviar, todo correo de campaña o con tipo en
 `TIPOS_NOTIFICACION_PUBLICIDAD` revisa otra vez el consentimiento (cuenta activa, con correo
 verificado y que acepta; o LEAD activo); si no lo tiene, no se envía y queda **`cancelada`**
 (nuevo valor de `ESTADOS_NOTIFICACION`). Sin cambios al MER.
@@ -1024,7 +1027,7 @@ pagado (todo estado salvo `ESTADOS_SIN_VENTA`) con algún producto de esas categ
 sus subcategorías) **o** de esas marcas; un pack cuenta por sus formatos. Los suscriptores sin
 cuenta no tienen compras: pedirlos con un filtro de compras responde 400. **Vista previa:**
 `POST /:id/vista-previa` devuelve `{ asunto, html, texto, destinatarios, confirmacion }`; el
-enlace de baja de la vista previa lleva a `/suscripcion/baja` sin token (no da de baja a nadie).
+enlace de baja de la vista previa lleva a `/ofertas/baja` sin token (no da de baja a nadie).
 `confirmacion` es `emisión.firma`: un HMAC-SHA256 de id + asunto + cuerpo + segmento + emisión
 (clave derivada de `JWT_ACCESS_SECRET` con su propio dominio, `HuellaCampana`; sin variable ni
 columna nueva). **Vence a la hora** (`VIGENCIA_VISTA_PREVIA_MS`): pasada, 409 «más de una hora»

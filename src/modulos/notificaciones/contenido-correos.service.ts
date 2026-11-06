@@ -193,10 +193,12 @@ export class ContenidoCorreosService {
    */
   private pieConSeguimiento(notificacionId: number): EnlacesPie {
     const { ayuda, terminos, privacidad } = this.rutas.pie;
+    const conClic = (url: string | null) =>
+      url ? this.seguimiento.enlaceClic(notificacionId, url) : null;
     return {
-      ayuda: this.seguimiento.enlaceClic(notificacionId, ayuda),
-      terminos: this.seguimiento.enlaceClic(notificacionId, terminos),
-      privacidad: this.seguimiento.enlaceClic(notificacionId, privacidad),
+      ayuda: conClic(ayuda),
+      terminos: conClic(terminos),
+      privacidad: conClic(privacidad),
     };
   }
 

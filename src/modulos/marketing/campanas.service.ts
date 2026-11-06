@@ -244,7 +244,7 @@ export class CampanasService {
     const { html, texto } = correoCampana({
       asunto: fila.asunto,
       cuerpo: fila.cuerpo,
-      enlaceBaja: `${urlTienda}/suscripcion/baja`,
+      enlaceBaja: `${urlTienda}/ofertas/baja`,
       enlacesPie: rutasTienda(urlTienda).pie,
     });
     return {

@@ -24,7 +24,7 @@ describe('FirmaBaja', () => {
   it('E12-H2 · baja desde un correo: el enlace lleva a la tienda y su token devuelve la dirección', () => {
     const enlace = firma.enlace(email);
 
-    expect(enlace.startsWith('https://tienda.cl/suscripcion/baja?token=')).toBe(
+    expect(enlace.startsWith('https://tienda.cl/ofertas/baja?token=')).toBe(
       true,
     );
     expect(firma.verificar(tokenDe(enlace))).toBe(email);

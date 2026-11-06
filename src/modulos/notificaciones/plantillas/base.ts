@@ -227,26 +227,32 @@ export const pasos = (lista: PasoPedido[]): string => {
   );
 };
 
+/** Enlaces del pie; `null` mientras la página no exista en la tienda (el pie no lo muestra). */
 export interface EnlacesPie {
-  ayuda: string;
-  terminos: string;
-  privacidad: string;
+  ayuda: string | null;
+  terminos: string | null;
+  privacidad: string | null;
 }
 
 /**
- * Rutas de las páginas del pie y de las pantallas a las que llevan los correos. PROPUESTA por
- * confirmar con el equipo de frontend.
+ * Rutas de las pantallas de la tienda a las que llevan los correos. Las fija el frontend
+ * (`cp-frontend/app/` y `docs/pantallas.md`); cada una debe existir allá.
  */
 export const rutasTienda = (urlTienda: string) => {
   const base = urlTienda.replace(/\/+$/, '');
   return {
+    /**
+     * Decisión del 6 nov (SCRUM-150): ninguna de estas páginas existe todavía en la tienda (sus
+     * textos están pendientes en `cp-frontend/docs/diseno.md`), así que el pie no las enlaza.
+     * Cuando existan, van a `/ayuda`, `/terminos-y-condiciones` y `/politica-de-privacidad`.
+     */
     pie: {
-      ayuda: `${base}/ayuda`,
-      terminos: `${base}/terminos`,
-      privacidad: `${base}/privacidad`,
-    },
+      ayuda: null,
+      terminos: null,
+      privacidad: null,
+    } satisfies EnlacesPie as EnlacesPie,
     pedido: (codigo: string) =>
-      `${base}/mis-pedidos/${encodeURIComponent(codigo)}`,
+      `${base}/cuenta/pedidos/${encodeURIComponent(codigo)}`,
     inventario: `${base}/panel/inventario`,
     /** PROPUESTA por confirmar con frontend (E10-H4). */
     catalogo: `${base}/catalogo`,
@@ -288,9 +294,19 @@ export const marco = ({
     ? `<td style="padding-left:12px;font-family:${FUENTE_CUERPO};font-size:14px;font-weight:600;letter-spacing:0.2px;color:${COLORES.logo};">Panel</td>`
     : '';
   const estiloPie = `font-family:${FUENTE_CUERPO};font-size:12px;font-weight:500;line-height:1.35;letter-spacing:0.4px;color:${COLORES.textoSecundario};`;
-  const filaEnlaces = enlaces
-    ? `<p style="margin:6px 0 0 0;${estiloPie}">${enlacePie('Ayuda', enlaces.ayuda)} · ${enlacePie('Términos y condiciones', enlaces.terminos)} · ${enlacePie('Política de privacidad', enlaces.privacidad)}</p>`
-    : '';
+  const enlacesVisibles = enlaces
+    ? (
+        [
+          ['Ayuda', enlaces.ayuda],
+          ['Términos y condiciones', enlaces.terminos],
+          ['Política de privacidad', enlaces.privacidad],
+        ] as const
+      ).flatMap(([etiqueta, url]) => (url ? [enlacePie(etiqueta, url)] : []))
+    : [];
+  const filaEnlaces =
+    enlacesVisibles.length > 0
+      ? `<p style="margin:6px 0 0 0;${estiloPie}">${enlacesVisibles.join(' · ')}</p>`
+      : '';
   const filaBaja = baja
     ? `<p style="margin:6px 0 0 0;${estiloPie}"><a href="${escapar(baja)}" style="color:${COLORES.textoSecundario};text-decoration:underline;">${ETIQUETA_BAJA}</a></p>`
     : '';
