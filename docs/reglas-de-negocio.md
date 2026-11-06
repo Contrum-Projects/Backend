@@ -75,7 +75,9 @@ suscribirse a ofertas. No hay compra como invitado.
   trae además `errores: [{ campo, mensaje }]`; `message` no cambia.
 - `campo` es la ruta de la propiedad en el cuerpo, con puntos e índices (`email`, `oferta.texto`,
   `detalles.0.cantidad`, `segmento.categorias`); en una subida, el nombre del campo del archivo
-  (`imagen`, `archivo`, `archivos`). Un mensaje que vale para dos campos aparece una vez por cada uno
+  (`imagen`, `archivo`, `archivos`). En una lista, el índice es el de la línea tal como llegó (la
+  entrada de inventario dice así qué formato no existe o qué cantidad pasaría el máximo:
+  `detalles.1.formatoId`, `detalles.0.cantidad`). Un mensaje que vale para dos campos aparece una vez por cada uno
   (p. ej. «El correo y el RUT ya están registrados.» en `email` y `rut`).
 - Todo error de validación (`ValidationPipe`) lo trae. Un error de negocio que pertenece a un campo
   (dato repetido, referencia que no existe, stock insuficiente para la cantidad, enlace de

@@ -59,8 +59,10 @@ export class EntradasService {
     codigoPublicoUsuario: string,
   ): Promise<EntradaRegistrada> {
     if (dto.fechaRecepcion > hoyEnLaTienda()) {
-      throw new BadRequestException(
+      throw errorDeCampo(
+        BadRequestException,
         'La fecha de recepción no puede ser posterior a hoy.',
+        'fechaRecepcion',
       );
     }
     // Las existencias se tocan en orden de formato: dos entradas simultáneas no se bloquean
@@ -82,10 +84,7 @@ export class EntradasService {
       const ubicacion = await ubicacionDe(tx, dto.ubicacionId, {
         activa: true,
       });
-      await this.comprobarFormatos(
-        tx,
-        detalles.map((detalle) => detalle.formatoId),
-      );
+      await this.comprobarFormatos(tx, dto.detalles);
 
       const entrada = await this.crearEntrada(
         tx,
@@ -100,8 +99,11 @@ export class EntradasService {
           detalle.cantidad,
         );
         if (!sumada) {
-          throw new BadRequestException(
+          // El campo es la línea tal como llegó (SCRUM-150), no la del orden por formato
+          throw errorDeCampo(
+            BadRequestException,
             `El stock del formato ${detalle.formatoId} en esa ubicación superaría el máximo permitido.`,
+            ...lineasDe(dto.detalles, [detalle.formatoId], 'cantidad'),
           );
         }
       }
@@ -164,19 +166,25 @@ export class EntradasService {
     };
   }
 
-  /** Todos los formatos existen; si falta alguno, dice cuáles. */
-  private async comprobarFormatos(tx: Tx, ids: number[]) {
+  /** Todos los formatos existen; si falta alguno, dice cuáles y en qué líneas están (SCRUM-150). */
+  private async comprobarFormatos(tx: Tx, lineas: CrearEntradaDto['detalles']) {
+    const ids = lineas.map((linea) => linea.formatoId);
     const existentes = await tx.formatoProducto.findMany({
       where: { id: { in: ids } },
       select: { id: true },
     });
     const encontrados = new Set(existentes.map((formato) => formato.id));
-    const faltantes = ids.filter((id) => !encontrados.has(id));
+    // En orden de formato, como antes de que llegaran las líneas sin ordenar
+    const faltantes = [
+      ...new Set(ids.filter((id) => !encontrados.has(id))),
+    ].sort((a, b) => a - b);
     if (faltantes.length > 0) {
-      throw new BadRequestException(
+      throw errorDeCampo(
+        BadRequestException,
         faltantes.length === 1
           ? `El formato ${faltantes[0]} no existe.`
           : `Los formatos ${faltantes.join(', ')} no existen.`,
+        ...lineasDe(lineas, faltantes, 'formatoId'),
       );
     }
   }
@@ -233,3 +241,20 @@ export class EntradasService {
  */
 export const normalizarNumeroDocumento = (numero: string) =>
   numero.replace(/\s+/g, '').toUpperCase();
+
+/**
+ * Las rutas `detalles.<n>.<propiedad>` de las líneas con esos formatos, en el orden en que
+ * llegaron (SCRUM-150): así el panel marca la línea exacta. Siempre hay al menos una.
+ */
+const lineasDe = (
+  lineas: CrearEntradaDto['detalles'],
+  formatoIds: number[],
+  propiedad: 'formatoId' | 'cantidad',
+): [string, ...string[]] => {
+  const rutas = lineas.flatMap((linea, indice) =>
+    formatoIds.includes(linea.formatoId)
+      ? [`detalles.${indice}.${propiedad}`]
+      : [],
+  );
+  return rutas.length > 0 ? (rutas as [string, ...string[]]) : ['detalles'];
+};

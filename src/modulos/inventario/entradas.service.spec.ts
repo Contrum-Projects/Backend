@@ -226,12 +226,26 @@ describe('EntradasService', () => {
 
     await expect(
       servicio.registrar(dtoBase(), 'uuid-bodeguero'),
-    ).rejects.toThrow(new BadRequestException('El formato 12 no existe.'));
+    ).rejects.toThrow(
+      // SCRUM-150: el formato 12 es la primera línea, tal como llegó
+      errorDeCampo(
+        BadRequestException,
+        'El formato 12 no existe.',
+        'detalles.0.formatoId',
+      ),
+    );
 
     prisma.tx.formatoProducto.findMany.mockResolvedValue([]);
     await expect(
       servicio.registrar(dtoBase(), 'uuid-bodeguero'),
-    ).rejects.toThrow('Los formatos 11, 12 no existen.');
+    ).rejects.toThrow(
+      errorDeCampo(
+        BadRequestException,
+        'Los formatos 11, 12 no existen.',
+        'detalles.0.formatoId',
+        'detalles.1.formatoId',
+      ),
+    );
     expect(prisma.tx.entradaInventario.create).not.toHaveBeenCalled();
   });
 
@@ -250,8 +264,10 @@ describe('EntradasService', () => {
         'uuid-bodeguero',
       ),
     ).rejects.toThrow(
-      new BadRequestException(
+      errorDeCampo(
+        BadRequestException,
         'La fecha de recepción no puede ser posterior a hoy.',
+        'fechaRecepcion',
       ),
     );
     expect(prisma.$transaction).not.toHaveBeenCalled();
@@ -276,8 +292,11 @@ describe('EntradasService', () => {
     await expect(
       servicio.registrar(dtoBase(), 'uuid-bodeguero'),
     ).rejects.toThrow(
-      new BadRequestException(
+      // SCRUM-150: el 11 es la segunda línea del cuerpo, aunque se procese primero (orden por formato)
+      errorDeCampo(
+        BadRequestException,
         'El stock del formato 11 en esa ubicación superaría el máximo permitido.',
+        'detalles.1.cantidad',
       ),
     );
     expect(
