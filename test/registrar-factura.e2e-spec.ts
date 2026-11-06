@@ -477,15 +477,15 @@ describe('Facturación · registrar la factura emitida en el SII (e2e)', () => {
     expect(almacen.archivos.size).toBe(0);
   });
 
-  it('E9-H3 · un PDF de más de 5 MB: 413', async () => {
+  it('E9-H3 · un PDF de más de 4 MB: 413', async () => {
     const pedido = await nuevoPedido();
 
     const respuesta = await registrar(pedido.codigo, folioNuevo(), {
-      archivo: pdf(5 * 1024 * 1024),
+      archivo: pdf(4 * 1024 * 1024),
     }).expect(413);
 
     expect((respuesta.body as { message: string }).message).toBe(
-      'La factura no puede superar los 5 MB.',
+      'La factura no puede superar los 4 MB.',
     );
     expect(await documentosDe(pedido.id)).toHaveLength(0);
   });

@@ -19,7 +19,7 @@ const Base = FileInterceptor(CAMPO_FACTURA, {
 });
 
 /**
- * Recibe un solo PDF de hasta 5 MB en el campo `archivo`, junto al folio y la fecha (E9-H3).
+ * Recibe un solo PDF de hasta 4 MB en el campo `archivo`, junto al folio y la fecha (E9-H3).
  * Multer corta la subida apenas pasa el tamaño; sus errores, en inglés, se responden en español.
  */
 @Injectable()
@@ -39,7 +39,7 @@ export class SubidaFacturaInterceptor extends Base {
 const traducirError = (error: unknown) => {
   if (error instanceof PayloadTooLargeException) {
     return new PayloadTooLargeException(
-      'La factura no puede superar los 5 MB.',
+      'La factura no puede superar los 4 MB.',
     );
   }
   if (error instanceof HttpException && error.getStatus() === 400) {

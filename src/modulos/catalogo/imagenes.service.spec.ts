@@ -157,13 +157,13 @@ describe('ImagenesService', () => {
       expect(prisma.imagenArticulo.create).not.toHaveBeenCalled();
     });
 
-    it('E3-H3 · sin archivo o de más de 5 MB: 400 sin subir nada', async () => {
+    it('E3-H3 · sin archivo o de más de 4 MB: 400 sin subir nada', async () => {
       await expect(servicio.subir(11, undefined)).rejects.toThrow(
         'Adjunta una imagen JPEG, PNG o WebP en el campo «imagen».',
       );
       await expect(
-        servicio.subir(11, jpeg(5 * 1024 * 1024 + 1)),
-      ).rejects.toThrow('La imagen no puede superar los 5 MB.');
+        servicio.subir(11, jpeg(4 * 1024 * 1024 + 1)),
+      ).rejects.toThrow('La imagen no puede superar los 4 MB.');
 
       expect(almacen.guardar).not.toHaveBeenCalled();
     });

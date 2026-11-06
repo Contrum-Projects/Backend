@@ -99,7 +99,7 @@ export class SolicitudVerificacionController {
   @ApiOperation({
     summary: 'Adjuntar los documentos de mi solicitud de verificación (E10-H2)',
     description:
-      'Para quien no pasó la verificación automática: la solicitud está `pendiente` y `requiereDocumentos` es `true`. Recibe de 1 a 5 documentos en el campo `archivos` (PDF, JPG o PNG, hasta 5 MB cada uno, reconocidos por su contenido) y, en el campo `tipos`, el tipo de cada uno en el mismo orden (`titulo`, `certificado` u `otro`; un certificado de curso vale como `certificado`). La solicitud pasa a `revision_manual`, a la espera del personal. Los archivos se guardan privados y no se entregan por esta API.',
+      'Para quien no pasó la verificación automática: la solicitud está `pendiente` y `requiereDocumentos` es `true`. Recibe de 1 a 5 documentos en el campo `archivos` (PDF, JPG o PNG, hasta 4 MB cada uno, reconocidos por su contenido) y, en el campo `tipos`, el tipo de cada uno en el mismo orden (`titulo`, `certificado` u `otro`; un certificado de curso vale como `certificado`). La solicitud pasa a `revision_manual`, a la espera del personal. Los archivos se guardan privados y no se entregan por esta API.',
   })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -131,7 +131,7 @@ export class SolicitudVerificacionController {
     description:
       'La solicitud ya fue aprobada, ya tiene documentos en revisión o fue rechazada (hay que enviar una nueva).',
   })
-  @ApiPayloadTooLargeResponse({ description: 'Un documento supera los 5 MB.' })
+  @ApiPayloadTooLargeResponse({ description: 'Un documento supera los 4 MB.' })
   @ApiTooManyRequestsResponse({
     description: 'Más de 5 envíos de documentos por hora de la misma cuenta.',
   })

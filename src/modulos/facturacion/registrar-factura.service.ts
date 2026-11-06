@@ -24,7 +24,7 @@ import { esPdf, TAMANO_MAXIMO_FACTURA_BYTES } from './tipo-archivo-factura.js';
 export const SIN_ARCHIVO =
   'Adjunta el PDF de la factura en el campo «archivo».';
 export const NO_ES_PDF = 'La factura debe ser un archivo PDF.';
-export const FACTURA_MUY_GRANDE = 'La factura no puede superar los 5 MB.';
+export const FACTURA_MUY_GRANDE = 'La factura no puede superar los 4 MB.';
 export const FECHA_FUTURA = 'La fecha de emisión no puede ser futura.';
 export const NO_PIDIO_FACTURA = 'El pedido no pidió factura.';
 export const PEDIDO_NO_PAGADO =

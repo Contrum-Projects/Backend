@@ -33,7 +33,7 @@ import {
 export const SIN_ARCHIVOS = `Adjunta de 1 a ${MAXIMO_ANTECEDENTES} documentos en el campo «archivos».`;
 export const TIPOS_NO_COINCIDEN =
   'Indica el tipo de cada documento: debe haber un tipo por archivo y en el mismo orden.';
-export const DOCUMENTO_MUY_GRANDE = 'Cada documento puede pesar hasta 5 MB.';
+export const DOCUMENTO_MUY_GRANDE = 'Cada documento puede pesar hasta 4 MB.';
 export const documentoNoValido = (numero: number) =>
   `El documento ${numero} debe ser un PDF, JPG o PNG.`;
 export const SOLICITUD_RECHAZADA =
@@ -62,7 +62,7 @@ interface DocumentoGuardado extends DocumentoRevisado {
 /**
  * Documentos que respaldan la solicitud de quien no pasó la verificación automática (E10-H2,
  * RF-10.01, RF-10.05 y RF-10.09). La cuenta adjunta de 1 a 5 documentos (PDF, JPG o PNG, de hasta
- * 5 MB) y la solicitud pasa de `pendiente` a `revision_manual`, a la espera del personal (E10-H3).
+ * 4 MB) y la solicitud pasa de `pendiente` a `revision_manual`, a la espera del personal (E10-H3).
  * No hay OCR ni puntaje: los documentos los lee una persona. El motivo por el que se piden ya
  * quedó en la solicitud, en el resultado de la consulta al SII (E10-H1).
  *

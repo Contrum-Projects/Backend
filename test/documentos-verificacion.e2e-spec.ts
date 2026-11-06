@@ -476,15 +476,15 @@ describe('Verificación · adjuntar documentos para la revisión manual (e2e)', 
     expect(almacen.archivos.size).toBe(0);
   });
 
-  it('E10-H2 · un documento de más de 5 MB responde 413 y no guarda nada', async () => {
+  it('E10-H2 · un documento de más de 4 MB responde 413 y no guarda nada', async () => {
     const solicitante = await cuentaPendiente();
 
     const respuesta = await adjuntar(solicitante.token, [
-      { buffer: pdf(5 * MEGA), nombre: 'titulo.pdf', tipo: 'titulo' },
+      { buffer: pdf(4 * MEGA), nombre: 'titulo.pdf', tipo: 'titulo' },
     ]).expect(413);
 
     expect((respuesta.body as { message: string }).message).toBe(
-      'Cada documento puede pesar hasta 5 MB.',
+      'Cada documento puede pesar hasta 4 MB.',
     );
     expect(almacen.archivos.size).toBe(0);
     const [solicitud] = await solicitudesDe(solicitante.id);

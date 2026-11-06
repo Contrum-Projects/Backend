@@ -264,7 +264,7 @@ describe('RegistrarFacturaService', () => {
     await expect(
       registrar(
         { folio: 1 },
-        { buffer: PDF.buffer, size: 5 * 1024 * 1024 + 1 },
+        { buffer: PDF.buffer, size: 4 * 1024 * 1024 + 1 },
       ),
     ).rejects.toThrow(new BadRequestException(FACTURA_MUY_GRANDE));
     await expect(

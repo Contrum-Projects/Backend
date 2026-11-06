@@ -236,7 +236,7 @@ vencimiento solo sale en las respuestas del panel. Desactivar formatos queda fue
 Decisiones del 24 oct (E3-H3): las imágenes se guardan en **Cloudflare R2** (API S3, variables
 `R2_*`; sin ellas subir responde 503) y `imagen_articulo.ubicacion_archivo` guarda la clave del
 objeto (`articulos/<id>/<uuid>.<ext>`); la URL se arma con `R2_URL_PUBLICA` al responder. JPEG, PNG
-o WebP reconocidos por su contenido, hasta 5 MB (413), hasta 10 por artículo (409). Rutas, con
+o WebP reconocidos por su contenido, hasta 4 MB (413), hasta 10 por artículo (409). Rutas, con
 `catalogo.gestionar`: `POST` (multipart, campo `imagen`), `GET` y `PUT`
 `/api/catalogo/articulos/:id/imagenes` y `DELETE /api/catalogo/articulos/:id/imagenes/:imagenId`
 (el id del artículo es el del formato). La primera imagen queda principal; `PUT` recibe todas las
@@ -633,13 +633,13 @@ registros de la cuenta (una empresa con sucursales); no hay límite de registros
 facturación puede ser distinto del RUT personal de la cuenta (E1-H5) y no se compara con él.
 Decisiones del 31 oct (E9-H3): `POST /api/pedidos/:codigoPedido/factura` con `facturacion.gestionar`
 (permiso nuevo, solo administrador y vendedor; bodeguero, cliente y profesional reciben 403 y sin
-sesión 401). El equipo lo confirmó el 31 oct, junto con el PDF de hasta 5 MB, la fecha de emisión
+sesión 401). El equipo lo confirmó el 31 oct, junto con el PDF de hasta 4 MB, la fecha de emisión
 opcional, el archivo privado y el estado `emitido`. Es
 `multipart/form-data`: el PDF en el campo `archivo`, el `folio` (entero positivo que cabe en la
 base) y, opcional, la `fechaEmision` (AAAA-MM-DD, no futura; sin ella, hoy en la zona horaria de la
 tienda). El PDF se reconoce por su contenido, no por la extensión. Un código inexistente o mal
 formado, 404; sin PDF, un archivo que no es PDF, folio o fecha inválidos o campos de más, 400; un
-PDF de más de 5 MB, 413; el almacén sin configurar o caído, 503. 409 si el pedido pidió boleta,
+PDF de más de 4 MB, 413; el almacén sin configurar o caído, 503. 409 si el pedido pidió boleta,
 no está pagado (pendiente de pago o cancelado; cualquier estado posterior sirve), ya tiene una
 factura vigente (`id_documento_anulador` nulo) o el folio ya existe entre las facturas. En **una
 transacción** bloquea la fila del pedido (`FOR NO KEY UPDATE`) y crea el `DOCUMENTO_TRIBUTARIO`
@@ -743,7 +743,7 @@ envío: el código de seguimiento y el paso automático a entregado con Chilexpr
 revisión; se guarda el origen: manual, IA o IA editada.
 Decisiones del 2 nov (E4-H1): proveedor **Gemini Flash** (`@google/genai`, modelo en
 `GEMINI_MODELO`, por defecto `gemini-2.5-flash`). Ruta `POST /api/catalogo/descripciones/sugerencia`
-con `catalogo.gestionar`: recibe la foto (JPEG, PNG o WebP hasta 5 MB, campo `imagen`) y devuelve
+con `catalogo.gestionar`: recibe la foto (JPEG, PNG o WebP hasta 4 MB, campo `imagen`) y devuelve
 `{ descripcion, ingredientes }` (`ingredientes` es `null` si la foto no los muestra). No guarda la
 foto ni la sugerencia: aceptarla, editarla y registrar el origen es de E4-H2. Foto ilegible: 422;
 IA caída, sin respuesta en 30 s (un solo intento) o sin `GEMINI_API_KEY`: 503. En ambos casos la
@@ -807,12 +807,12 @@ sobre la solicitud más reciente de la cuenta, que debe estar `pendiente` (la ve
 automática no la aprobó). Pasa a `revision_manual`. **Tipos de documento (propuesta, por confirmar
 con el equipo):** `titulo`, `certificado` (un certificado de curso vale) y `otro`; el inicio de
 actividades ya no se adjunta porque se consulta al SII, y el carnet no se pide. PDF, JPG o PNG de
-hasta 5 MB cada uno, reconocidos por su contenido y no por la extensión. Los archivos se suben
+hasta 4 MB cada uno, reconocidos por su contenido y no por la extensión. Los archivos se suben
 privados a `verificaciones/<cuenta>/<uuid>` antes de la transacción y se borran si la base no
 llega a registrarlos. **409** si la solicitud ya fue aprobada, ya tiene documentos en revisión o fue
 rechazada (hay que enviar una nueva, que vuelve a consultar al SII); **404** si la cuenta nunca
 solicitó; **400** sin documentos, más de 5, formato inválido o tipos que no calzan; **413** sobre
-5 MB. Cada antecedente guarda su hash SHA-256 y `estado_ocr` `no_aplica` (sin OCR, la columna
+4 MB. Cada antecedente guarda su hash SHA-256 y `estado_ocr` `no_aplica` (sin OCR, la columna
 obligatoria queda con ese valor). El motivo por el que se piden documentos (sin inicio de
 actividades, otro giro o consulta no disponible) ya está en `resultado_consulta_sii` de la
 solicitud (E10-H1): el personal lo lee de ahí. La fila de la cuenta se bloquea, como al solicitar:
@@ -1159,3 +1159,10 @@ si no salió ninguno (RNF-03).
 - Sin estado en memoria: varias instancias del backend deben funcionar igual; cada tarea programada
   corre una sola vez (RNF-20) — usa los jobs repetibles de BullMQ, no `setInterval`.
 - Tareas con plazo con ≤ 1 min de atraso (RNF-31).
+- **Subidas de archivos (decisión del 6 nov, SCRUM-150):** cada archivo pesa hasta **4 MB**
+  (imágenes de productos, foto para la sugerencia de descripción, PDF de la factura y cada documento
+  de verificación; 413 con el mensaje en español). Bajó de 5 MB porque las subidas pasan por el
+  proxy de la tienda, y si se despliega en Vercel sus funciones aceptan cuerpos de unos 4,5 MB.
+  **Deuda técnica:** subir directo a R2 con una URL prefirmada (el backend firma y luego confirma
+  la subida). Hasta entonces, el envío de verificación con **varios** documentos en una sola
+  petición (hasta 5 de 4 MB) puede pasar del límite del proxy aunque cada archivo lo cumpla.

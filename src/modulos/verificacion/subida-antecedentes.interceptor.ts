@@ -27,7 +27,7 @@ const Base = FilesInterceptor(CAMPO_ANTECEDENTES, MAXIMO_ANTECEDENTES, {
 });
 
 /**
- * Recibe de 1 a 5 documentos de hasta 5 MB en el campo `archivos`, junto al tipo de cada uno
+ * Recibe de 1 a 5 documentos de hasta 4 MB en el campo `archivos`, junto al tipo de cada uno
  * (E10-H2). Multer corta la subida apenas pasa el tamaño; sus errores, en inglés, se responden en
  * español.
  */
@@ -48,7 +48,7 @@ export class SubidaAntecedentesInterceptor extends Base {
 const traducirError = (error: unknown) => {
   if (error instanceof PayloadTooLargeException) {
     return new PayloadTooLargeException(
-      'Cada documento puede pesar hasta 5 MB.',
+      'Cada documento puede pesar hasta 4 MB.',
     );
   }
   if (error instanceof HttpException && error.getStatus() === 400) {

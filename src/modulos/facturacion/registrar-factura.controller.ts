@@ -62,7 +62,7 @@ export class RegistrarFacturaController {
   @ApiOperation({
     summary: 'Registrar la factura emitida en el SII (E9-H3)',
     description:
-      'Recibe el PDF de la factura en el campo `archivo` (hasta 5 MB, reconocido por su contenido), el `folio` y, opcionalmente, la `fechaEmision` (AAAA-MM-DD, no futura; por defecto hoy). Guarda el documento con los datos del receptor y los montos del pedido tal como están al registrarlo. El pedido debe estar pagado y haber pedido factura; tiene una sola factura y el folio no puede repetirse. El archivo es privado: no se devuelve en la respuesta.',
+      'Recibe el PDF de la factura en el campo `archivo` (hasta 4 MB, reconocido por su contenido), el `folio` y, opcionalmente, la `fechaEmision` (AAAA-MM-DD, no futura; por defecto hoy). Guarda el documento con los datos del receptor y los montos del pedido tal como están al registrarlo. El pedido debe estar pagado y haber pedido factura; tiene una sola factura y el folio no puede repetirse. El archivo es privado: no se devuelve en la respuesta.',
   })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -86,7 +86,7 @@ export class RegistrarFacturaController {
     description:
       'El pedido no pidió factura, no está pagado, ya tiene factura, o el folio ya existe.',
   })
-  @ApiPayloadTooLargeResponse({ description: 'El PDF supera los 5 MB.' })
+  @ApiPayloadTooLargeResponse({ description: 'El PDF supera los 4 MB.' })
   @ApiServiceUnavailableResponse({
     description: 'El almacén de archivos no está configurado o no responde.',
   })

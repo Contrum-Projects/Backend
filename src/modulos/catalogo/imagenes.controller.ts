@@ -61,7 +61,7 @@ export class ImagenesController {
   @ApiOperation({
     summary: 'Subir una imagen a un artículo (E3-H3)',
     description:
-      'Recibe una imagen JPEG, PNG o WebP de hasta 5 MB en el campo `imagen` (el tipo se reconoce por el contenido, no por la extensión). Queda al final del orden; la primera del artículo queda como principal. Un artículo tiene hasta 10 imágenes. El id del artículo es el del formato. Devuelve todas las imágenes del artículo.',
+      'Recibe una imagen JPEG, PNG o WebP de hasta 4 MB en el campo `imagen` (el tipo se reconoce por el contenido, no por la extensión). Queda al final del orden; la primera del artículo queda como principal. Un artículo tiene hasta 10 imágenes. El id del artículo es el del formato. Devuelve todas las imágenes del artículo.',
   })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -75,7 +75,7 @@ export class ImagenesController {
   @ApiBadRequestResponse({
     description: 'Sin imagen, o el archivo no es JPEG, PNG ni WebP.',
   })
-  @ApiPayloadTooLargeResponse({ description: 'La imagen supera los 5 MB.' })
+  @ApiPayloadTooLargeResponse({ description: 'La imagen supera los 4 MB.' })
   @ApiConflictResponse({ description: 'El artículo ya tiene 10 imágenes.' })
   @ApiServiceUnavailableResponse({
     description: 'El almacenamiento de archivos no está configurado.',

@@ -211,8 +211,8 @@ describe('DocumentosVerificacionService', () => {
     expect(almacen.guardar).not.toHaveBeenCalled();
   });
 
-  it('E10-H2 · documento de más de 5 MB: responde 400 sin subir nada', async () => {
-    const grande = { ...pdf(), size: 5 * 1024 * 1024 + 1 };
+  it('E10-H2 · documento de más de 4 MB: responde 400 sin subir nada', async () => {
+    const grande = { ...pdf(), size: 4 * 1024 * 1024 + 1 };
 
     await expect(adjuntar(['titulo'], [grande])).rejects.toThrow(
       new BadRequestException(DOCUMENTO_MUY_GRANDE),

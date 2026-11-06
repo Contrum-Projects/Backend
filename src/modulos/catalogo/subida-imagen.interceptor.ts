@@ -19,7 +19,7 @@ const Base = FileInterceptor(CAMPO_IMAGEN, {
 });
 
 /**
- * Recibe una sola imagen de hasta 5 MB en el campo `imagen` (E3-H3). Multer corta la subida
+ * Recibe una sola imagen de hasta 4 MB en el campo `imagen` (E3-H3). Multer corta la subida
  * apenas pasa el tamaño; sus errores, en inglés, se responden en español.
  */
 @Injectable()
@@ -38,7 +38,7 @@ export class SubidaImagenInterceptor extends Base {
 
 const traducirError = (error: unknown) => {
   if (error instanceof PayloadTooLargeException) {
-    return new PayloadTooLargeException('La imagen no puede superar los 5 MB.');
+    return new PayloadTooLargeException('La imagen no puede superar los 4 MB.');
   }
   if (error instanceof HttpException && error.getStatus() === 400) {
     return new BadRequestException(
