@@ -372,6 +372,9 @@ tipo y número) no se registra dos veces: 409 por un índice único nuevo en `en
 (cambio al MER). Si la suma pasaría el máximo de `existencia.cantidad` (int4), 400 sin cambios. Un formato desactivado sí se puede recibir. En una
 transacción: entrada + detalle, stock sumado con `INSERT ... ON CONFLICT` en EXISTENCIA y un
 movimiento `TIPOS_MOVIMIENTO.ENTRADA` por formato con `id_entrada` y ubicación de destino.
+Ubicaciones (SCRUM-150, 6 nov): `GET /api/inventario/ubicaciones` con `inventario.consultar`
+lista las ubicaciones activas de bodegas activas (`[{ id, codigo, bodega: { id, nombre } }]`,
+por bodega y código): el destino de entradas, ajustes y transferencias y el filtro por bodega.
 PENDIENTE: ninguna historia crea bodegas ni ubicaciones (ni las comunas que la bodega exige).
 Decisiones del 25 oct (E11-H3): `POST /api/inventario/salidas` con `inventario.registrar`. Una
 salida es de **un formato en una ubicación**, con tipo (`TIPOS_SALIDA`: `merma_vencimiento`,
