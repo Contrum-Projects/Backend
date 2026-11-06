@@ -362,6 +362,28 @@ describe('ContenidoCorreosService', () => {
       );
     });
 
+    it('E12-H6 · CA1 apertura y clic: el saludo de cumpleaños lleva la imagen y su botón a la tienda pasa por el seguimiento', async () => {
+      const { servicio } = conSeguimiento();
+
+      const { html } = await servicio.construir(
+        TRABAJOS_CORREO.CUMPLEANOS,
+        {
+          notificacionId: 30,
+          destinatario: 'camila@correo.cl',
+          nombre: 'Camila',
+        },
+        { asunto: '¡Feliz cumpleaños!', pedidoId: null, usuarioId: 20 },
+      );
+
+      expect(html).toContain('<img src="https://api.tienda.cl/apertura/9"');
+      expect(html).toContain(
+        'https://api.tienda.cl/clic/30?destino=https://tienda.cl/catalogo',
+      );
+      expect(html).toContain(
+        'href="https://tienda.cl/suscripcion/baja?token=firma-camila@correo.cl"',
+      );
+    });
+
     it('E12-H6 · un correo que no es publicidad no lleva seguimiento', async () => {
       const { servicio, seguimiento } = conSeguimiento();
 

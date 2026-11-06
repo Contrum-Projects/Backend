@@ -23,6 +23,8 @@ interface DatosCumpleanos {
   /** Enlace firmado de baja (RNF-26). */
   enlaceBaja: string;
   enlacesPie: EnlacesPie;
+  /** Imagen de apertura (E12-H6). */
+  seguimiento?: string | null;
 }
 
 /** Encabezado del recuadro de la oferta. PROPUESTA por confirmar con el equipo. */
@@ -42,6 +44,7 @@ export const correoCumpleanos = ({
   urlCatalogo,
   enlaceBaja,
   enlacesPie,
+  seguimiento,
 }: DatosCumpleanos): CorreoRenderizado => {
   const saludo = `Hola, ${nombre}:`;
   const parrafos = parrafosDe(cuerpo);
@@ -62,6 +65,7 @@ export const correoCumpleanos = ({
       pie,
       enlaces: enlacesPie,
       baja: enlaceBaja,
+      seguimiento,
     }),
     texto: textoPlano(
       asunto,

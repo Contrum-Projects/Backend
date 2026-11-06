@@ -287,7 +287,7 @@ export class ContenidoCorreosService {
    * oferta. El asunto es el guardado en la NOTIFICACION.
    */
   private async cumpleanos(
-    { nombre, destinatario }: TrabajoCumpleanos,
+    { notificacionId, nombre, destinatario }: TrabajoCumpleanos,
     { asunto }: NotificacionACorreo,
   ): Promise<CorreoRenderizado> {
     const configurado = await this.prisma.campana.findFirst({
@@ -302,9 +302,13 @@ export class ContenidoCorreosService {
       oferta: configurado
         ? ofertaDelCorreo(leerOferta(configurado.segmento))
         : null,
-      urlCatalogo: this.rutas.catalogo,
+      urlCatalogo: this.seguimiento.enlaceClic(
+        notificacionId,
+        this.rutas.catalogo,
+      ),
       enlaceBaja: this.firmaBaja.enlace(destinatario),
-      enlacesPie: this.rutas.pie,
+      enlacesPie: this.pieConSeguimiento(notificacionId),
+      seguimiento: this.seguimiento.enlaceApertura(notificacionId),
     });
   }
 

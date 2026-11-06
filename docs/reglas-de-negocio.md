@@ -976,7 +976,8 @@ pasa al enviar, queda `cancelada`). El correo nombra hasta 5 artículos con su c
 frontend: `/carrito`) y el enlace de baja firmado (`FirmaBaja`, RNF-26). Texto PROPUESTA por
 confirmar con el equipo.
 Decisiones del 5 nov (E12-H6, SCRUM-73): **seguimiento propio, solo en la publicidad** (correos de
-campaña y tipos de `TIPOS_NOTIFICACION_PUBLICIDAD`). No se usa el de Resend, que se activa por
+campaña y tipos de `TIPOS_NOTIFICACION_PUBLICIDAD`: recordatorio de carrito y saludo de
+cumpleaños). No se usa el de Resend, que se activa por
 dominio y reescribiría también los enlaces con token de los correos de cuenta (RNF-08). Cada
 correo publicitario lleva una imagen invisible
 `GET /api/marketing/seguimiento/apertura/:token` y sus enlaces pasan por
