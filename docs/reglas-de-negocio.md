@@ -1115,6 +1115,29 @@ productos con `fecha_creacion` en el período, cuántos tienen `origen_descripci
 desactivaron** (decisión del 5 nov: OE3 mide cómo se hizo la descripción al crearlo, y eso no cambia
 al desactivarlo). Se calcula al consultar, una consulta
 agregada por indicador, sin caché. Sin cambios al MER.
+Decisiones del 6 nov (E14-H3, SCRUM-76): dos rutas con `reportes.ver` (401 sin sesión, 403 sin el
+permiso). **Carritos:** `GET /api/reportes/carritos-abandonados?desde=AAAA-MM&hasta=AAAA-MM`, ambos
+meses obligatorios e incluidos, en hora de Chile; **400** si un mes no es válido (AAAA-MM, años
+1900 a 2099: PostgreSQL no tiene año 0, auditoría del 6 nov), si `hasta` es
+anterior a `desde` o si el período pasa de **24 meses**. Responde `meses` (cada uno con `mes`,
+`abandonados` y `recuperados`, en cero si no hubo) y `total`. Un **abandono es una serie de
+recordatorios** de E12-H4 y cuenta en el mes de su primer recordatorio, en cualquier estado del
+correo (el carrito se abandonó aunque el correo quedara cancelado o fallido). Como la NOTIFICACION
+no guarda su serie, se deduce de la regla de E12-H4: un recordatorio abre serie si es de otra
+semana (lunes a domingo, hora de Chile) que el inicio de la serie anterior y salió **95 h o más**
+después de él (`DURACION_MAXIMA_SERIE_HORAS`: ningún recordatorio sale pasadas 96 h del último
+cambio, y el primero sale 1 h después). Se acepta un caso que se cuenta como una sola serie: una
+que empezó el fin de semana y otra que empezó el lunes siguiente dentro de esas 95 h porque el
+cliente volvió a cambiar el carrito. Un abandono está **recuperado** si la misma cuenta hizo un
+pedido pagado (todo estado salvo `ESTADOS_SIN_VENTA`) después del primer recordatorio, dentro de
+**7 días** (`DIAS_PARA_RECUPERAR`) y antes de que empiece su serie siguiente; cuenta en el mes del
+abandono. **Campañas:** `GET /api/reportes/campanas/:id` responde `{ id, tipo, asunto, fechaEnvio,
+envios }` con `total`, `pendientes`, `enviados`, `abiertos`, `clics`, `rebotados`, `cancelados` y
+`fallidos`. Los estados no se solapan (cada correo está en uno, como en el detalle de la campaña);
+`abiertos` y `clics` cuentan los correos con `fecha_apertura` o `fecha_clic` (E12-H6). Sirve para
+las campañas de envío único y para el saludo de cumpleaños (sin `fechaEnvio`); un borrador sin
+enviar responde **409** y una campaña inexistente, 404. Ambos se calculan al consultar, sin caché.
+`ESTADOS_SIN_VENTA` pasó a `common/dominio/valores.ts`. Sin cambios al MER.
 
 ## Rendimiento y operación
 
