@@ -1,16 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { ESTADOS_PEDIDO, TIPOS_PRECIO } from '../../common/dominio/valores.js';
+import {
+  ESTADOS_SIN_VENTA,
+  TIPOS_PRECIO,
+} from '../../common/dominio/valores.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { validarPeriodo } from './periodo-reporte.js';
-
-/**
- * Un pedido es venta desde que se paga (decisión del 4 nov 2026): quedan fuera los que esperan el
- * pago y los cancelados. Un pedido pagado ya no se cancela (E8-H3).
- */
-export const ESTADOS_SIN_VENTA: readonly string[] = [
-  ESTADOS_PEDIDO.PENDIENTE_PAGO,
-  ESTADOS_PEDIDO.CANCELADO,
-];
 
 export interface TotalesVentas {
   pedidos: number;

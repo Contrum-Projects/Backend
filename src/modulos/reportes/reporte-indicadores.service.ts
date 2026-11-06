@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import {
+  ESTADOS_SIN_VENTA,
   ESTADOS_SOLICITUD,
   ORIGENES_DESCRIPCION,
 } from '../../common/dominio/valores.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { validarPeriodo } from './periodo-reporte.js';
-import { ESTADOS_SIN_VENTA } from './reporte-ventas.service.js';
 
 /** Objetivos específicos del proyecto y su meta en porcentaje (E14-H1, RF-14.01 a RF-14.03). */
 export const OBJETIVOS = {

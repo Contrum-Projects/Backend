@@ -1,5 +1,5 @@
 import type { Prisma } from '../../generated/prisma/client.js';
-import { ESTADOS_SIN_VENTA } from '../reportes/reporte-ventas.service.js';
+import { ESTADOS_SIN_VENTA } from '../../common/dominio/valores.js';
 import {
   type CuentaDestinataria,
   type Destinatarios,
