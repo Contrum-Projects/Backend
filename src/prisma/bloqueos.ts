@@ -21,6 +21,8 @@ export const CANDADOS = {
   MARCAS: 3401,
   /** Estructura del árbol de categorías, sin ciclos (E3-H4). */
   CATEGORIAS: 3402,
+  /** Una sola configuración del saludo de cumpleaños (fila CAMPANA `cumpleanos`, E12-H5). */
+  SALUDO_CUMPLEANOS: 1205,
 } as const;
 
 export type Candado = (typeof CANDADOS)[keyof typeof CANDADOS];
