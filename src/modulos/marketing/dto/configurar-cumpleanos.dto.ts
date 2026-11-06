@@ -20,6 +20,7 @@ export class OfertaCumpleanosDto {
   activa: boolean;
 
   @ApiPropertyOptional({
+    type: String,
     example:
       '20 % de descuento en toda la tienda durante tu semana de cumpleaños.',
     maxLength: MAXIMO_TEXTO_OFERTA,
