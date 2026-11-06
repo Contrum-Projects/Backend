@@ -11,8 +11,12 @@ import { CarritosAbandonadosProcessor } from './carritos-abandonados.processor.j
 import { CarritosAbandonadosService } from './carritos-abandonados.service.js';
 import { ConsentimientoController } from './consentimiento.controller.js';
 import { ConsentimientoService } from './consentimiento.service.js';
+import { CumpleanosController } from './cumpleanos.controller.js';
+import { CumpleanosService } from './cumpleanos.service.js';
 import { FirmaBaja } from './firma-baja.js';
 import { FirmaSuscripcion } from './firma-suscripcion.js';
+import { SaludosCumpleanosProcessor } from './saludos-cumpleanos.processor.js';
+import { SaludosCumpleanosService } from './saludos-cumpleanos.service.js';
 import { SuscripcionesController } from './suscripciones.controller.js';
 import { SuscripcionesService } from './suscripciones.service.js';
 
@@ -22,6 +26,7 @@ import { SuscripcionesService } from './suscripciones.service.js';
     BullModule.registerQueue(
       { name: COLAS.CORREOS },
       { name: COLAS.CARRITOS_ABANDONADOS },
+      { name: COLAS.CUMPLEANOS },
     ),
     // Qué artículos del carrito siguen a la venta para la cuenta (E12-H4, RNF-04)
     CarritoModule,
@@ -31,6 +36,7 @@ import { SuscripcionesService } from './suscripciones.service.js';
     BajasController,
     ConsentimientoController,
     CampanasController,
+    CumpleanosController,
   ],
   providers: [
     CampanasService,
@@ -42,6 +48,9 @@ import { SuscripcionesService } from './suscripciones.service.js';
     FirmaBaja,
     CarritosAbandonadosService,
     CarritosAbandonadosProcessor,
+    CumpleanosService,
+    SaludosCumpleanosService,
+    SaludosCumpleanosProcessor,
   ],
   exports: [FirmaSuscripcion, FirmaBaja],
 })

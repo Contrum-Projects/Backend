@@ -473,6 +473,25 @@ describe('RevisionCorreosService', () => {
     },
   );
 
+  it('E12-H5 · RNF-29 · el saludo de cumpleaños pendiente se reencola con prioridad de publicidad; el consentimiento y el día se revisan al enviar', async () => {
+    prisma.notificacion.findMany.mockResolvedValue([
+      pendiente(TIPOS_NOTIFICACION.CUMPLEANOS, {
+        usuario: { ...USUARIO, rol: 'cliente' },
+      }),
+    ]);
+
+    await servicio.revisarPendientes();
+
+    const [nombre, datos, opciones] = correoEncolado();
+    expect(nombre).toBe(TRABAJOS_CORREO.CUMPLEANOS);
+    expect(opciones).toMatchObject({ jobId: 'correo-7', priority: 10 });
+    expect(datos).toEqual({
+      notificacionId: 7,
+      destinatario: USUARIO.email,
+      nombre: USUARIO.nombre,
+    });
+  });
+
   it('E12-H3 · un correo de campaña pendiente sin cuenta ni suscriptor queda fallido', async () => {
     prisma.notificacion.findMany.mockResolvedValue([
       pendiente(TIPOS_NOTIFICACION.CAMPANA, { usuario: null, lead: null }),

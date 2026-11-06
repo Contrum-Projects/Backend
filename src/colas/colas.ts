@@ -39,6 +39,11 @@ export const COLAS = {
    * `plazos`: borrar en R2 puede tardar y no debe atrasar la cancelación por impago (RNF-31).
    */
   LIMPIEZA_VERIFICACIONES: 'limpieza-verificaciones',
+  /**
+   * Saludos de cumpleaños (E12-H5). Va aparte por lo mismo que los carritos abandonados: un worker
+   * toma cualquier trabajo de su cola, y esta tarea vive en otro módulo.
+   */
+  CUMPLEANOS: 'cumpleanos',
 } as const;
 
 /** Nombres de los trabajos de la cola de correos. */
@@ -64,6 +69,8 @@ export const TRABAJOS_CORREO = {
   RECORDATORIO_CARRITO: 'recordatorio-carrito',
   /** Correo de una campaña, que es publicidad (E12-H3). */
   CAMPANA: 'campana',
+  /** Saludo de cumpleaños, que es publicidad (E12-H5). */
+  CUMPLEANOS: 'cumpleanos',
   /** Tarea repetible: reencola los correos pendientes si Redis se cayó o se vació (RNF-29). */
   REVISAR_PENDIENTES: 'revisar-pendientes',
 } as const;
@@ -91,6 +98,12 @@ export const TRABAJOS_SEGUIMIENTO = {
 export const TRABAJOS_CARRITO_ABANDONADO = {
   /** Tarea repetible: envía los recordatorios que ya vencieron (E12-H4). */
   RECORDAR: 'recordar-carritos',
+} as const;
+
+/** Nombres de los trabajos de la cola de cumpleaños. */
+export const TRABAJOS_CUMPLEANOS = {
+  /** Tarea repetible: envía los saludos de cumpleaños del día (E12-H5). */
+  SALUDAR: 'saludar-cumpleanos',
 } as const;
 
 /** Nombres de los trabajos de la cola de limpieza de verificaciones. */
@@ -210,6 +223,16 @@ export interface TrabajoCampana {
   destinatario: string;
 }
 
+/**
+ * Datos del saludo de cumpleaños (E12-H5). El saludo y la oferta no viajan en el trabajo: se leen
+ * de CAMPANA al enviar, así un correo reencolado sale igual y el texto no queda en Redis (RNF-29).
+ */
+export interface TrabajoCumpleanos {
+  notificacionId: number;
+  destinatario: string;
+  nombre: string;
+}
+
 /** Lo que puede traer un trabajo de envío de la cola de correos. */
 export type TrabajoCorreo =
   | TrabajoCorreoConEnlace
@@ -221,7 +244,8 @@ export type TrabajoCorreo =
   | TrabajoRolProfesionalRetirado
   | TrabajoConfirmacionSuscripcion
   | TrabajoRecordatorioCarrito
-  | TrabajoCampana;
+  | TrabajoCampana
+  | TrabajoCumpleanos;
 
 /**
  * Prioridad de los correos (RNF-16): en BullMQ, número menor = sale antes.

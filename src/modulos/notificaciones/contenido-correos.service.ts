@@ -7,6 +7,7 @@ import {
   type TrabajoConfirmacionSuscripcion,
   type TrabajoCorreo,
   type TrabajoCorreoConEnlace,
+  type TrabajoCumpleanos,
   type TrabajoPagoConfirmado,
   type TrabajoRecordatorioCarrito,
   type TrabajoRolProfesionalRetirado,
@@ -17,6 +18,7 @@ import { precioConIva } from '../../common/dominio/montos.js';
 import { type Rol, ROLES } from '../../common/dominio/roles.js';
 import {
   ESTADOS_PEDIDO,
+  TIPOS_CAMPANA,
   TIPOS_ENTREGA,
   TIPOS_MOVIMIENTO,
 } from '../../common/dominio/valores.js';
@@ -24,6 +26,11 @@ import type { Entorno } from '../../config/entorno.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { CarritoService } from '../carrito/carrito.service.js';
 import { FirmaBaja } from '../marketing/firma-baja.js';
+import {
+  leerOferta,
+  ofertaDelCorreo,
+  SALUDO_POR_DEFECTO,
+} from '../marketing/saludo-cumpleanos.js';
 import {
   type CorreoRenderizado,
   fechaConHora,
@@ -49,6 +56,7 @@ import {
   correoStockBajoRecuperado,
 } from './plantillas/stock-bajo.js';
 import { correoCampana } from './plantillas/campana.js';
+import { correoCumpleanos } from './plantillas/cumpleanos.js';
 import { correoRecordatorioCarrito } from './plantillas/carrito.js';
 import { correoConfirmacionSuscripcion } from './plantillas/suscripcion.js';
 
@@ -165,6 +173,8 @@ export class ContenidoCorreosService {
         );
       case TRABAJOS_CORREO.CAMPANA:
         return this.campana(datos as TrabajoCampana, notificacion);
+      case TRABAJOS_CORREO.CUMPLEANOS:
+        return this.cumpleanos(datos as TrabajoCumpleanos, notificacion);
       default:
         throw new Error(`Trabajo de correo desconocido: ${trabajo}`);
     }
@@ -249,6 +259,33 @@ export class ContenidoCorreosService {
     return correoCampana({
       asunto,
       cuerpo: campana.cuerpo,
+      enlaceBaja: this.firmaBaja.enlace(destinatario),
+      enlacesPie: this.rutas.pie,
+    });
+  }
+
+  /**
+   * E12-H5 · El saludo y la oferta se leen de la configuración al enviar (no viajan en Redis): la
+   * oferta va si está activa en ese momento (CA2). Sin configurar, sale el saludo por defecto, sin
+   * oferta. El asunto es el guardado en la NOTIFICACION.
+   */
+  private async cumpleanos(
+    { nombre, destinatario }: TrabajoCumpleanos,
+    { asunto }: NotificacionACorreo,
+  ): Promise<CorreoRenderizado> {
+    const configurado = await this.prisma.campana.findFirst({
+      where: { tipo: TIPOS_CAMPANA.CUMPLEANOS },
+      orderBy: { id: 'asc' },
+      select: { cuerpo: true, segmento: true },
+    });
+    return correoCumpleanos({
+      asunto,
+      nombre,
+      cuerpo: configurado?.cuerpo ?? SALUDO_POR_DEFECTO.cuerpo,
+      oferta: configurado
+        ? ofertaDelCorreo(leerOferta(configurado.segmento))
+        : null,
+      urlCatalogo: this.rutas.catalogo,
       enlaceBaja: this.firmaBaja.enlace(destinatario),
       enlacesPie: this.rutas.pie,
     });

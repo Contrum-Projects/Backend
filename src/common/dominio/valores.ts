@@ -262,6 +262,11 @@ export const TIPOS_NOTIFICACION = {
   RECORDATORIO_CARRITO: 'recordatorio_carrito',
   /** E12-H3, decisión del 5 de noviembre de 2026: correo de una campaña (lleva `id_campana`). */
   CAMPANA: 'campana',
+  /**
+   * E12-H5, decisión del 5 de noviembre de 2026: saludo de cumpleaños (RF-12.10), con la oferta si
+   * está activa (RF-12.11). Lleva `id_campana` si el saludo ya se configuró.
+   */
+  CUMPLEANOS: 'cumpleanos',
 } as const;
 
 /**
@@ -272,6 +277,7 @@ export const TIPOS_NOTIFICACION = {
  */
 export const TIPOS_NOTIFICACION_PUBLICIDAD: readonly string[] = [
   TIPOS_NOTIFICACION.RECORDATORIO_CARRITO,
+  TIPOS_NOTIFICACION.CUMPLEANOS,
 ];
 
 /**
