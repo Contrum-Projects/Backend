@@ -13,6 +13,7 @@ import type { CrearProductoDto } from './dto/crear-producto.dto.js';
 import type { ListarProductosDto } from './dto/listar-productos.dto.js';
 import type { SugerenciaUsadaDto } from './dto/sugerencia-usada.dto.js';
 import { FirmaSugerencia } from './firma-sugerencia.js';
+import { errorDeCampo } from '../../common/errores/error-de-campo.js';
 
 /** Lo que el panel necesita ver de un producto: sus datos y el nombre de su marca y categoría. */
 const INCLUIR = {
@@ -199,7 +200,11 @@ export class ProductosService {
       select: { id: true },
     });
     if (!categoria) {
-      throw new NotFoundException('La categoría no existe.');
+      throw errorDeCampo(
+        NotFoundException,
+        'La categoría no existe.',
+        'categoriaId',
+      );
     }
   }
 
@@ -209,10 +214,14 @@ export class ProductosService {
       select: { activa: true },
     });
     if (!marca) {
-      throw new NotFoundException('La marca no existe.');
+      throw errorDeCampo(NotFoundException, 'La marca no existe.', 'marcaId');
     }
     if (!marca.activa) {
-      throw new BadRequestException('La marca está desactivada.');
+      throw errorDeCampo(
+        BadRequestException,
+        'La marca está desactivada.',
+        'marcaId',
+      );
     }
   }
 }

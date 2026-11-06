@@ -4,6 +4,7 @@ import type { PrismaService } from '../../prisma/prisma.service.js';
 import { AjustesService } from './ajustes.service.js';
 import type { CrearAjusteDto } from './dto/crear-ajuste.dto.js';
 import type { StockBajoService } from './stock-bajo.service.js';
+import { errorDeCampo } from '../../common/errores/error-de-campo.js';
 
 const FECHA = new Date('2026-10-25T15:00:00Z');
 
@@ -139,8 +140,10 @@ describe('AjustesService', () => {
     prisma.tx.existencia.findUnique.mockResolvedValue({ cantidad: 1 });
 
     await expect(servicio.registrar(dtoBase(-2), 'uuid')).rejects.toThrow(
-      new BadRequestException(
+      errorDeCampo(
+        BadRequestException,
         'No hay stock suficiente en esa ubicación: hay 1 y el ajuste es de 2.',
+        'cantidad',
       ),
     );
     expect(prisma.tx.movimientoInventario.create).not.toHaveBeenCalled();

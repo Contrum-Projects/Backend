@@ -9,6 +9,7 @@ import type { Entorno } from '../../config/entorno.js';
 import type { PrismaService } from '../../prisma/prisma.service.js';
 import type { CrearFormatoDto } from './dto/crear-formato.dto.js';
 import { FormatosService } from './formatos.service.js';
+import { errorDeCampo } from '../../common/errores/error-de-campo.js';
 
 const fila = (extra: object = {}) => ({
   id: 11,
@@ -209,8 +210,10 @@ describe('FormatosService', () => {
       prisma.formatoProducto.findFirst.mockResolvedValue({ id: 4 });
 
       await expect(servicio.crear(5, datosNuevos())).rejects.toThrow(
-        new ConflictException(
+        errorDeCampo(
+          ConflictException,
           'El código de barras ya pertenece a otro artículo.',
+          'codigoBarras',
         ),
       );
       expect(prisma.articuloVenta.create).not.toHaveBeenCalled();
@@ -233,7 +236,11 @@ describe('FormatosService', () => {
         .mockResolvedValueOnce({ id: 3 });
 
       await expect(servicio.crear(5, datosNuevos())).rejects.toThrow(
-        new ConflictException('El SKU ya pertenece a otro artículo.'),
+        errorDeCampo(
+          ConflictException,
+          'El SKU ya pertenece a otro artículo.',
+          'sku',
+        ),
       );
     });
 

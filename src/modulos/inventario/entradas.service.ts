@@ -15,6 +15,7 @@ import { PrismaService } from '../../prisma/prisma.service.js';
 import { type UbicacionResumen, ubicacionDe } from './comprobaciones.js';
 import type { CrearEntradaDto } from './dto/crear-entrada.dto.js';
 import { sumarExistencia } from './existencias.js';
+import { errorDeCampo } from '../../common/errores/error-de-campo.js';
 
 type Tx = Prisma.TransactionClient;
 type TipoDocumentoProveedor = Valor<typeof TIPOS_DOCUMENTO_PROVEEDOR>;
@@ -143,11 +144,17 @@ export class EntradasService {
       select: { id: true, rut: true, razonSocial: true, activo: true },
     });
     if (!proveedor) {
-      throw new BadRequestException('El proveedor no existe.');
+      throw errorDeCampo(
+        BadRequestException,
+        'El proveedor no existe.',
+        'proveedorId',
+      );
     }
     if (!proveedor.activo) {
-      throw new BadRequestException(
+      throw errorDeCampo(
+        BadRequestException,
         'El proveedor está desactivado: no se le pueden registrar entradas.',
+        'proveedorId',
       );
     }
     return {
@@ -209,8 +216,10 @@ export class EntradasService {
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
-        throw new ConflictException(
+        throw errorDeCampo(
+          ConflictException,
           'Ya hay una entrada registrada con ese documento del proveedor.',
+          'numeroDocumento',
         );
       }
       throw error;

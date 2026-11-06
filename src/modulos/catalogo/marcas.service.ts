@@ -3,6 +3,7 @@ import { CANDADOS, tomarCandado } from '../../prisma/bloqueos.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { CacheCatalogo, CLAVES_CACHE } from './cache-catalogo.js';
 import type { CrearMarcaDto } from './dto/crear-marca.dto.js';
+import { errorDeCampo } from '../../common/errores/error-de-campo.js';
 
 @Injectable()
 export class MarcasService {
@@ -29,7 +30,11 @@ export class MarcasService {
         select: { id: true },
       });
       if (repetida) {
-        throw new ConflictException('Ya existe una marca con ese nombre.');
+        throw errorDeCampo(
+          ConflictException,
+          'Ya existe una marca con ese nombre.',
+          'nombre',
+        );
       }
       return tx.marca.create({ data: { nombre: dto.nombre } });
     });

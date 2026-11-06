@@ -29,6 +29,7 @@ import {
   TAMANO_MAXIMO_ANTECEDENTE_BYTES,
   type TipoArchivoAntecedente,
 } from './tipo-archivo-antecedente.js';
+import { errorDeCampo } from '../../common/errores/error-de-campo.js';
 
 export const SIN_ARCHIVOS = `Adjunta de 1 a ${MAXIMO_ANTECEDENTES} documentos en el campo «archivos».`;
 export const TIPOS_NO_COINCIDEN =
@@ -199,17 +200,22 @@ const revisarDocumentos = (
   tipos: string[],
 ): DocumentoRevisado[] => {
   if (archivos.length < 1 || archivos.length > MAXIMO_ANTECEDENTES) {
-    throw new BadRequestException(SIN_ARCHIVOS);
+    throw errorDeCampo(BadRequestException, SIN_ARCHIVOS, 'archivos');
   }
   if (tipos.length !== archivos.length) {
-    throw new BadRequestException(TIPOS_NO_COINCIDEN);
+    throw errorDeCampo(BadRequestException, TIPOS_NO_COINCIDEN, 'tipos');
   }
   return archivos.map((archivo, indice) => {
     if (archivo.size > TAMANO_MAXIMO_ANTECEDENTE_BYTES) {
-      throw new BadRequestException(DOCUMENTO_MUY_GRANDE);
+      throw errorDeCampo(BadRequestException, DOCUMENTO_MUY_GRANDE, 'archivos');
     }
     const formato = detectarTipoAntecedente(archivo.buffer);
-    if (!formato) throw new BadRequestException(documentoNoValido(indice + 1));
+    if (!formato)
+      throw errorDeCampo(
+        BadRequestException,
+        documentoNoValido(indice + 1),
+        'archivos',
+      );
     return {
       contenido: archivo.buffer,
       tipo: tipos[indice],

@@ -15,6 +15,7 @@ import type { PrismaService } from '../../prisma/prisma.service.js';
 import { CuentasService } from './cuentas.service.js';
 import type { RegistrarCuentaDto } from './dto/registrar-cuenta.dto.js';
 import { hashearTokenCorreo } from './tokens.js';
+import { errorDeCampo } from '../../common/errores/error-de-campo.js';
 
 const crearPrisma = () => {
   const tx = {
@@ -171,7 +172,11 @@ describe('CuentasService', () => {
         { email: 'camila@correo.cl', rut: null },
       ]);
       await expect(servicio.registrar(dtoBase())).rejects.toThrow(
-        new ConflictException('El correo ya está registrado.'),
+        errorDeCampo(
+          ConflictException,
+          'El correo ya está registrado.',
+          'email',
+        ),
       );
       expect(prisma.$transaction).not.toHaveBeenCalled();
       expect(correos.add).not.toHaveBeenCalled();
@@ -182,7 +187,7 @@ describe('CuentasService', () => {
         { email: 'otra@correo.cl', rut: '12345678-5' },
       ]);
       await expect(servicio.registrar(dtoBase())).rejects.toThrow(
-        new ConflictException('El RUT ya está registrado.'),
+        errorDeCampo(ConflictException, 'El RUT ya está registrado.', 'rut'),
       );
       expect(prisma.$transaction).not.toHaveBeenCalled();
     });
@@ -192,7 +197,12 @@ describe('CuentasService', () => {
         { email: 'camila@correo.cl', rut: '12345678-5' },
       ]);
       await expect(servicio.registrar(dtoBase())).rejects.toThrow(
-        new ConflictException('El correo y el RUT ya están registrados.'),
+        errorDeCampo(
+          ConflictException,
+          'El correo y el RUT ya están registrados.',
+          'email',
+          'rut',
+        ),
       );
     });
 
@@ -208,7 +218,11 @@ describe('CuentasService', () => {
         .mockResolvedValueOnce([{ email: 'camila@correo.cl', rut: null }]);
 
       await expect(servicio.registrar(dtoBase())).rejects.toThrow(
-        new ConflictException('El correo ya está registrado.'),
+        errorDeCampo(
+          ConflictException,
+          'El correo ya está registrado.',
+          'email',
+        ),
       );
       expect(correos.add).not.toHaveBeenCalled();
     });

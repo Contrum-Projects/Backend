@@ -28,6 +28,7 @@ import type { Mensaje } from '../cuentas/cuentas.service.js';
 import { generarTokenCorreo, hashearTokenCorreo } from '../cuentas/tokens.js';
 import type { AceptarInvitacionDto } from './dto/aceptar-invitacion.dto.js';
 import type { CrearPersonalDto } from './dto/crear-personal.dto.js';
+import { errorDeCampo } from '../../common/errores/error-de-campo.js';
 
 const ASUNTO_INVITACION = 'Te invitamos al panel de Cabello Perfecto';
 const ENLACE_INVALIDO = 'El enlace de invitación no es válido o ya venció.';
@@ -139,7 +140,11 @@ export class PersonalService {
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
-        throw new ConflictException('El correo ya está registrado.');
+        throw errorDeCampo(
+          ConflictException,
+          'El correo ya está registrado.',
+          'email',
+        );
       }
       throw error;
     }
@@ -180,7 +185,11 @@ export class PersonalService {
    */
   async aceptarInvitacion(dto: AceptarInvitacionDto): Promise<Mensaje> {
     if (dto.contrasena !== dto.confirmacionContrasena) {
-      throw new BadRequestException('Las contraseñas no coinciden.');
+      throw errorDeCampo(
+        BadRequestException,
+        'Las contraseñas no coinciden.',
+        'confirmacionContrasena',
+      );
     }
     // Primero el token (barato): un token inventado no gasta un hash de argon2
     const registro = await this.prisma.tokenCorreo.findUnique({
@@ -304,7 +313,12 @@ export class PersonalService {
       where: { email },
       select: { id: true },
     });
-    if (existente) throw new ConflictException('El correo ya está registrado.');
+    if (existente)
+      throw errorDeCampo(
+        ConflictException,
+        'El correo ya está registrado.',
+        'email',
+      );
   }
 
   /** Token de la invitación + NOTIFICACION pendiente, dentro de la transacción. */

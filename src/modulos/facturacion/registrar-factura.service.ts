@@ -20,6 +20,7 @@ import { PrismaService } from '../../prisma/prisma.service.js';
 import { PEDIDO_NO_EXISTE } from '../pedidos/codigo-pedido.pipe.js';
 import type { RegistrarFacturaDto } from './dto/registrar-factura.dto.js';
 import { esPdf, TAMANO_MAXIMO_FACTURA_BYTES } from './tipo-archivo-factura.js';
+import { errorDeCampo } from '../../common/errores/error-de-campo.js';
 
 export const SIN_ARCHIVO =
   'Adjunta el PDF de la factura en el campo «archivo».';
@@ -88,14 +89,17 @@ export class RegistrarFacturaService {
     dto: RegistrarFacturaDto,
     archivo: ArchivoSubido | undefined,
   ): Promise<FacturaRegistrada> {
-    if (!archivo) throw new BadRequestException(SIN_ARCHIVO);
+    if (!archivo)
+      throw errorDeCampo(BadRequestException, SIN_ARCHIVO, 'archivo');
     if (archivo.size > TAMANO_MAXIMO_FACTURA_BYTES) {
-      throw new BadRequestException(FACTURA_MUY_GRANDE);
+      throw errorDeCampo(BadRequestException, FACTURA_MUY_GRANDE, 'archivo');
     }
-    if (!esPdf(archivo.buffer)) throw new BadRequestException(NO_ES_PDF);
+    if (!esPdf(archivo.buffer))
+      throw errorDeCampo(BadRequestException, NO_ES_PDF, 'archivo');
     const hoy = hoyEnLaTienda();
     const fechaEmision = dto.fechaEmision ?? hoy;
-    if (fechaEmision > hoy) throw new BadRequestException(FECHA_FUTURA);
+    if (fechaEmision > hoy)
+      throw errorDeCampo(BadRequestException, FECHA_FUTURA, 'fechaEmision');
 
     // Revisión previa para no subir un archivo que no se va a poder registrar
     const previo = await this.prisma.pedido.findUnique({
@@ -201,7 +205,11 @@ export class RegistrarFacturaService {
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
-        throw new ConflictException(folioRepetido(dto.folio));
+        throw errorDeCampo(
+          ConflictException,
+          folioRepetido(dto.folio),
+          'folio',
+        );
       }
       throw error;
     }
@@ -260,5 +268,6 @@ const exigirFolioLibre = async (
     where: { tipo: TIPOS_DOCUMENTO.FACTURA, folio },
     select: { id: true },
   });
-  if (existente) throw new ConflictException(folioRepetido(folio));
+  if (existente)
+    throw errorDeCampo(ConflictException, folioRepetido(folio), 'folio');
 };

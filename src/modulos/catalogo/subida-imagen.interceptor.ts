@@ -9,6 +9,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Observable } from 'rxjs';
 import { TAMANO_MAXIMO_IMAGEN_BYTES } from './imagenes.service.js';
+import { errorDeCampo } from '../../common/errores/error-de-campo.js';
 
 /** Campo del formulario `multipart/form-data` que trae la imagen. */
 export const CAMPO_IMAGEN = 'imagen';
@@ -38,11 +39,17 @@ export class SubidaImagenInterceptor extends Base {
 
 const traducirError = (error: unknown) => {
   if (error instanceof PayloadTooLargeException) {
-    return new PayloadTooLargeException('La imagen no puede superar los 4 MB.');
+    return errorDeCampo(
+      PayloadTooLargeException,
+      'La imagen no puede superar los 4 MB.',
+      'imagen',
+    );
   }
   if (error instanceof HttpException && error.getStatus() === 400) {
-    return new BadRequestException(
+    return errorDeCampo(
+      BadRequestException,
       'Adjunta una sola imagen JPEG, PNG o WebP en el campo «imagen», sin otros campos.',
+      'imagen',
     );
   }
   return error;

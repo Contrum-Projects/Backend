@@ -3,6 +3,7 @@ import { Prisma } from '../../generated/prisma/client.js';
 import type { PrismaService } from '../../prisma/prisma.service.js';
 import type { CrearProveedorDto } from './dto/crear-proveedor.dto.js';
 import { ProveedoresService } from './proveedores.service.js';
+import { errorDeCampo } from '../../common/errores/error-de-campo.js';
 
 const crearPrisma = () => ({
   proveedor: {
@@ -68,7 +69,11 @@ describe('ProveedoresService', () => {
       prisma.proveedor.create.mockRejectedValue(errorDeUnicidad());
 
       await expect(servicio.crear(dtoBase())).rejects.toThrow(
-        new ConflictException('Ya existe un proveedor con ese RUT.'),
+        errorDeCampo(
+          ConflictException,
+          'Ya existe un proveedor con ese RUT.',
+          'rut',
+        ),
       );
     });
 

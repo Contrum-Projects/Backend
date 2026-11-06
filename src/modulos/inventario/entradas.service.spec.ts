@@ -6,6 +6,7 @@ import {
   EntradasService,
   normalizarNumeroDocumento,
 } from './entradas.service.js';
+import { errorDeCampo } from '../../common/errores/error-de-campo.js';
 
 const crearPrisma = () => {
   const tx = {
@@ -158,7 +159,13 @@ describe('EntradasService', () => {
 
     await expect(
       servicio.registrar(dtoBase(), 'uuid-bodeguero'),
-    ).rejects.toThrow(new BadRequestException('El proveedor no existe.'));
+    ).rejects.toThrow(
+      errorDeCampo(
+        BadRequestException,
+        'El proveedor no existe.',
+        'proveedorId',
+      ),
+    );
     expect(prisma.tx.entradaInventario.create).not.toHaveBeenCalled();
     expect(prisma.tx.$executeRaw).not.toHaveBeenCalled();
   });
@@ -174,8 +181,10 @@ describe('EntradasService', () => {
     await expect(
       servicio.registrar(dtoBase(), 'uuid-bodeguero'),
     ).rejects.toThrow(
-      new BadRequestException(
+      errorDeCampo(
+        BadRequestException,
         'El proveedor está desactivado: no se le pueden registrar entradas.',
+        'proveedorId',
       ),
     );
     expect(prisma.tx.entradaInventario.create).not.toHaveBeenCalled();
@@ -185,7 +194,13 @@ describe('EntradasService', () => {
     prisma.tx.ubicacion.findUnique.mockResolvedValueOnce(null);
     await expect(
       servicio.registrar(dtoBase(), 'uuid-bodeguero'),
-    ).rejects.toThrow(new BadRequestException('La ubicación no existe.'));
+    ).rejects.toThrow(
+      errorDeCampo(
+        BadRequestException,
+        'La ubicación no existe.',
+        'ubicacionId',
+      ),
+    );
 
     for (const [activa, bodegaActiva] of [
       [false, true],
@@ -281,8 +296,10 @@ describe('EntradasService', () => {
     await expect(
       servicio.registrar(dtoBase(), 'uuid-bodeguero'),
     ).rejects.toThrow(
-      new ConflictException(
+      errorDeCampo(
+        ConflictException,
         'Ya hay una entrada registrada con ese documento del proveedor.',
+        'numeroDocumento',
       ),
     );
     expect(prisma.tx.$executeRaw).not.toHaveBeenCalled();

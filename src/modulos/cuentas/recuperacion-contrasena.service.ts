@@ -18,6 +18,7 @@ import type { Mensaje } from './cuentas.service.js';
 import type { RestablecerContrasenaDto } from './dto/restablecer-contrasena.dto.js';
 import { SolicitudesRecuperacion } from './solicitudes-recuperacion.js';
 import { generarTokenCorreo, hashearTokenCorreo } from './tokens.js';
+import { errorDeCampo } from '../../common/errores/error-de-campo.js';
 
 type Tx = Prisma.TransactionClient;
 
@@ -122,7 +123,11 @@ export class RecuperacionContrasenaService {
    */
   async restablecer(dto: RestablecerContrasenaDto): Promise<Mensaje> {
     if (dto.contrasena !== dto.confirmacionContrasena) {
-      throw new BadRequestException('Las contraseñas no coinciden.');
+      throw errorDeCampo(
+        BadRequestException,
+        'Las contraseñas no coinciden.',
+        'confirmacionContrasena',
+      );
     }
     // Primero el token (barato): un token inventado no gasta un hash de argon2
     const registro = await this.prisma.tokenCorreo.findUnique({

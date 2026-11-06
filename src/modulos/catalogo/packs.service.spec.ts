@@ -9,6 +9,7 @@ import { Prisma } from '../../generated/prisma/client.js';
 import type { PrismaService } from '../../prisma/prisma.service.js';
 import type { CrearPackDto } from './dto/crear-pack.dto.js';
 import { PacksService } from './packs.service.js';
+import { errorDeCampo } from '../../common/errores/error-de-campo.js';
 
 const fila = (extra: object = {}) => ({
   id: 30,
@@ -172,8 +173,10 @@ describe('PacksService', () => {
           }),
         ),
       ).rejects.toThrow(
-        new BadRequestException(
+        errorDeCampo(
+          BadRequestException,
           'Un pack solo admite formatos de producto como componentes, no otros packs.',
+          'componentes',
         ),
       );
       expect(prisma.articuloVenta.create).not.toHaveBeenCalled();
@@ -183,7 +186,11 @@ describe('PacksService', () => {
     it('rechaza un formato que no existe o está desactivado', async () => {
       prisma.articuloVenta.findMany.mockResolvedValue([articulo(11)]);
       await expect(servicio.crear(datosNuevos())).rejects.toThrow(
-        new BadRequestException('El formato con id 12 no existe.'),
+        errorDeCampo(
+          BadRequestException,
+          'El formato con id 12 no existe.',
+          'componentes',
+        ),
       );
 
       prisma.articuloVenta.findMany.mockResolvedValue([
@@ -193,8 +200,10 @@ describe('PacksService', () => {
         }),
       ]);
       await expect(servicio.crear(datosNuevos())).rejects.toThrow(
-        new BadRequestException(
+        errorDeCampo(
+          BadRequestException,
           'El formato con id 12 no está activo o su producto fue desactivado.',
+          'componentes',
         ),
       );
 
@@ -216,8 +225,10 @@ describe('PacksService', () => {
       ]);
 
       await expect(servicio.crear(datosNuevos())).rejects.toThrow(
-        new BadRequestException(
+        errorDeCampo(
+          BadRequestException,
           'Un pack de venta general no puede llevar el formato con id 12: su producto es exclusivo para profesionales.',
+          'componentes',
         ),
       );
       await expect(
@@ -245,7 +256,11 @@ describe('PacksService', () => {
       prisma.articuloVenta.findFirst.mockResolvedValue({ id: 11 });
 
       await expect(servicio.crear(datosNuevos())).rejects.toThrow(
-        new ConflictException('El SKU ya pertenece a otro artículo.'),
+        errorDeCampo(
+          ConflictException,
+          'El SKU ya pertenece a otro artículo.',
+          'sku',
+        ),
       );
     });
 
@@ -258,7 +273,11 @@ describe('PacksService', () => {
       );
 
       await expect(servicio.crear(datosNuevos())).rejects.toThrow(
-        new ConflictException('El SKU ya pertenece a otro artículo.'),
+        errorDeCampo(
+          ConflictException,
+          'El SKU ya pertenece a otro artículo.',
+          'sku',
+        ),
       );
     });
   });

@@ -68,6 +68,20 @@ suscribirse a ofertas. No hay compra como invitado.
 - Todo dato del negocio vive en PostgreSQL; Redis solo guarda colas, contadores y copias temporales
   (RNF-29). Si Redis cae, la tienda sigue vendiendo (RNF-32).
 
+## Errores de la API (decisión del 6 nov, SCRUM-150)
+
+- El cuerpo es el de Nest: `{ statusCode, message, error }`, con `message` en español (un texto, o la
+  lista de textos en un 400 de validación). Cuando el error es de uno o más campos de la entrada,
+  trae además `errores: [{ campo, mensaje }]`; `message` no cambia.
+- `campo` es la ruta de la propiedad en el cuerpo, con puntos e índices (`email`, `oferta.texto`,
+  `detalles.0.cantidad`, `segmento.categorias`); en una subida, el nombre del campo del archivo
+  (`imagen`, `archivo`, `archivos`). Un mensaje que vale para dos campos aparece una vez por cada uno
+  (p. ej. «El correo y el RUT ya están registrados.» en `email` y `rut`).
+- Todo error de validación (`ValidationPipe`) lo trae. Un error de negocio que pertenece a un campo
+  (dato repetido, referencia que no existe, stock insuficiente para la cantidad…) se lanza con
+  `errorDeCampo()` (`src/common/errores/error-de-campo.ts`). Los que no son de un campo (estado del
+  pedido, permisos, servicio caído) no lo traen y el frontend los muestra como aviso general.
+
 ## Por épica (lo que el backend debe respetar)
 
 **E1 Cuentas.** Registro con nombre, apellido, correo y contraseña; teléfono, RUT, fecha de

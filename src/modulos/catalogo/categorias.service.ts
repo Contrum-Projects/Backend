@@ -10,6 +10,7 @@ import { PrismaService } from '../../prisma/prisma.service.js';
 import { CacheCatalogo, CLAVES_CACHE } from './cache-catalogo.js';
 import type { ActualizarCategoriaDto } from './dto/actualizar-categoria.dto.js';
 import type { CrearCategoriaDto } from './dto/crear-categoria.dto.js';
+import { errorDeCampo } from '../../common/errores/error-de-campo.js';
 
 export interface NodoCategoria {
   id: number;
@@ -38,7 +39,11 @@ export class CategoriasService {
         select: { id: true },
       });
       if (!padre) {
-        throw new NotFoundException('La categoría padre no existe.');
+        throw errorDeCampo(
+          NotFoundException,
+          'La categoría padre no existe.',
+          'padreId',
+        );
       }
     }
     const categoria = await this.prisma.categoria.create({
@@ -123,8 +128,10 @@ export class CategoriasService {
     let actual: number | null = padreId;
     while (actual !== null && !visitadas.has(actual)) {
       if (actual === id) {
-        throw new ConflictException(
+        throw errorDeCampo(
+          ConflictException,
           'No se puede mover una categoría dentro de sí misma ni de una de sus subcategorías: formaría un ciclo.',
+          'padreId',
         );
       }
       visitadas.add(actual);
@@ -134,7 +141,11 @@ export class CategoriasService {
           select: { padreId: true },
         });
       if (!fila) {
-        throw new NotFoundException('La categoría padre no existe.');
+        throw errorDeCampo(
+          NotFoundException,
+          'La categoría padre no existe.',
+          'padreId',
+        );
       }
       actual = fila.padreId;
     }

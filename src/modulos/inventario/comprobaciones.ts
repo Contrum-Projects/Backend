@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import type { Prisma } from '../../generated/prisma/client.js';
+import { errorDeCampo } from '../../common/errores/error-de-campo.js';
 
 type Tx = Prisma.TransactionClient;
 
@@ -28,7 +29,14 @@ export const comprobarFormato = async (tx: Tx, id: number) => {
 export const ubicacionDe = async (
   tx: Tx,
   id: number,
-  { activa = false }: { activa?: boolean } = {},
+  {
+    activa = false,
+    campo = 'ubicacionId',
+  }: {
+    activa?: boolean;
+    /** Campo de la entrada al que pertenece el error (SCRUM-150). */
+    campo?: string;
+  } = {},
 ): Promise<UbicacionResumen> => {
   const ubicacion = await tx.ubicacion.findUnique({
     where: { id },
@@ -40,11 +48,13 @@ export const ubicacionDe = async (
     },
   });
   if (!ubicacion) {
-    throw new BadRequestException('La ubicación no existe.');
+    throw errorDeCampo(BadRequestException, 'La ubicación no existe.', campo);
   }
   if (activa && (!ubicacion.activa || !ubicacion.bodega.activa)) {
-    throw new BadRequestException(
+    throw errorDeCampo(
+      BadRequestException,
       'La ubicación o su bodega está desactivada: elige otra ubicación.',
+      campo,
     );
   }
   return {

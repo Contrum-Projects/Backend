@@ -32,6 +32,7 @@ import {
   SELECCION_IMAGEN,
 } from './imagenes.service.js';
 import { estaVigente } from './vigencia-pack.js';
+import { errorDeCampo } from '../../common/errores/error-de-campo.js';
 
 const NO_EXISTE = 'El pack no existe.';
 
@@ -320,7 +321,11 @@ export class PacksService {
       return;
     }
     await exigirSkuLibre(this.prisma, sku, excluirId);
-    throw new ConflictException('El SKU ya pertenece a otro artículo.');
+    throw errorDeCampo(
+      ConflictException,
+      'El SKU ya pertenece a otro artículo.',
+      'sku',
+    );
   }
 }
 
@@ -343,7 +348,11 @@ const exigirSkuLibre = async (
     select: { id: true },
   });
   if (ocupado) {
-    throw new ConflictException('El SKU ya pertenece a otro artículo.');
+    throw errorDeCampo(
+      ConflictException,
+      'El SKU ya pertenece a otro artículo.',
+      'sku',
+    );
   }
 };
 
@@ -372,27 +381,37 @@ const exigirComponentes = async (
     },
   });
   if (articulos.some((articulo) => articulo.tipo === TIPOS_ARTICULO.PACK)) {
-    throw new BadRequestException(
+    throw errorDeCampo(
+      BadRequestException,
       'Un pack solo admite formatos de producto como componentes, no otros packs.',
+      'componentes',
     );
   }
   const porId = new Map(articulos.map((articulo) => [articulo.id, articulo]));
   for (const id of ids) {
     const articulo = porId.get(id);
     if (!articulo?.formato) {
-      throw new BadRequestException(`El formato con id ${id} no existe.`);
+      throw errorDeCampo(
+        BadRequestException,
+        `El formato con id ${id} no existe.`,
+        'componentes',
+      );
     }
     if (!articulo.activo || !articulo.formato.producto.activo) {
-      throw new BadRequestException(
+      throw errorDeCampo(
+        BadRequestException,
         `El formato con id ${id} no está activo o su producto fue desactivado.`,
+        'componentes',
       );
     }
     if (
       canalVenta === CANALES_VENTA.GENERAL &&
       articulo.formato.producto.canalVenta === CANALES_VENTA.PROFESIONAL
     ) {
-      throw new BadRequestException(
+      throw errorDeCampo(
+        BadRequestException,
         `Un pack de venta general no puede llevar el formato con id ${id}: su producto es exclusivo para profesionales.`,
+        'componentes',
       );
     }
   }

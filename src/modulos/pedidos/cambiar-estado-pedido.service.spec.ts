@@ -16,6 +16,7 @@ import {
   OT_YA_REGISTRADA,
   PEDIDO_SIN_ENVIO,
 } from './cambiar-estado-pedido.service.js';
+import { errorDeCampo } from '../../common/errores/error-de-campo.js';
 
 const PERSONAL = '3f0c2a52-0b9e-4c55-9d0e-6a3a4f6d1b2c';
 const CODIGO = 'AB12CD34EF56';
@@ -171,7 +172,9 @@ describe('CambiarEstadoPedidoService', () => {
 
     await expect(
       servicio.cambiar(PERSONAL, CODIGO, { estado: 'en_preparacion' }),
-    ).rejects.toThrow(new BadRequestException(COMENTARIO_AL_RETROCEDER));
+    ).rejects.toThrow(
+      errorDeCampo(BadRequestException, COMENTARIO_AL_RETROCEDER, 'comentario'),
+    );
     expect(db.historialEstadoPedido.create).not.toHaveBeenCalled();
 
     const respuesta = await servicio.cambiar(PERSONAL, CODIGO, {
@@ -225,7 +228,13 @@ describe('CambiarEstadoPedidoService', () => {
 
     await expect(
       servicio.cambiar(PERSONAL, CODIGO, { estado: 'despachado' }),
-    ).rejects.toThrow(new BadRequestException(CODIGO_AL_DESPACHAR));
+    ).rejects.toThrow(
+      errorDeCampo(
+        BadRequestException,
+        CODIGO_AL_DESPACHAR,
+        'codigoSeguimiento',
+      ),
+    );
     expect(db.envio.updateMany).not.toHaveBeenCalled();
     expect(db.historialEstadoPedido.create).not.toHaveBeenCalled();
   });
@@ -236,7 +245,13 @@ describe('CambiarEstadoPedidoService', () => {
         estado: 'en_preparacion',
         codigoSeguimiento: 'OT1',
       }),
-    ).rejects.toThrow(new BadRequestException(CODIGO_SOLO_AL_DESPACHAR));
+    ).rejects.toThrow(
+      errorDeCampo(
+        BadRequestException,
+        CODIGO_SOLO_AL_DESPACHAR,
+        'codigoSeguimiento',
+      ),
+    );
     expect(db.pedido.update).not.toHaveBeenCalled();
   });
 
@@ -267,7 +282,9 @@ describe('CambiarEstadoPedidoService', () => {
         estado: 'despachado',
         codigoSeguimiento: '123',
       }),
-    ).rejects.toThrow(new ConflictException(OT_YA_REGISTRADA));
+    ).rejects.toThrow(
+      errorDeCampo(ConflictException, OT_YA_REGISTRADA, 'codigoSeguimiento'),
+    );
     expect(correos.add).not.toHaveBeenCalled();
   });
 

@@ -17,6 +17,7 @@ import {
 } from '../../prisma/bloqueos.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { FijarPreciosDto } from './dto/fijar-precios.dto.js';
+import { errorDeCampo } from '../../common/errores/error-de-campo.js';
 
 type TipoPrecio = Valor<typeof TIPOS_PRECIO>;
 
@@ -118,8 +119,10 @@ export class PreciosService {
         select: SELECCION_ARTICULO,
       });
       if (esExclusivo(articulo) && dto.precioMinoristaNeto !== undefined) {
-        throw new BadRequestException(
+        throw errorDeCampo(
+          BadRequestException,
           'El artículo es exclusivo para profesionales: solo lleva precio mayorista.',
+          'precioMinoristaNeto',
         );
       }
       const usuario = await tx.usuario.findUnique({

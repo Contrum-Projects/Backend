@@ -42,6 +42,7 @@ import {
   textoSegmento,
   totalDestinatarios,
 } from './segmento-campana.js';
+import { errorDeCampo } from '../../common/errores/error-de-campo.js';
 
 const NO_EXISTE = 'La campaña no existe.';
 const YA_ENVIADA = 'La campaña ya fue enviada: cada campaña sale una sola vez.';
@@ -407,8 +408,10 @@ export class CampanasService {
   ): Promise<SegmentoCampana> {
     const segmento = normalizarSegmento(dto);
     if (filtraPorCompras(segmento) && incluyeSuscriptores(segmento)) {
-      throw new BadRequestException(
+      throw errorDeCampo(
+        BadRequestException,
         'Los suscriptores sin cuenta no tienen compras: quítalos del segmento o quita las categorías y marcas.',
+        'segmento.tipos',
       );
     }
     const [categorias, marcas] = await Promise.all([
@@ -418,10 +421,18 @@ export class CampanasService {
       this.prisma.marca.count({ where: { id: { in: segmento.marcas } } }),
     ]);
     if (categorias !== segmento.categorias.length) {
-      throw new BadRequestException('Alguna categoría indicada no existe.');
+      throw errorDeCampo(
+        BadRequestException,
+        'Alguna categoría indicada no existe.',
+        'segmento.categorias',
+      );
     }
     if (marcas !== segmento.marcas.length) {
-      throw new BadRequestException('Alguna marca indicada no existe.');
+      throw errorDeCampo(
+        BadRequestException,
+        'Alguna marca indicada no existe.',
+        'segmento.marcas',
+      );
     }
     return segmento;
   }

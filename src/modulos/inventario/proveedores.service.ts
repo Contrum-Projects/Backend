@@ -2,6 +2,7 @@ import { ConflictException, Injectable } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { CrearProveedorDto } from './dto/crear-proveedor.dto.js';
+import { errorDeCampo } from '../../common/errores/error-de-campo.js';
 
 @Injectable()
 export class ProveedoresService {
@@ -28,7 +29,11 @@ export class ProveedoresService {
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
-        throw new ConflictException('Ya existe un proveedor con ese RUT.');
+        throw errorDeCampo(
+          ConflictException,
+          'Ya existe un proveedor con ese RUT.',
+          'rut',
+        );
       }
       throw error;
     }

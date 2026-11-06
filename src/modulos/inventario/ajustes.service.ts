@@ -19,6 +19,7 @@ import {
   sumarExistencia,
 } from './existencias.js';
 import { StockBajoService } from './stock-bajo.service.js';
+import { errorDeCampo } from '../../common/errores/error-de-campo.js';
 
 type Tx = Prisma.TransactionClient;
 type TipoAjuste =
@@ -126,8 +127,10 @@ export class AjustesService {
   /** Suma al stock (o crea la existencia); si pasaría el máximo de la columna, 400. */
   private async sumar(tx: Tx, clave: ClaveExistencia, unidades: number) {
     if (!(await sumarExistencia(tx, clave, unidades))) {
-      throw new BadRequestException(
+      throw errorDeCampo(
+        BadRequestException,
         'El stock de ese formato en esa ubicación superaría el máximo permitido.',
+        'cantidad',
       );
     }
     return stockDe(tx, clave);

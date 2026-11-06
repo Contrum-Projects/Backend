@@ -9,6 +9,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Observable } from 'rxjs';
 import { TAMANO_MAXIMO_FACTURA_BYTES } from './tipo-archivo-factura.js';
+import { errorDeCampo } from '../../common/errores/error-de-campo.js';
 
 /** Campo del formulario `multipart/form-data` que trae el PDF de la factura. */
 export const CAMPO_FACTURA = 'archivo';
@@ -38,13 +39,17 @@ export class SubidaFacturaInterceptor extends Base {
 
 const traducirError = (error: unknown) => {
   if (error instanceof PayloadTooLargeException) {
-    return new PayloadTooLargeException(
+    return errorDeCampo(
+      PayloadTooLargeException,
       'La factura no puede superar los 4 MB.',
+      'archivo',
     );
   }
   if (error instanceof HttpException && error.getStatus() === 400) {
-    return new BadRequestException(
+    return errorDeCampo(
+      BadRequestException,
       'Adjunta un solo PDF en el campo «archivo», con el folio y, si quieres, la fecha de emisión.',
+      'archivo',
     );
   }
   return error;

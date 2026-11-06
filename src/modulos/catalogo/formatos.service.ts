@@ -22,6 +22,7 @@ import {
   ORDEN_IMAGENES,
   SELECCION_IMAGEN,
 } from './imagenes.service.js';
+import { errorDeCampo } from '../../common/errores/error-de-campo.js';
 
 /**
  * Lo que el panel ve de un formato. Incluye la fecha de vencimiento, que la tienda nunca
@@ -109,8 +110,11 @@ const exigirContenidoConUnidad = (
   unidadMedida: string | null | undefined,
 ) => {
   if (((contenido ?? null) === null) !== ((unidadMedida ?? null) === null)) {
-    throw new BadRequestException(
+    throw errorDeCampo(
+      BadRequestException,
       'Indica el contenido junto con su unidad de medida.',
+      'contenido',
+      'unidadMedida',
     );
   }
 };
@@ -206,8 +210,11 @@ export class FormatosService {
     }
     if (dto.contenido !== undefined || dto.unidadMedida !== undefined) {
       if (dto.contenido === undefined || dto.unidadMedida === undefined) {
-        throw new BadRequestException(
+        throw errorDeCampo(
+          BadRequestException,
           'Indica el contenido junto con su unidad de medida.',
+          'contenido',
+          'unidadMedida',
         );
       }
       exigirContenidoConUnidad(dto.contenido, dto.unidadMedida);
@@ -223,8 +230,10 @@ export class FormatosService {
           throw new NotFoundException('El formato no existe.');
         }
         if (dto.esPredeterminado === false && actual.esPredeterminado) {
-          throw new BadRequestException(
+          throw errorDeCampo(
+            BadRequestException,
             'El producto necesita un formato predeterminado: marca otro formato como predeterminado.',
+            'esPredeterminado',
           );
         }
         await this.exigirDatosLibres(tx, dto.sku, dto.codigoBarras, id);
@@ -300,16 +309,25 @@ export class FormatosService {
         })
       : null;
     if (skuOcupado && codigoOcupado) {
-      throw new ConflictException(
+      throw errorDeCampo(
+        ConflictException,
         'El SKU y el código de barras ya pertenecen a otro artículo.',
+        'sku',
+        'codigoBarras',
       );
     }
     if (skuOcupado) {
-      throw new ConflictException('El SKU ya pertenece a otro artículo.');
+      throw errorDeCampo(
+        ConflictException,
+        'El SKU ya pertenece a otro artículo.',
+        'sku',
+      );
     }
     if (codigoOcupado) {
-      throw new ConflictException(
+      throw errorDeCampo(
+        ConflictException,
         'El código de barras ya pertenece a otro artículo.',
+        'codigoBarras',
       );
     }
   }
@@ -331,8 +349,11 @@ export class FormatosService {
       return;
     }
     await this.exigirDatosLibres(this.prisma, sku, codigoBarras, excluirId);
-    throw new ConflictException(
+    throw errorDeCampo(
+      ConflictException,
       'El SKU o el código de barras ya pertenece a otro artículo.',
+      'sku',
+      'codigoBarras',
     );
   }
 }

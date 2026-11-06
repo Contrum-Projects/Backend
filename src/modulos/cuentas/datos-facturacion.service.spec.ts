@@ -2,6 +2,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import type { PrismaService } from '../../prisma/prisma.service.js';
 import { DatosFacturacionService } from './datos-facturacion.service.js';
 import type { CrearDatosFacturacionDto } from './dto/guardar-datos-facturacion.dto.js';
+import { errorDeCampo } from '../../common/errores/error-de-campo.js';
 
 const CODIGO = '3f0c2a52-0b9e-4c55-9d0e-6a3a4f6d1b2c';
 
@@ -73,7 +74,7 @@ describe('DatosFacturacionService', () => {
       tx.comuna.findUnique.mockResolvedValue(null);
 
       await expect(servicio.crear(CODIGO, dtoBase())).rejects.toThrow(
-        new BadRequestException('La comuna no existe.'),
+        errorDeCampo(BadRequestException, 'La comuna no existe.', 'comuna'),
       );
       expect(tx.datosFacturacion.create).not.toHaveBeenCalled();
     });
