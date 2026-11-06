@@ -17,8 +17,10 @@ import { encolarCorreos } from '../../colas/encolar-correo.js';
 import {
   ESTADOS_NOTIFICACION,
   TIPOS_CAMPANA,
+  TIPOS_DESTINATARIO_CAMPANA,
   TIPOS_NOTIFICACION,
 } from '../../common/dominio/valores.js';
+import { porcentaje } from '../../common/dominio/porcentajes.js';
 import { POR_PAGINA } from '../../common/validacion/paginacion.js';
 import type { Paginacion } from '../../common/validacion/paginacion.js';
 import type { Entorno } from '../../config/entorno.js';
@@ -96,8 +98,33 @@ export interface DetalleCampana extends CampanaPanel {
   envios: EnviosCampana;
 }
 
+/**
+ * Contactos con consentimiento, para los contadores de «Campañas» (SCRUM-150). Se cuentan con las
+ * mismas reglas que el envío: cada dirección una vez y, si una cuenta y un suscriptor comparten
+ * correo, decide la cuenta.
+ */
+export interface ContactosCampanas {
+  /** Direcciones que recibirían hoy una campaña a todos: cuentas y suscriptores sin cuenta. */
+  aceptanPublicidad: number;
+  /** Cuentas cliente o profesional activas, con el correo verificado, que aceptan publicidad. */
+  cuentasVerificadas: number;
+  /** Suscriptores confirmados, sin baja y sin una cuenta con el mismo correo. */
+  suscriptoresSinCuenta: number;
+  /** Direcciones (de cuentas o suscriptores) con algún correo rebotado (E12-H6). */
+  conRebote: number;
+}
+
+/** Una fila del listado, con sus cifras (SCRUM-150). */
+export interface CampanaListada extends CampanaPanel {
+  /** Borrador: cuántas direcciones la recibirían hoy. Enviada: a cuántas salió. */
+  destinatarios: number;
+  /** Enviada: de los correos enviados, cuántos se abrieron (0 a 100). Borrador o sin envíos: `null`. */
+  porcentajeApertura: number | null;
+}
+
 export interface ListadoCampanas {
-  items: CampanaPanel[];
+  contactos: ContactosCampanas;
+  items: CampanaListada[];
   total: number;
   pagina: number;
   limite: number;
@@ -178,12 +205,93 @@ export class CampanasService {
       }),
       this.prisma.campana.count({ where: donde }),
     ]);
+    const enviadas = filas
+      .filter((fila) => fila.fechaEncolado !== null)
+      .map((fila) => fila.id);
+    const [contactos, envios, items] = await Promise.all([
+      this.contactos(),
+      this.enviosDe(enviadas),
+      filas.map((fila) => this.aRespuesta(fila)),
+    ]);
     return {
-      items: filas.map((fila) => this.aRespuesta(fila)),
+      contactos,
+      items: await Promise.all(
+        items.map(async (campana) => {
+          if (!campana.enviada) {
+            return {
+              ...campana,
+              destinatarios: totalDestinatarios(
+                await this.destinatarios(this.prisma, campana.segmento),
+              ),
+              porcentajeApertura: null,
+            };
+          }
+          const conteo = envios.get(campana.id);
+          return {
+            ...campana,
+            destinatarios: conteo?.total ?? 0,
+            porcentajeApertura: porcentaje(
+              conteo?.abiertos ?? 0,
+              conteo?.enviados ?? 0,
+            ),
+          };
+        }),
+      ),
       total,
       pagina,
       limite,
     };
+  }
+
+  /** SCRUM-150 · Los contadores de «Campañas», con las reglas del envío. */
+  private async contactos(): Promise<ContactosCampanas> {
+    const [{ cuentas, suscriptores }, [rebotes]] = await Promise.all([
+      this.destinatarios(this.prisma, {
+        tipos: Object.values(TIPOS_DESTINATARIO_CAMPANA),
+        categorias: [],
+        marcas: [],
+      }),
+      this.prisma.$queryRaw<{ total: bigint }[]>`
+        SELECT COUNT(DISTINCT COALESCE('u' || id_usuario::text, 'l' || id_lead::text)) AS "total"
+        FROM notificacion
+        WHERE estado_envio = ${ESTADOS_NOTIFICACION.REBOTADA}
+          AND (id_usuario IS NOT NULL OR id_lead IS NOT NULL)`,
+    ]);
+    return {
+      aceptanPublicidad: cuentas.length + suscriptores.length,
+      cuentasVerificadas: cuentas.length,
+      suscriptoresSinCuenta: suscriptores.length,
+      conRebote: Number(rebotes?.total ?? 0n),
+    };
+  }
+
+  /** Correos de las campañas enviadas de la página: todos, los enviados y los abiertos de estos. */
+  private async enviosDe(
+    ids: number[],
+  ): Promise<
+    Map<number, { total: number; enviados: number; abiertos: number }>
+  > {
+    if (ids.length === 0) return new Map();
+    const filas = await this.prisma.$queryRaw<
+      { id: number; total: bigint; enviados: bigint; abiertos: bigint }[]
+    >`
+      SELECT id_campana AS "id",
+             COUNT(*) AS "total",
+             COUNT(*) FILTER (WHERE estado_envio = ${ESTADOS_NOTIFICACION.ENVIADA}) AS "enviados",
+             COUNT(*) FILTER (WHERE estado_envio = ${ESTADOS_NOTIFICACION.ENVIADA} AND fecha_apertura IS NOT NULL) AS "abiertos"
+      FROM notificacion
+      WHERE id_campana = ANY(${ids}::int[])
+      GROUP BY id_campana`;
+    return new Map(
+      filas.map((fila) => [
+        fila.id,
+        {
+          total: Number(fila.total),
+          enviados: Number(fila.enviados),
+          abiertos: Number(fila.abiertos),
+        },
+      ]),
+    );
   }
 
   async obtener(id: number): Promise<DetalleCampana> {

@@ -44,6 +44,12 @@ import {
   type VistaPreviaCampana,
 } from './campanas.service.js';
 import { ActualizarCampanaDto } from './dto/actualizar-campana.dto.js';
+import {
+  CampanaEnviadaDto,
+  DetalleCampanaDto,
+  ListadoCampanasDto,
+  VistaPreviaCampanaDto,
+} from './dto/campana-respuesta.dto.js';
 import { CrearCampanaDto } from './dto/crear-campana.dto.js';
 import { EnviarCampanaDto } from './dto/enviar-campana.dto.js';
 import {
@@ -77,7 +83,10 @@ export class CampanasController {
     description:
       'Asunto, cuerpo en texto plano y segmento. Queda como borrador hasta confirmar el envío.',
   })
-  @ApiCreatedResponse({ description: 'Campaña creada como borrador.' })
+  @ApiCreatedResponse({
+    description: 'Campaña creada como borrador.',
+    type: DetalleCampanaDto,
+  })
   @ApiBadRequestResponse({
     description:
       'Datos inválidos, categorías o marcas que no existen, o suscriptores con un filtro de compras.',
@@ -92,9 +101,13 @@ export class CampanasController {
   @Get()
   @ApiOperation({
     summary: 'Listar las campañas de correo (E12-H3)',
-    description: 'De la más nueva a la más antigua, con su estado de envío.',
+    description:
+      'De la más nueva a la más antigua, con su estado de envío, a cuántas direcciones va o fue y su apertura, más los contadores de contactos con consentimiento.',
   })
-  @ApiOkResponse({ description: 'Página de campañas.' })
+  @ApiOkResponse({
+    description: 'Página de campañas.',
+    type: ListadoCampanasDto,
+  })
   @ApiBadRequestResponse({ description: 'Paginación inválida.' })
   listar(@Query() paginacion: Paginacion): Promise<ListadoCampanas> {
     return this.campanas.listar(paginacion);
@@ -106,7 +119,7 @@ export class CampanasController {
     description:
       'Incluye el segmento usado y cuántos correos quedaron pendientes, enviados, fallidos o cancelados.',
   })
-  @ApiOkResponse({ description: 'Campaña.' })
+  @ApiOkResponse({ description: 'Campaña.', type: DetalleCampanaDto })
   @ApiNotFoundResponse({ description: 'La campaña no existe.' })
   obtener(@Param('id', ID_CAMPANA) id: number): Promise<DetalleCampana> {
     return this.campanas.obtener(id);
@@ -118,7 +131,10 @@ export class CampanasController {
     description:
       'Cambia el asunto, el cuerpo o el segmento. Una campaña ya enviada no se edita.',
   })
-  @ApiOkResponse({ description: 'Campaña actualizada.' })
+  @ApiOkResponse({
+    description: 'Campaña actualizada.',
+    type: DetalleCampanaDto,
+  })
   @ApiBadRequestResponse({ description: 'Datos inválidos o cuerpo vacío.' })
   @ApiNotFoundResponse({ description: 'La campaña no existe.' })
   @ApiConflictResponse({ description: 'La campaña ya fue enviada.' })
@@ -149,7 +165,7 @@ export class CampanasController {
     description:
       'Devuelve el correo (HTML y texto), cuántas direcciones lo recibirían hoy y la `confirmacion` que exige el envío.',
   })
-  @ApiOkResponse({ description: 'Vista previa.' })
+  @ApiOkResponse({ description: 'Vista previa.', type: VistaPreviaCampanaDto })
   @ApiNotFoundResponse({ description: 'La campaña no existe.' })
   @ApiConflictResponse({ description: 'La campaña ya fue enviada.' })
   vistaPrevia(
@@ -165,7 +181,10 @@ export class CampanasController {
     description:
       'Encola la campaña para las direcciones del segmento que aceptan publicidad, una vez cada una, y guarda el segmento usado. Sale una sola vez.',
   })
-  @ApiAcceptedResponse({ description: 'Campaña encolada.' })
+  @ApiAcceptedResponse({
+    description: 'Campaña encolada.',
+    type: CampanaEnviadaDto,
+  })
   @ApiBadRequestResponse({ description: 'Falta la confirmación.' })
   @ApiNotFoundResponse({ description: 'La campaña no existe.' })
   @ApiConflictResponse({

@@ -1,22 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { TIPOS_DESTINATARIO_CAMPANA } from '../../../common/dominio/valores.js';
-import type { TipoDestinatario } from '../../marketing/segmento-campana.js';
-
-/** El segmento con que salió una campaña (siempre con las tres listas, aunque vengan vacías). */
-export class SegmentoGuardadoDto {
-  @ApiProperty({
-    enum: Object.values(TIPOS_DESTINATARIO_CAMPANA),
-    isArray: true,
-    example: [TIPOS_DESTINATARIO_CAMPANA.PROFESIONAL],
-  })
-  tipos: TipoDestinatario[];
-
-  @ApiProperty({ type: [Number], example: [3] })
-  categorias: number[];
-
-  @ApiProperty({ type: [Number], example: [] })
-  marcas: number[];
-}
+import { SegmentoGuardadoDto } from '../../marketing/dto/campana-respuesta.dto.js';
 
 /** Una fila de «Resultados de campañas» (E14-H3, SCRUM-150). */
 export class FilaReporteCampanaDto {

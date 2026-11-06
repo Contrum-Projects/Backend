@@ -17,6 +17,7 @@ import {
   TIPOS_ARTICULO,
   TIPOS_DOCUMENTO,
   TIPOS_ENTREGA,
+  ESTADOS_NOTIFICACION,
   TIPOS_NOTIFICACION,
   TIPOS_PRECIO,
 } from '../src/common/dominio/valores.js';
@@ -390,6 +391,56 @@ describe('Marketing · campañas de correo (e2e)', () => {
       enviada: true,
       envios: { total: 3, pendientes: 3 },
     });
+  });
+
+  it('SCRUM-150 · listado: cada borrador dice a cuántos llegaría hoy y cada enviada a cuántos salió y su apertura, con los contadores de contactos', async () => {
+    await prepararCompradores();
+    const borrador = await crearCampana(SEGMENTO_COMPRAS());
+    const enviada = await crearCampana(SEGMENTO_COMPRAS());
+    const vista = await vistaPrevia(enviada);
+    await enviar(enviada, vista.confirmacion).expect(202);
+    // Dos de los tres correos salieron y uno se abrió
+    const correos = await correosDe(enviada);
+    await prisma.notificacion.updateMany({
+      where: { id: { in: correos.slice(0, 2).map((c) => c.id) } },
+      data: { estadoEnvio: ESTADOS_NOTIFICACION.ENVIADA },
+    });
+    await prisma.notificacion.update({
+      where: { id: correos[0].id },
+      data: { fechaApertura: new Date() },
+    });
+
+    const respuesta = await servidor()
+      .get(RUTA)
+      .query({ limite: 50 })
+      .auth(tokenAdministrador, { type: 'bearer' })
+      .expect(200);
+
+    const cuerpo = respuesta.body as {
+      contactos: Record<string, number>;
+      items: {
+        id: number;
+        destinatarios: number;
+        porcentajeApertura: number | null;
+      }[];
+    };
+    const fila = (id: number) => cuerpo.items.find((item) => item.id === id);
+    // El borrador cuenta como la vista previa, que es lo que saldría hoy
+    expect(fila(borrador)).toMatchObject({
+      destinatarios: (await vistaPrevia(borrador)).destinatarios,
+      porcentajeApertura: null,
+    });
+    // A cuántos salió y 1 abierto de 2 enviados
+    expect(fila(enviada)).toMatchObject({
+      destinatarios: vista.destinatarios,
+      porcentajeApertura: 50,
+    });
+    const { contactos } = cuerpo;
+    expect(contactos.cuentasVerificadas).toBeGreaterThanOrEqual(3);
+    expect(contactos.aceptanPublicidad).toBe(
+      contactos.cuentasVerificadas + contactos.suscriptoresSinCuenta,
+    );
+    expect(contactos.conRebote).toBeGreaterThanOrEqual(0);
   });
 
   it('E12-H3 · CA2 envío repetido: una campaña enviada no se reenvía, no se edita ni tiene otra vista previa', async () => {
