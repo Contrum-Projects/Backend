@@ -197,7 +197,7 @@ export class PersonalService {
       select: { id: true, usuarioId: true, tipo: true },
     });
     if (!registro || registro.tipo !== TIPOS_TOKEN.INVITACION_PERSONAL) {
-      throw new BadRequestException(ENLACE_INVALIDO);
+      throw errorDeCampo(BadRequestException, ENLACE_INVALIDO, 'token');
     }
     const contrasenaHash = await argon2.hash(dto.contrasena);
     const ahora = new Date();
@@ -221,7 +221,7 @@ export class PersonalService {
         data: { contrasenaHash, fechaVerificacionCorreo: ahora },
       });
       if (consumido.count === 0 || definida.count === 0) {
-        throw new BadRequestException(ENLACE_INVALIDO);
+        throw errorDeCampo(BadRequestException, ENLACE_INVALIDO, 'token');
       }
     });
 

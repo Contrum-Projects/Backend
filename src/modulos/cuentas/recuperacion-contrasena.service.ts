@@ -135,7 +135,7 @@ export class RecuperacionContrasenaService {
       select: { id: true, usuarioId: true, tipo: true },
     });
     if (!registro || registro.tipo !== TIPOS_TOKEN.RECUPERACION_CONTRASENA) {
-      throw new BadRequestException(ENLACE_INVALIDO);
+      throw errorDeCampo(BadRequestException, ENLACE_INVALIDO, 'token');
     }
     const contrasenaHash = await argon2.hash(dto.contrasena);
     const ahora = new Date();
@@ -150,14 +150,16 @@ export class RecuperacionContrasenaService {
         },
         data: { fechaUso: ahora },
       });
-      if (consumido.count === 0) throw new BadRequestException(ENLACE_INVALIDO);
+      if (consumido.count === 0)
+        throw errorDeCampo(BadRequestException, ENLACE_INVALIDO, 'token');
 
       // Una cuenta desactivada después de pedir el enlace no cambia (se deshace el consumo)
       const cambiada = await tx.usuario.updateMany({
         where: { id: registro.usuarioId, activo: true },
         data: { contrasenaHash },
       });
-      if (cambiada.count === 0) throw new BadRequestException(ENLACE_INVALIDO);
+      if (cambiada.count === 0)
+        throw errorDeCampo(BadRequestException, ENLACE_INVALIDO, 'token');
 
       await tx.usuario.updateMany({
         where: { id: registro.usuarioId, fechaVerificacionCorreo: null },

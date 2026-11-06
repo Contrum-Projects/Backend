@@ -78,7 +78,8 @@ suscribirse a ofertas. No hay compra como invitado.
   (`imagen`, `archivo`, `archivos`). Un mensaje que vale para dos campos aparece una vez por cada uno
   (p. ej. «El correo y el RUT ya están registrados.» en `email` y `rut`).
 - Todo error de validación (`ValidationPipe`) lo trae. Un error de negocio que pertenece a un campo
-  (dato repetido, referencia que no existe, stock insuficiente para la cantidad…) se lanza con
+  (dato repetido, referencia que no existe, stock insuficiente para la cantidad, enlace de
+  recuperación o de invitación que no sirve, en `token`…) se lanza con
   `errorDeCampo()` (`src/common/errores/error-de-campo.ts`). Los que no son de un campo (estado del
   pedido, permisos, servicio caído) no lo traen y el frontend los muestra como aviso general.
 
