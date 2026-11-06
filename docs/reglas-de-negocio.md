@@ -1096,6 +1096,25 @@ Responde `minorista`, `mayorista` y `total`, cada uno con `pedidos`, `montoNeto`
 `montoTotal`: los montos cerrados del pedido, con el despacho incluido. Sin pedidos, todo en cero.
 Se calcula al consultar con una sola consulta agregada, sin caché (los montos no van a Redis).
 Sin cambios al MER.
+Decisiones del 5 nov (E14-H1, SCRUM-74): `GET /api/reportes/indicadores?desde=AAAA-MM-DD&hasta=AAAA-MM-DD`
+con `reportes.ver` (401 sin sesión, 403 sin el permiso). El período sigue las reglas del de ventas
+(obligatorio, inclusivo, hora de Chile, máximo 366 días; si no, 400), ahora en una función común
+(`validarPeriodo`). Responde `desde`, `hasta` e `indicadores`: por cada objetivo `codigo` (`OE1`,
+`OE2`, `OE3`), `nombre`, `meta` (30, 70 y 80), `porcentaje` con un decimal, `cumplidos`, `total` y
+`sinDatos`. **Sin datos** (total 0) el porcentaje es `null` y `sinDatos` es `true` (CA2); con datos
+y ninguno que cumpla, 0 %. Cómo se mide cada uno (decisión del 5 nov):
+**OE1** de las cuentas cuya solicitud quedó `aprobada` con `fecha_resolucion` en el período,
+cuántas tienen al menos un pedido pagado (todo estado salvo `ESTADOS_SIN_VENTA`) desde su
+aprobación hasta el fin del período. **OE2** de las solicitudes con `fecha_solicitud` en el
+período, cuántas quedaron `aprobada` o `rechazada` a **48 h o menos** de presentarse (una aprobada
+sola por el SII cuenta al instante); se mide desde la presentación porque no se guarda cuándo
+adjuntó los documentos. Una solicitud sin resolver que **aún está dentro de sus 48 h** no se puede
+medir y queda fuera del total; una sin resolver con más de 48 h cuenta y no cumple. **OE3** de los
+productos con `fecha_creacion` en el período, cuántos tienen `origen_descripcion` `ia` o
+`ia_editada` (la sugerencia aceptada tal cual o corregida), **también los que después se
+desactivaron** (decisión del 5 nov: OE3 mide cómo se hizo la descripción al crearlo, y eso no cambia
+al desactivarlo). Se calcula al consultar, una consulta
+agregada por indicador, sin caché. Sin cambios al MER.
 
 ## Rendimiento y operación
 
