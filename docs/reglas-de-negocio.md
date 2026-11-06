@@ -1012,6 +1012,34 @@ revisión también exige que la cuenta siga siendo cliente o profesional y que u
 cuenta con su mismo correo. La cola `campanas` no se
 usa. Una campaña enviada no se edita ni tiene vista previa (409). PROPUESTA por confirmar: texto
 del pie del correo y que la vista previa de una enviada responda 409. Sin cambios al MER.
+Decisiones del 5 nov (E12-H5, SCRUM-72): la **oferta es texto libre** que redacta el administrador
+(el backend no aplica descuentos ni cupones). El saludo vive en **una sola fila de CAMPANA con tipo
+`cumpleanos`**: asunto (1-200, una línea) y saludo (1-10.000, texto plano escapado) editables, y la
+oferta en `campana.segmento` como `{ "oferta": { "activa", "texto" } }` (texto 1-1.000, obligatorio
+si está activa; inactiva se conserva). `GET` y `PUT /api/marketing/cumpleanos` con
+`campanas.gestionar` (401 sin sesión, 403 sin el permiso, 400 datos inválidos u oferta activa sin
+texto); el `PUT` reemplaza todo y la primera vez crea la fila (autor: quien guarda), con un candado
+de transacción (`CANDADOS.SALUDO_CUMPLEANOS`) para que no haya dos. Sin configurar rige un saludo
+por defecto sin oferta (`configurado: false`); textos PROPUESTA por confirmar. La fila no aparece en
+`/api/marketing/campanas` (solo `envio_unico`). **Envío:** job repetible cada 30 s en su propia cola
+`cumpleanos` (RNF-20, RNF-31). Saluda a cuentas cliente o profesional activas, con correo
+verificado, que aceptan publicidad y con `fecha_nacimiento` (CA3; los LEAD no tienen fecha), el
+**día del cumpleaños en hora de Chile, desde las 9:00**; quien nació un **29 de febrero se saluda el
+28** en los años no bisiestos. Si la tarea estuvo detenida sale más tarde ese mismo día, **nunca al
+día siguiente**: un saludo en cola que llega a enviarse otro día de Chile, o cuando la cuenta ya no
+está de cumpleaños hoy (borró la fecha o la cambió a otro día), queda `cancelada`. **Una vez
+en el año calendario de Chile:** con la cuenta bloqueada, si ya tiene una NOTIFICACION `cumpleanos`
+creada desde el 1 de enero (en cualquier estado, también cancelada) no se crea otra. La NOTIFICACION
+(`cumpleanos`, en `TIPOS_NOTIFICACION_PUBLICIDAD`, con `id_campana` si está configurado) se crea en
+la transacción y se encola después en `correos` con prioridad de publicidad; la revisión de
+pendientes la reencola (RNF-29). Al enviar se revisa otra vez el consentimiento (E12-H2) y el saludo
+y la oferta se leen de la base: **la oferta va si está activa al enviarse** (CA2). El correo usa la
+base de los demás («Hola, {nombre}:», el saludo, la oferta en un recuadro y botón a `/catalogo`),
+con remitente y enlace de baja firmado (RNF-26); sin diseño en Figma. Sin cambios al MER.
+PENDIENTE (auditoría del 5 nov): la cuenta puede editar su fecha de nacimiento (solo se valida que
+no sea futura), así que puede poner la de hoy para recibir la oferta, una vez al año por cuenta. Hay
+que decidir si se acepta (la oferta se canjea a mano) o si se limita (fecha no editable una vez
+fijada, o no saludar si cambió hace poco, que cambiaría el MER).
 
 **E14 Reportes.** Solo administrador. OE1 30 %, OE2 70 % en 48 h, OE3 80 %; ventas por período y
 tipo de cliente; carritos abandonados y recuperados; resultado de campañas; stock bajo el mínimo.
