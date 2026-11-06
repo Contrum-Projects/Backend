@@ -102,10 +102,14 @@ export interface ListadoCampanas {
   limite: number;
 }
 
-export interface VistaPreviaCampana {
+/** El correo de una campaña tal como saldría (asunto, HTML y texto plano). */
+export interface CorreoCampana {
   asunto: string;
   html: string;
   texto: string;
+}
+
+export interface VistaPreviaCampana extends CorreoCampana {
   /** Direcciones que lo recibirían hoy (cada una una vez). */
   destinatarios: number;
   /** Se entrega al confirmar el envío (`POST /:id/envio`). */
@@ -238,19 +242,8 @@ export class CampanasService {
     if (fila.fechaEncolado) throw new ConflictException(YA_ENVIADA);
     const segmento = leerSegmento(fila.segmento);
     const destinatarios = await this.destinatarios(this.prisma, segmento);
-    const urlTienda = this.config
-      .get('URL_TIENDA', { infer: true })
-      .replace(/\/+$/, '');
-    const { html, texto } = correoCampana({
-      asunto: fila.asunto,
-      cuerpo: fila.cuerpo,
-      enlaceBaja: `${urlTienda}/ofertas/baja`,
-      enlacesPie: rutasTienda(urlTienda).pie,
-    });
     return {
-      asunto: fila.asunto,
-      html,
-      texto,
+      ...this.renderizar(fila),
       destinatarios: totalDestinatarios(destinatarios),
       confirmacion: this.huella.calcular({
         id,
@@ -259,6 +252,30 @@ export class CampanasService {
         segmento: textoSegmento(segmento),
       }),
     };
+  }
+
+  /**
+   * SCRUM-150 · Vista previa en vivo, mientras se redacta: solo arma el correo con la misma
+   * plantilla. No lee ni guarda la campaña, no cuenta destinatarios y **nunca** devuelve la
+   * confirmación: para enviar hay que guardar el borrador y pedir `vistaPrevia(id)`.
+   */
+  renderizar({
+    asunto,
+    cuerpo,
+  }: {
+    asunto: string;
+    cuerpo: string;
+  }): CorreoCampana {
+    const urlTienda = this.config
+      .get('URL_TIENDA', { infer: true })
+      .replace(/\/+$/, '');
+    const { html, texto } = correoCampana({
+      asunto,
+      cuerpo,
+      enlaceBaja: `${urlTienda}/ofertas/baja`,
+      enlacesPie: rutasTienda(urlTienda).pie,
+    });
+    return { asunto, html, texto };
   }
 
   /**

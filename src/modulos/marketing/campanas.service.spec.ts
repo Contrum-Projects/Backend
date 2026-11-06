@@ -338,6 +338,23 @@ describe('CampanasService', () => {
 
       await expect(servicio.vistaPrevia(4)).rejects.toThrow(ConflictException);
     });
+
+    it('SCRUM-150 · la vista previa en vivo arma el correo sin leer la base y nunca entrega la confirmación', () => {
+      const vista = servicio.renderizar({
+        asunto: 'Nueva línea',
+        cuerpo: ['Hola:', '', 'Llegó la línea <b>reparadora</b>.'].join('\n'),
+      });
+
+      expect(vista.asunto).toBe('Nueva línea');
+      expect(vista.html).toContain(
+        'Llegó la línea &lt;b&gt;reparadora&lt;/b&gt;.',
+      );
+      expect(vista.html).toContain('https://tienda.cl/ofertas/baja"');
+      expect(vista.texto).toContain('Llegó la línea');
+      expect(vista).not.toHaveProperty('confirmacion');
+      expect(vista).not.toHaveProperty('destinatarios');
+      expect(prisma.campana.findFirst).not.toHaveBeenCalled();
+    });
   });
 
   describe('crear y editar', () => {

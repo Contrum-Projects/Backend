@@ -580,6 +580,41 @@ describe('Marketing · campañas de correo (e2e)', () => {
       .expect(404);
   });
 
+  describe('SCRUM-150 · vista previa en vivo', () => {
+    it('SCRUM-150 · arma el correo de lo que se escribe, sin guardar campaña ni entregar la confirmación', async () => {
+      const antes = await prisma.campana.count();
+      const respuesta = await servidor()
+        .post(`${RUTA}/vista-previa`)
+        .auth(tokenAdministrador, { type: 'bearer' })
+        .send({
+          asunto: 'Novedades en vivo',
+          cuerpo: ['Hola:', '', 'Llegó la línea.'].join('\n'),
+        })
+        .expect(200);
+
+      expect(respuesta.body).toEqual({
+        asunto: 'Novedades en vivo',
+        html: expect.stringContaining('Llegó la línea.'),
+        texto: expect.stringContaining('Llegó la línea.'),
+      });
+      expect(respuesta.body).not.toHaveProperty('confirmacion');
+      expect(await prisma.campana.count()).toBe(antes);
+    });
+
+    it('SCRUM-150 · asunto vacío o un segmento (que no corresponde) responden 400', async () => {
+      await servidor()
+        .post(`${RUTA}/vista-previa`)
+        .auth(tokenAdministrador, { type: 'bearer' })
+        .send({ asunto: '', cuerpo: 'Hola' })
+        .expect(400);
+      await servidor()
+        .post(`${RUTA}/vista-previa`)
+        .auth(tokenAdministrador, { type: 'bearer' })
+        .send({ asunto: 'A', cuerpo: 'Hola', segmento: { tipos: ['cliente'] } })
+        .expect(400);
+    });
+  });
+
   describe('RNF-03 · permisos', () => {
     const rutas = [
       ['get', RUTA],
@@ -587,6 +622,7 @@ describe('Marketing · campañas de correo (e2e)', () => {
       ['get', `${RUTA}/1`],
       ['patch', `${RUTA}/1`],
       ['post', `${RUTA}/1/vista-previa`],
+      ['post', `${RUTA}/vista-previa`],
       ['post', `${RUTA}/1/envio`],
     ] as const;
 

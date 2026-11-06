@@ -38,6 +38,7 @@ import { Paginacion } from '../../common/validacion/paginacion.js';
 import {
   type CampanaEnviada,
   CampanasService,
+  type CorreoCampana,
   type DetalleCampana,
   type ListadoCampanas,
   type VistaPreviaCampana,
@@ -45,6 +46,10 @@ import {
 import { ActualizarCampanaDto } from './dto/actualizar-campana.dto.js';
 import { CrearCampanaDto } from './dto/crear-campana.dto.js';
 import { EnviarCampanaDto } from './dto/enviar-campana.dto.js';
+import {
+  CorreoCampanaDto,
+  RenderizarCampanaDto,
+} from './dto/renderizar-campana.dto.js';
 
 /** Id de la URL: un valor imposible responde 404 como uno inexistente. */
 const ID_CAMPANA = new IdRutaPipe('La campaña no existe.');
@@ -122,6 +127,19 @@ export class CampanasController {
     @Body() dto: ActualizarCampanaDto,
   ): Promise<DetalleCampana> {
     return this.campanas.actualizar(id, dto);
+  }
+
+  @Post('vista-previa')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Vista previa en vivo de un correo de campaña (SCRUM-150)',
+    description:
+      'Arma el correo con el asunto y el cuerpo que se están escribiendo, sin guardarlos. No cuenta destinatarios ni entrega la `confirmacion`: para enviar se guarda el borrador y se pide `POST /:id/vista-previa`.',
+  })
+  @ApiOkResponse({ description: 'Correo armado.', type: CorreoCampanaDto })
+  @ApiBadRequestResponse({ description: 'Asunto o cuerpo inválidos.' })
+  vistaPreviaEnVivo(@Body() dto: RenderizarCampanaDto): CorreoCampana {
+    return this.campanas.renderizar(dto);
   }
 
   @Post(':id/vista-previa')

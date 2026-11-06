@@ -1031,7 +1031,7 @@ enlace de baja de la vista previa lleva a `/ofertas/baja` sin token (no da de ba
 `confirmacion` es `emisión.firma`: un HMAC-SHA256 de id + asunto + cuerpo + segmento + emisión
 (clave derivada de `JWT_ACCESS_SECRET` con su propio dominio, `HuellaCampana`; sin variable ni
 columna nueva). **Vence a la hora** (`VIGENCIA_VISTA_PREVIA_MS`): pasada, 409 «más de una hora»
-y hay que pedir otra vista previa.
+y hay que pedir otra vista previa. **Vista previa en vivo** (decisión del 6 nov, SCRUM-150): `POST /vista-previa` `{ asunto, cuerpo }` arma el correo con la misma plantilla mientras se redacta y responde `{ asunto, html, texto }`; no guarda nada, no cuenta destinatarios y **nunca** entrega la `confirmacion` (no sirve para enviar).
 **Envío:** `POST /:id/envio` `{ confirmacion }` responde **202** `{ id, fechaEnvio,
 destinatarios }`. En una transacción con la campaña bloqueada (`FOR UPDATE`): ya enviada, 409
 (CA2); huella distinta (cambió después de la vista previa), 409 «Pide otra vista previa»; sin
