@@ -5,6 +5,7 @@ import { AjustesController } from './ajustes.controller.js';
 import { AjustesService } from './ajustes.service.js';
 import { EntradasController } from './entradas.controller.js';
 import { EntradasService } from './entradas.service.js';
+import { ListadoStockService } from './listado-stock.service.js';
 import { ProveedoresController } from './proveedores.controller.js';
 import { ProveedoresService } from './proveedores.service.js';
 import { SalidasController } from './salidas.controller.js';
@@ -38,6 +39,7 @@ import { VentaStockService } from './venta-stock.service.js';
     TransferenciasService,
     StockService,
     StockBajoService,
+    ListadoStockService,
     UbicacionesService,
     VentaStockService,
   ],

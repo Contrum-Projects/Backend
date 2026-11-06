@@ -361,4 +361,172 @@ describe('Inventario · stock por formato (e2e)', () => {
       expect((respuesta.body as StockFormato).total).toBe(2);
     }
   });
+
+  describe('listado', () => {
+    interface FilaStock {
+      formatoId: number;
+      sku: string;
+      producto: string;
+      nombreFormato: string;
+      imagen: string | null;
+      ubicaciones: { id: number; codigo: string }[];
+      stock: number;
+      stockMinimo: number;
+      bajoMinimo: boolean;
+      ultimaEntrada: {
+        costoUnitarioNeto: number;
+        proveedor: { id: number; razonSocial: string };
+      } | null;
+    }
+    interface Listado {
+      items: FilaStock[];
+      total: number;
+      pagina: number;
+      limite: number;
+      totalBajoMinimo: number;
+    }
+
+    /** Otro formato de prueba, con su producto (el nombre decide el orden del listado). */
+    const otroFormato = async (nombreProducto: string, stockMinimo: number) => {
+      const { categoriaId } = await prisma.producto.findFirstOrThrow({
+        where: { nombre: { startsWith: PREFIJO } },
+      });
+      const producto = await prisma.producto.create({
+        data: {
+          nombre: `${PREFIJO} ${nombreProducto}`,
+          descripcion: 'Producto de prueba.',
+          origenDescripcion: ORIGENES_DESCRIPCION.MANUAL,
+          canalVenta: CANALES_VENTA.GENERAL,
+          categoriaId,
+        },
+      });
+      const articulo = await prisma.articuloVenta.create({
+        data: { sku: `${PREFIJO}-${unico()}`, tipo: TIPOS_ARTICULO.FORMATO },
+      });
+      await prisma.formatoProducto.create({
+        data: {
+          id: articulo.id,
+          productoId: producto.id,
+          nombreFormato: '1 litro',
+          stockMinimo,
+          pesoGramos: 1000,
+          altoCm: 25,
+          anchoCm: 8,
+          largoCm: 8,
+          esPredeterminado: true,
+        },
+      });
+      return articulo.id;
+    };
+
+    const listar = async (query: object, con = token) =>
+      (
+        await request(app.getHttpServer())
+          .get('/api/inventario/stock')
+          .query({ buscar: PREFIJO, ...query })
+          .auth(con, { type: 'bearer' })
+          .expect(200)
+      ).body as Listado;
+
+    /** El formato principal bajo su mínimo (7 de 10, en dos bodegas) y otros dos que no lo están. */
+    const prepararListado = async () => {
+      await prisma.formatoProducto.update({
+        where: { id: formatoId },
+        data: { stockMinimo: 10 },
+      });
+      await conStock(estanteId, 4);
+      await conStock(gondolaId, 3);
+      await conEntrada(proveedorA, '2026-10-01', 3500);
+      // Nunca recibido, sin mínimo: stock 0 y sin proveedor ni costo (criterio 3)
+      const sinEntradas = await otroFormato('Acondicionador', 0);
+      // Sobre su mínimo
+      const conMinimo = await otroFormato('Tinte', 2);
+      await prisma.existencia.create({
+        data: { formatoId: conMinimo, ubicacionId: estanteId, cantidad: 5 },
+      });
+      const { bodegaId: tiendaId } = await prisma.ubicacion.findUniqueOrThrow({
+        where: { id: gondolaId },
+      });
+      return { sinEntradas, conMinimo, tiendaId };
+    };
+
+    it('E11-H5 · stock: cada formato con sus ubicaciones, su stock, el último costo y proveedor, y si está bajo el mínimo', async () => {
+      const { sinEntradas, conMinimo } = await prepararListado();
+
+      const listado = await listar({});
+
+      expect(listado.items.map((fila) => fila.formatoId)).toEqual([
+        sinEntradas,
+        formatoId,
+        conMinimo,
+      ]);
+      expect(listado).toMatchObject({
+        total: 3,
+        pagina: 1,
+        limite: 20,
+        totalBajoMinimo: 1,
+      });
+      expect(listado.items[0]).toMatchObject({
+        stock: 0,
+        stockMinimo: 0,
+        ubicaciones: [],
+        bajoMinimo: false,
+        ultimaEntrada: null,
+        imagen: null,
+      });
+      expect(listado.items[1]).toMatchObject({
+        stock: 7,
+        stockMinimo: 10,
+        bajoMinimo: true,
+        ubicaciones: [
+          { id: estanteId, codigo: 'A-01' },
+          { id: gondolaId, codigo: 'GONDOLA-1' },
+        ],
+        ultimaEntrada: {
+          costoUnitarioNeto: 3500,
+          proveedor: { id: proveedorA, razonSocial: `${PREFIJO} Proveedor A` },
+        },
+      });
+    });
+
+    it('E11-H5 · stock: con bodega, solo sus formatos, ubicaciones y unidades; el mínimo se mide con el total', async () => {
+      const { tiendaId } = await prepararListado();
+
+      const listado = await listar({ bodegaId: tiendaId });
+
+      expect(listado).toMatchObject({ total: 1, totalBajoMinimo: 1 });
+      expect(listado.items).toEqual([
+        expect.objectContaining({
+          formatoId,
+          stock: 3,
+          ubicaciones: [{ id: gondolaId, codigo: 'GONDOLA-1' }],
+          bajoMinimo: true,
+        }),
+      ]);
+    });
+
+    it('E11-H5 · stock: «bajo el mínimo» deja solo esos formatos y el chip cuenta los de la búsqueda', async () => {
+      await prepararListado();
+
+      const listado = await listar({ bajoMinimo: 'true' });
+
+      expect(listado.items.map((fila) => fila.formatoId)).toEqual([formatoId]);
+      expect(listado).toMatchObject({ total: 1, totalBajoMinimo: 1 });
+    });
+
+    it('RNF-03 · el listado lo ve el personal con permiso de consulta; el cliente recibe 403', async () => {
+      const vendedor = await tokenDe(ROLES.VENDEDOR);
+      const cliente = await tokenDe(ROLES.CLIENTE);
+      await listar({}, vendedor);
+      await request(app.getHttpServer())
+        .get('/api/inventario/stock')
+        .auth(cliente, { type: 'bearer' })
+        .expect(403);
+      await request(app.getHttpServer())
+        .get('/api/inventario/stock')
+        .query({ bodegaId: 'x' })
+        .auth(token, { type: 'bearer' })
+        .expect(400);
+    });
+  });
 });

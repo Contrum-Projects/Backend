@@ -406,6 +406,14 @@ falso), el total y la última entrada: proveedor y costo unitario neto de la ent
 recepción** más reciente (empate: la registrada después, id mayor); sin entradas, `null` y total 0.
 Un formato desactivado se consulta; uno inexistente o un id imposible, 404. Solo lectura desde
 PostgreSQL, sin caché. Sin listado de formatos en esta historia. Sin cambios al MER.
+Listado de stock (SCRUM-150, 6 nov): `GET /api/inventario/stock?bodegaId&buscar&bajoMinimo&pagina&limite`
+con `inventario.consultar`. Un formato por fila (también desactivados y nunca recibidos, con stock
+0), por producto y formato; `buscar` en producto, formato o SKU. Con `bodegaId`, solo los formatos
+con unidades en esa bodega, y `ubicaciones` (con stock > 0, por código) y `stock` son los de ella.
+`stockMinimo: 0` es «sin mínimo» (no `null`: la columna es `Int @default(0)`). `bajoMinimo` usa
+la regla de E11-H6 (stock total en todas las ubicaciones bajo un mínimo > 0), sin importar la
+bodega elegida; `totalBajoMinimo` cuenta esos formatos con la misma bodega y búsqueda. La última
+entrada (costo y proveedor) sigue la regla de arriba; el vendedor también la ve.
 Decisiones del 28 oct (E11-H6): se compara el **stock total** del formato (todas sus ubicaciones,
 también las desactivadas) con `stock_minimo`. El correo sale solo cuando un movimiento lo hace
 **cruzar** (antes ≥ mínimo, después < mínimo); los movimientos siguientes, ya bajo el mínimo, no lo
