@@ -1141,6 +1141,16 @@ envios }` con `total`, `pendientes`, `enviados`, `abiertos`, `clics`, `rebotados
 las campañas de envío único y para el saludo de cumpleaños (sin `fechaEnvio`); un borrador sin
 enviar responde **409** y una campaña inexistente, 404. Ambos se calculan al consultar, sin caché.
 `ESTADOS_SIN_VENTA` pasó a `common/dominio/valores.ts`. Sin cambios al MER.
+Decisión del 6 nov (SCRUM-150, pantalla de SCRUM-144): **campañas por período**, `GET
+/api/reportes/campanas?desde=AAAA-MM-DD&hasta=AAAA-MM-DD` (mismas reglas de período que E14-H2:
+ambos incluidos, hora de Chile, hasta 366 días; 400 si no). Responde `{ desde, hasta, campanas }`,
+las más recientes primero: cada campaña de envío único **confirmada** en el período (`fecha`: la
+del envío, ISO) y una fila **automática** por mes con los saludos de cumpleaños creados ese mes
+(`fecha` AAAA-MM, `nombre` «Saludo de cumpleaños», `segmento` null, `id` el del saludo o null si
+nunca se configuró). Cada fila trae `id`, `nombre`, `segmento` (el guardado, estructurado),
+`enviados`, `rebotados`, `cancelados`, `fallidos` y `porcentajeAbiertos` / `porcentajeClic`:
+de los correos `enviada`, cuántos tienen apertura o clic, 0 a 100 redondeado al entero; `null`
+si no salió ninguno (RNF-03).
 
 ## Rendimiento y operación
 
