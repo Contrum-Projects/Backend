@@ -30,6 +30,7 @@ const CUMPLEANOS = new Date('2026-03-15T13:00:00.000Z');
 const NACIMIENTO = new Date('1990-03-15T00:00:00.000Z');
 
 const SALUDO = {
+  activo: true,
   asunto: '¡Feliz cumpleaños!',
   cuerpo: 'Te deseamos un gran día.',
   oferta: { activa: true, texto: '20 % en toda la tienda esta semana.' },
@@ -177,10 +178,16 @@ describe('Marketing · saludo de cumpleaños (e2e)', () => {
     }).expect(200);
 
     expect(respuesta.body).toEqual({
+      activo: true,
       asunto: SALUDO.asunto,
       cuerpo: 'Que tengas un gran día.',
       oferta: SALUDO.oferta,
       configurado: true,
+      programadosEsteMes: expect.any(Number) as number,
+      porcentajeAperturaUltimoMes: expect.toBeOneOf([
+        null,
+        expect.any(Number),
+      ]) as number | null,
     });
     const consulta = await servidor()
       .get(RUTA)
@@ -204,6 +211,11 @@ describe('Marketing · saludo de cumpleaños (e2e)', () => {
     ['asunto de varias líneas', { ...SALUDO, asunto: 'Hola\nBcc: x@y.cl' }],
     ['saludo vacío', { ...SALUDO, cuerpo: '   ' }],
     ['campo de más', { ...SALUDO, descuento: 20 }],
+    [
+      'sin activo (el PUT reemplaza todo)',
+      { asunto: SALUDO.asunto, cuerpo: SALUDO.cuerpo, oferta: SALUDO.oferta },
+    ],
+    ['activo que no es booleano', { ...SALUDO, activo: 'si' }],
   ])(
     'E12-H5 · CA2 saludo con oferta: %s responde 400',
     async (_caso, cuerpo) => {
@@ -235,6 +247,50 @@ describe('Marketing · saludo de cumpleaños (e2e)', () => {
         },
       ]);
     }
+  });
+
+  it('SCRUM-150 · con el saludo apagado no se saluda a nadie; al encenderlo, sí', async () => {
+    await configurar({ ...SALUDO, activo: false }).expect(200);
+    const cuenta = await nuevaCuenta(ROLES.CLIENTE);
+
+    await servicio.enviarSaludos(CUMPLEANOS);
+    expect(await saludosDe(cuenta.id)).toEqual([]);
+
+    await configurar(SALUDO).expect(200);
+    await servicio.enviarSaludos(CUMPLEANOS);
+    expect(await saludosDe(cuenta.id)).toHaveLength(1);
+  });
+
+  it('SCRUM-150 · programados este mes: cuenta a quien cumple años este mes y recibiría el saludo; apagado, 0', async () => {
+    const programados = async () => {
+      const respuesta = await servidor()
+        .get(RUTA)
+        .auth(tokenAdministrador, { type: 'bearer' })
+        .expect(200);
+      return (respuesta.body as { programadosEsteMes: number })
+        .programadosEsteMes;
+    };
+    await configurar(SALUDO).expect(200);
+    // Un día de este mes en Chile (el 10, para no caer en otro mes por la zona horaria)
+    const mes = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Santiago',
+      month: '2-digit',
+    }).format(new Date());
+    const deEsteMes = new Date(`1990-${mes}-10T00:00:00.000Z`);
+    const antes = await programados();
+
+    await nuevaCuenta(ROLES.CLIENTE, { fechaNacimiento: deEsteMes });
+    // No cuentan: sin consentimiento ni del personal
+    await nuevaCuenta(ROLES.CLIENTE, {
+      fechaNacimiento: deEsteMes,
+      acepta: false,
+    });
+    await nuevaCuenta(ROLES.VENDEDOR, { fechaNacimiento: deEsteMes });
+
+    expect(await programados()).toBe(antes + 1);
+    await configurar({ ...SALUDO, activo: false }).expect(200);
+    expect(await programados()).toBe(0);
+    await configurar(SALUDO).expect(200);
   });
 
   it('E12-H5 · CA1 saludo enviado: antes de las 9:00 de Chile o en otro día no se saluda', async () => {

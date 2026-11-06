@@ -22,6 +22,7 @@ import {
   type ConfiguracionCumpleanos,
   CumpleanosService,
 } from './cumpleanos.service.js';
+import { ConfiguracionCumpleanosDto } from './dto/configuracion-cumpleanos.dto.js';
 import { ConfigurarCumpleanosDto } from './dto/configurar-cumpleanos.dto.js';
 
 /**
@@ -44,9 +45,12 @@ export class CumpleanosController {
   @ApiOperation({
     summary: 'Ver el saludo de cumpleaños (E12-H5)',
     description:
-      'Asunto, saludo y oferta. Si nunca se configuró, devuelve el saludo por defecto, sin oferta, con `configurado: false`.',
+      'Si está activo, asunto, saludo y oferta, con las cuentas programadas este mes y la apertura del mes anterior. Si nunca se configuró, devuelve el saludo por defecto (activo, sin oferta), con `configurado: false`.',
   })
-  @ApiOkResponse({ description: 'Saludo de cumpleaños.' })
+  @ApiOkResponse({
+    description: 'Saludo de cumpleaños.',
+    type: ConfiguracionCumpleanosDto,
+  })
   obtener(): Promise<ConfiguracionCumpleanos> {
     return this.cumpleanos.obtener();
   }
@@ -55,9 +59,12 @@ export class CumpleanosController {
   @ApiOperation({
     summary: 'Configurar el saludo de cumpleaños y su oferta (E12-H5)',
     description:
-      'Reemplaza el asunto, el saludo y la oferta. Los saludos que salgan desde ahora llevan la oferta si está activa.',
+      'Reemplaza todo: si está activo, el asunto, el saludo y la oferta. Apagado, no sale ningún saludo. Los que salgan desde ahora llevan la oferta si está activa.',
   })
-  @ApiOkResponse({ description: 'Saludo guardado.' })
+  @ApiOkResponse({
+    description: 'Saludo guardado.',
+    type: ConfiguracionCumpleanosDto,
+  })
   @ApiBadRequestResponse({
     description: 'Datos inválidos, o oferta activa sin texto.',
   })

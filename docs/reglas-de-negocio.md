@@ -1051,12 +1051,12 @@ del pie del correo y que la vista previa de una enviada responda 409. Sin cambio
 Decisiones del 5 nov (E12-H5, SCRUM-72): la **oferta es texto libre** que redacta el administrador
 (el backend no aplica descuentos ni cupones). El saludo vive en **una sola fila de CAMPANA con tipo
 `cumpleanos`**: asunto (1-200, una línea) y saludo (1-10.000, texto plano escapado) editables, y la
-oferta en `campana.segmento` como `{ "oferta": { "activa", "texto" } }` (texto 1-1.000, obligatorio
+oferta en `campana.segmento` como `{ "activo", "oferta": { "activa", "texto" } }` (texto 1-1.000, obligatorio
 si está activa; inactiva se conserva). `GET` y `PUT /api/marketing/cumpleanos` con
 `campanas.gestionar` (401 sin sesión, 403 sin el permiso, 400 datos inválidos u oferta activa sin
 texto); el `PUT` reemplaza todo y la primera vez crea la fila (autor: quien guarda), con un candado
 de transacción (`CANDADOS.SALUDO_CUMPLEANOS`) para que no haya dos. Sin configurar rige un saludo
-por defecto sin oferta (`configurado: false`); textos PROPUESTA por confirmar. La fila no aparece en
+por defecto sin oferta (`configurado: false`); textos PROPUESTA por confirmar. **Encendido y cifras** (decisión del 6 nov, SCRUM-150): `activo` (obligatorio en el `PUT`, que reemplaza todo) apaga el saludo: el job no saluda a nadie y lo revisa otra vez con la cuenta bloqueada. Sin configurar o en una fila guardada antes, el saludo está **activo** (como hasta ahora). `GET` y `PUT` devuelven además `programadosEsteMes` (cuentas que cumplen años este mes en Chile y recibirían el saludo: mismas condiciones que el envío; 0 con el saludo apagado) y `porcentajeAperturaUltimoMes` (saludos `enviada` del mes calendario anterior en Chile con apertura registrada, 0 a 100 redondeado al entero; `null` si no salió ninguno). La fila no aparece en
 `/api/marketing/campanas` (solo `envio_unico`). **Envío:** job repetible cada 30 s en su propia cola
 `cumpleanos` (RNF-20, RNF-31). Saluda a cuentas cliente o profesional activas, con correo
 verificado, que aceptan publicidad y con `fecha_nacimiento` (CA3; los LEAD no tienen fecha), el

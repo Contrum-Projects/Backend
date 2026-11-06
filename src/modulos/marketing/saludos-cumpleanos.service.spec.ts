@@ -37,9 +37,19 @@ const crear = (
   opciones: {
     cuenta?: Partial<CuentaPrueba> | null;
     saludosDelAnio?: number;
-    configurado?: { id: number; asunto: string } | null;
+    configurado?: {
+      id: number;
+      asunto: string;
+      segmento?: string | null;
+    } | null;
+    /** Lo que ve la pasada al empezar, si difiere de lo que ve con la cuenta bloqueada. */
+    alEmpezar?: { segmento: string | null } | null;
   } = {},
 ) => {
+  const configurado =
+    opciones.configurado === undefined
+      ? { id: 4, asunto: '¡Feliz cumpleaños!', segmento: null }
+      : opciones.configurado;
   const tx = {
     $queryRaw: vi.fn().mockResolvedValue([{ id: 20 }]),
     usuario: {
@@ -54,16 +64,17 @@ const crear = (
       create: vi.fn().mockResolvedValue({ id: 70 }),
     },
     campana: {
-      findFirst: vi
-        .fn()
-        .mockResolvedValue(
-          opciones.configurado === undefined
-            ? { id: 4, asunto: '¡Feliz cumpleaños!' }
-            : opciones.configurado,
-        ),
+      findFirst: vi.fn().mockResolvedValue(configurado),
     },
   };
   const prisma = {
+    campana: {
+      findFirst: vi
+        .fn()
+        .mockResolvedValue(
+          opciones.alEmpezar === undefined ? configurado : opciones.alEmpezar,
+        ),
+    },
     $queryRaw: vi.fn().mockResolvedValue([{ id: 20, codigoPublico: CODIGO }]),
     $transaction: vi.fn((fn: (t: typeof tx) => Promise<unknown>) => fn(tx)),
   };
@@ -129,6 +140,38 @@ describe('SaludosCumpleanosService', () => {
       },
       expect.objectContaining({ priority: PRIORIDAD_CORREO.PUBLICIDAD }),
     );
+  });
+
+  it('SCRUM-150 · con el saludo apagado no busca cuentas ni saluda a nadie', async () => {
+    const { prisma, correos, servicio } = crear({
+      configurado: {
+        id: 4,
+        asunto: '¡Feliz cumpleaños!',
+        segmento: '{"activo":false,"oferta":{"activa":false,"texto":null}}',
+      },
+    });
+
+    await servicio.enviarSaludos(AHORA);
+
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(correos.add).not.toHaveBeenCalled();
+  });
+
+  it('SCRUM-150 · si lo apagan mientras la pasada recorre las cuentas, no crea el saludo', async () => {
+    const { tx, correos, servicio } = crear({
+      alEmpezar: { segmento: null },
+      configurado: {
+        id: 4,
+        asunto: '¡Feliz cumpleaños!',
+        segmento: '{"activo":false}',
+      },
+    });
+
+    await servicio.enviarSaludos(AHORA);
+
+    expect(tx.notificacion.create).not.toHaveBeenCalled();
+    expect(correos.add).not.toHaveBeenCalled();
   });
 
   it('E12-H5 · CA1 saludo enviado: sin configurar, sale con el asunto por defecto y sin campaña', async () => {

@@ -1,7 +1,9 @@
 /**
  * Configuración del saludo de cumpleaños (E12-H5, decisión del 5 de noviembre de 2026). Vive en
  * una sola fila de CAMPANA con tipo `cumpleanos`: el asunto y el cuerpo son los del saludo y la
- * oferta va en `campana.segmento` como JSON `{ "oferta": { "activa", "texto" } }`. Sin cambios al MER.
+ * oferta va en `campana.segmento` como JSON `{ "activo", "oferta": { "activa", "texto" } }`. Sin
+ * cambios al MER. `activo` (decisión del 6 nov, SCRUM-150) apaga el saludo; si falta, el saludo
+ * está activo, como antes de esa decisión.
  */
 
 /** Asunto por defecto, mientras el administrador no configura el saludo. PROPUESTA por confirmar. */
@@ -22,6 +24,8 @@ export interface OfertaCumpleanos {
 }
 
 export interface SaludoCumpleanos {
+  /** Con `false` no sale ningún saludo. Por defecto `true` (SCRUM-150). */
+  activo: boolean;
   asunto: string;
   cuerpo: string;
   oferta: OfertaCumpleanos;
@@ -31,14 +35,35 @@ const SIN_OFERTA: OfertaCumpleanos = { activa: false, texto: null };
 
 /** El saludo que rige mientras no se configura. */
 export const SALUDO_POR_DEFECTO: SaludoCumpleanos = {
+  activo: true,
   asunto: ASUNTO_CUMPLEANOS_POR_DEFECTO,
   cuerpo: CUERPO_CUMPLEANOS_POR_DEFECTO,
   oferta: SIN_OFERTA,
 };
 
-/** La oferta como se guarda en `campana.segmento`. */
-export const textoOferta = (oferta: OfertaCumpleanos): string =>
-  JSON.stringify({ oferta: { activa: oferta.activa, texto: oferta.texto } });
+/** Lo que se guarda en `campana.segmento`: si el saludo está activo y su oferta. */
+export const textoConfiguracion = ({
+  activo,
+  oferta,
+}: Pick<SaludoCumpleanos, 'activo' | 'oferta'>): string =>
+  JSON.stringify({
+    activo,
+    oferta: { activa: oferta.activa, texto: oferta.texto },
+  });
+
+/**
+ * Si el saludo está activo. Solo un `false` explícito lo apaga: una fila guardada antes de
+ * SCRUM-150 (sin `activo`) o un valor que no se entiende siguen saludando, como hasta ahora.
+ */
+export const leerActivo = (segmento: string | null): boolean => {
+  if (!segmento) return true;
+  try {
+    const { activo } = JSON.parse(segmento) as { activo?: unknown };
+    return activo !== false;
+  } catch {
+    return true;
+  }
+};
 
 /**
  * Lee la oferta guardada. Un valor que no se entiende cuenta como sin oferta: el saludo sale igual
