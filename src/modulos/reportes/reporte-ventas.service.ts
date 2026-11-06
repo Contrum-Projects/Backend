@@ -1,10 +1,7 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ESTADOS_PEDIDO, TIPOS_PRECIO } from '../../common/dominio/valores.js';
-import { aFechaSinHora } from '../../common/dominio/fechas.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
-
-/** Largo máximo del período, en días, contando ambos extremos (decisión del 4 nov 2026). */
-export const MAXIMO_DIAS_REPORTE_VENTAS = 366;
+import { validarPeriodo } from './periodo-reporte.js';
 
 /**
  * Un pedido es venta desde que se paga (decisión del 4 nov 2026): quedan fuera los que esperan el
@@ -53,8 +50,6 @@ const sumar = (a: TotalesVentas, b: TotalesVentas): TotalesVentas => ({
   montoTotal: a.montoTotal + b.montoTotal,
 });
 
-const MS_POR_DIA = 86_400_000;
-
 @Injectable()
 export class ReporteVentasService {
   constructor(private readonly prisma: PrismaService) {}
@@ -69,7 +64,7 @@ export class ReporteVentasService {
     desde: string,
     hasta: string,
   ): Promise<ReporteVentas> {
-    this.validarPeriodo(desde, hasta);
+    validarPeriodo(desde, hasta);
 
     // Los días se cortan a medianoche de Chile: AT TIME ZONE respeta el cambio de horario
     const filas = await this.prisma.$queryRaw<FilaVentas[]>`
@@ -112,22 +107,5 @@ export class ReporteVentasService {
       mayorista,
       total: sumar(minorista, mayorista),
     };
-  }
-
-  private validarPeriodo(desde: string, hasta: string): void {
-    const dias =
-      (aFechaSinHora(hasta).getTime() - aFechaSinHora(desde).getTime()) /
-        MS_POR_DIA +
-      1;
-    if (dias < 1) {
-      throw new BadRequestException(
-        'La fecha hasta no puede ser anterior a la fecha desde.',
-      );
-    }
-    if (dias > MAXIMO_DIAS_REPORTE_VENTAS) {
-      throw new BadRequestException(
-        `El período no puede superar los ${MAXIMO_DIAS_REPORTE_VENTAS} días.`,
-      );
-    }
   }
 }
