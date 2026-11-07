@@ -44,6 +44,7 @@ export class CrearTransferenciaDto {
   cantidad: number;
 
   @ApiPropertyOptional({
+    type: String,
     example: 'Reposición de la góndola',
     maxLength: MAXIMO_OBSERVACION_TRANSFERENCIA,
     nullable: true,

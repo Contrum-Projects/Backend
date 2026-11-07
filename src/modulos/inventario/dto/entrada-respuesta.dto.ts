@@ -6,7 +6,7 @@ import { UbicacionResumenDto } from './movimiento-listado.dto.js';
 
 const TIPOS_DOCUMENTO = Object.values(TIPOS_DOCUMENTO_PROVEEDOR);
 
-class ProveedorDeEntradaDto {
+class ProveedorEntradaRegistradaDto {
   @ApiProperty({ example: 1 })
   id: number;
 
@@ -44,8 +44,8 @@ export class EntradaRegistradaDto {
   @ApiProperty({ example: 12 })
   id: number;
 
-  @ApiProperty({ type: ProveedorDeEntradaDto })
-  proveedor: ProveedorDeEntradaDto;
+  @ApiProperty({ type: ProveedorEntradaRegistradaDto })
+  proveedor: ProveedorEntradaRegistradaDto;
 
   @ApiProperty({ example: '2026-11-06', format: 'date' })
   fechaRecepcion: string;
