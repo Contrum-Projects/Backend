@@ -38,6 +38,7 @@ interface FormatoDetalle {
 }
 
 interface ProductoDetalle {
+  ingredientes: string | null;
   id: number;
   exclusivo?: boolean;
   formatos: FormatoDetalle[];
@@ -322,6 +323,28 @@ describe('Tienda · detalle de un producto (e2e)', () => {
       `articulos/${formatoId}/principal.jpg`,
     );
     expect(formatos[0]).not.toHaveProperty('precioMayorista');
+  });
+
+  it('SCRUM-150 · la ficha trae los ingredientes del producto, también al profesional, y null si no tiene', async () => {
+    const producto = await nuevoProducto();
+    const sinLista = await detalle(`productos/${producto.id}`).expect(200);
+    expect((sinLista.body as ProductoDetalle).ingredientes).toBeNull();
+
+    await prisma.producto.update({
+      where: { id: producto.id },
+      data: { ingredientes: 'Agua, Glicerina, Pantenol' },
+    });
+    const conLista = await detalle(`productos/${producto.id}`).expect(200);
+    expect((conLista.body as ProductoDetalle).ingredientes).toBe(
+      'Agua, Glicerina, Pantenol',
+    );
+    const profesional = await detalle(
+      `productos/${producto.id}`,
+      await tokenDe(ROLES.PROFESIONAL),
+    ).expect(200);
+    expect((profesional.body as ProductoDetalle).ingredientes).toBe(
+      'Agua, Glicerina, Pantenol',
+    );
   });
 
   it('E2-H3 · formato sin stock: lo devuelve como agotado, aunque haya stock fuera de la venta online', async () => {

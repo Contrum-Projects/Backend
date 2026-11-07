@@ -8,7 +8,10 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'node:crypto';
 import type { TrabajoStockBajo } from '../../colas/colas.js';
-import { montosPorLineas } from '../../common/dominio/montos.js';
+import {
+  montosPorLineas,
+  netoDesdeConIva,
+} from '../../common/dominio/montos.js';
 import { ROLES, type Rol } from '../../common/dominio/roles.js';
 import {
   ESTADOS_ENVIO,
@@ -23,6 +26,10 @@ import type { Prisma } from '../../generated/prisma/client.js';
 import { bloquearCuenta, ROL_CAMBIADO } from '../../prisma/bloqueos.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { CarritoService } from '../carrito/carrito.service.js';
+import {
+  AplicarCuponService,
+  type CuponAplicado,
+} from '../cupones/aplicar-cupon.service.js';
 import type { Bulto } from '../despacho/cotizador-envio.js';
 import {
   CotizarEnvioService,
@@ -78,6 +85,22 @@ const generarCodigoPedido = (): string =>
     (byte) => ALFABETO_CODIGO[byte % ALFABETO_CODIGO.length],
   ).join('');
 
+/**
+ * Los montos del pedido con el descuento del cupón ya restado (SCRUM-150). El descuento viene con
+ * IVA: el total baja en ese monto y el neto en su parte neta, así total === neto + iva. Las líneas
+ * guardan su precio sin descuento. PROPUESTA por confirmar con quien lleva la contabilidad.
+ */
+const conDescuento = (
+  montos: { neto: number; iva: number; total: number },
+  descuento: number,
+  porcentajeIva: number,
+) => {
+  if (descuento === 0) return montos;
+  const total = montos.total - descuento;
+  const neto = montos.neto - netoDesdeConIva(descuento, porcentajeIva);
+  return { neto, iva: total - neto, total };
+};
+
 /** Cómo se nombra un artículo del carrito en un mensaje para el comprador. */
 const nombreDeArticulo = (articulo: {
   formato: { nombreFormato: string; producto: { nombre: string } } | null;
@@ -101,6 +124,7 @@ export class CrearPedidoService {
     private readonly ventaStock: VentaStockService,
     private readonly misPedidos: MisPedidosService,
     private readonly envios: CotizarEnvioService,
+    private readonly cupones: AplicarCuponService,
   ) {}
 
   /**
@@ -276,10 +300,28 @@ export class CrearPedidoService {
       netoGuardado: aLaVenta.get(articuloId)!.neto,
     }));
     const porcentajeIva = this.config.get('IVA_PORCENTAJE', { infer: true });
-    const montos = montosPorLineas(
-      envioCotizado
-        ? [...lineas, { netoGuardado: envioCotizado.costoNeto, cantidad: 1 }]
-        : lineas,
+    // SCRUM-150 · Con la fila del cupón bloqueada: dos pedidos a la vez no pasan del máximo de usos
+    const cupon: CuponAplicado | null = dto.codigoCupon
+      ? await this.cupones.evaluar(tx, {
+          codigo: dto.codigoCupon,
+          usuarioId,
+          rol,
+          lineas: carrito.items.map(({ articuloId, cantidad }) => ({
+            articuloId,
+            cantidad,
+            articulo: aLaVenta.get(articuloId)!,
+          })),
+          bloquear: true,
+        })
+      : null;
+    const montos = conDescuento(
+      montosPorLineas(
+        envioCotizado
+          ? [...lineas, { netoGuardado: envioCotizado.costoNeto, cantidad: 1 }]
+          : lineas,
+        porcentajeIva,
+      ),
+      cupon?.descuento ?? 0,
       porcentajeIva,
     );
     if (montos.total > MAXIMO_INT4) {
@@ -307,6 +349,8 @@ export class CrearPedidoService {
         montoNeto: montos.neto,
         montoIva: montos.iva,
         montoTotal: montos.total,
+        cuponId: cupon?.cuponId ?? null,
+        montoDescuento: cupon?.descuento ?? 0,
         detalles: {
           create: lineas.map(({ articuloId, cantidad, netoGuardado }) => ({
             articuloId,

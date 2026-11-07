@@ -1,3 +1,5 @@
+import type { ConfigService } from '@nestjs/config';
+import type { Entorno } from '../../config/entorno.js';
 import {
   BadRequestException,
   NotFoundException,
@@ -62,7 +64,13 @@ describe('PreciosService', () => {
 
   const preparar = (datos?: Articulo) => {
     prisma = crearPrisma(datos);
-    servicio = new PreciosService(prisma as unknown as PrismaService);
+    servicio = new PreciosService(
+      prisma as unknown as PrismaService,
+      { get: vi.fn().mockReturnValue(19) } as unknown as ConfigService<
+        Entorno,
+        true
+      >,
+    );
   };
 
   beforeEach(() => preparar());
@@ -269,6 +277,10 @@ describe('PreciosService', () => {
         exclusivo: false,
         precioMinoristaNeto: 10500,
         precioMayoristaNeto: 8000,
+        // SCRUM-150: con IVA, como en la tienda
+        porcentajeIva: 19,
+        precioMinoristaConIva: 12495,
+        precioMayoristaConIva: 9520,
         historial: [
           {
             id: 2,

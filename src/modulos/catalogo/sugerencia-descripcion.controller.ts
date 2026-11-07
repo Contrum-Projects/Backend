@@ -59,7 +59,7 @@ export class SugerenciaDescripcionController {
     summary:
       'Sugerir la descripción y los ingredientes desde la foto del reverso (E4-H1)',
     description:
-      'Recibe la foto del reverso del producto (JPEG, PNG o WebP de hasta 5 MB) en el campo `imagen` y devuelve una descripción de venta sugerida y los ingredientes transcritos, para revisarlos antes de guardarlos. No guarda la foto ni la sugerencia. `ingredientes` es `null` si la foto no los muestra. Hasta 15 por minuto por cuenta.',
+      'Recibe la foto del reverso del producto (JPEG, PNG o WebP de hasta 4 MB) en el campo `imagen` y devuelve una descripción de venta sugerida y los ingredientes en español (con el nombre común de cada uno si el envase usa INCI), para revisarlos antes de guardarlos. No guarda la foto ni la sugerencia. `ingredientes` es `null` si la foto no los muestra. Hasta 15 por minuto por cuenta.',
   })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -87,7 +87,7 @@ export class SugerenciaDescripcionController {
   @ApiBadRequestResponse({
     description: 'Sin imagen, o el archivo no es JPEG, PNG ni WebP.',
   })
-  @ApiPayloadTooLargeResponse({ description: 'La imagen supera los 5 MB.' })
+  @ApiPayloadTooLargeResponse({ description: 'La imagen supera los 4 MB.' })
   @ApiUnprocessableEntityResponse({
     description:
       'La foto no se puede leer; la descripción se puede escribir a mano.',

@@ -326,44 +326,4 @@ describe('ProductosService', () => {
       );
     });
   });
-
-  describe('listar', () => {
-    it('por defecto muestra solo los activos, página 1 de 20, ordenados por nombre', async () => {
-      const respuesta = await servicio.listar({});
-
-      expect(prisma.producto.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({ activo: true }) as unknown,
-          orderBy: [{ nombre: 'asc' }, { id: 'asc' }],
-          skip: 0,
-          take: 20,
-        }),
-      );
-      expect(respuesta).toMatchObject({ total: 1, pagina: 1, limite: 20 });
-    });
-
-    it('con incluirInactivos no filtra por estado; aplica texto, categoría, marca y página', async () => {
-      await servicio.listar({
-        incluirInactivos: true,
-        buscar: 'shampoo',
-        categoriaId: 3,
-        marcaId: 2,
-        pagina: 3,
-        limite: 10,
-      });
-
-      expect(prisma.producto.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: {
-            activo: undefined,
-            categoriaId: 3,
-            marcaId: 2,
-            nombre: { contains: 'shampoo', mode: 'insensitive' },
-          },
-          skip: 20,
-          take: 10,
-        }),
-      );
-    });
-  });
 });

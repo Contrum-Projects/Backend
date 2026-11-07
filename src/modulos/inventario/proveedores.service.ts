@@ -2,6 +2,7 @@ import { ConflictException, Injectable } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { CrearProveedorDto } from './dto/crear-proveedor.dto.js';
+import { errorDeCampo } from '../../common/errores/error-de-campo.js';
 
 @Injectable()
 export class ProveedoresService {
@@ -14,7 +15,7 @@ export class ProveedoresService {
    */
   async crear(dto: CrearProveedorDto) {
     try {
-      return await this.prisma.proveedor.create({
+      const proveedor = await this.prisma.proveedor.create({
         data: {
           rut: dto.rut,
           razonSocial: dto.razonSocial,
@@ -23,22 +24,36 @@ export class ProveedoresService {
           email: dto.email,
         },
       });
+      // Recién creado no tiene entradas: la misma forma que el listado
+      return { ...proveedor, cantidadEntradas: 0 };
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
-        throw new ConflictException('Ya existe un proveedor con ese RUT.');
+        throw errorDeCampo(
+          ConflictException,
+          'Ya existe un proveedor con ese RUT.',
+          'rut',
+        );
       }
       throw error;
     }
   }
 
-  /** Proveedores para elegir al registrar una entrada de inventario (E11-H2). */
-  listar(incluirInactivos = false) {
-    return this.prisma.proveedor.findMany({
+  /**
+   * Proveedores para elegir al registrar una entrada de inventario (E11-H2), con cuántas
+   * entradas tiene cada uno (E11-H1 criterio 1, SCRUM-150).
+   */
+  async listar(incluirInactivos = false) {
+    const filas = await this.prisma.proveedor.findMany({
       where: incluirInactivos ? undefined : { activo: true },
       orderBy: { razonSocial: 'asc' },
+      include: { _count: { select: { entradas: true } } },
     });
+    return filas.map(({ _count, ...proveedor }) => ({
+      ...proveedor,
+      cantidadEntradas: _count.entradas,
+    }));
   }
 }

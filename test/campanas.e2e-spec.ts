@@ -17,6 +17,7 @@ import {
   TIPOS_ARTICULO,
   TIPOS_DOCUMENTO,
   TIPOS_ENTREGA,
+  ESTADOS_NOTIFICACION,
   TIPOS_NOTIFICACION,
   TIPOS_PRECIO,
 } from '../src/common/dominio/valores.js';
@@ -346,6 +347,123 @@ describe('Marketing · campañas de correo (e2e)', () => {
     marcas: [marca],
   });
 
+  it('SCRUM-150 · filtros de cuenta: compras recientes o antiguas, pedidos, gasto, ubicación, perfil, antigüedad y carrito', async () => {
+    const [comuna, otraComuna] = await Promise.all([
+      prisma.comuna.findFirstOrThrow({
+        orderBy: { id: 'asc' },
+        include: { region: true },
+      }),
+      prisma.comuna.findFirstOrThrow({
+        orderBy: { id: 'desc' },
+        include: { region: true },
+      }),
+    ]);
+    const hace = (dias: number) => new Date(Date.now() - dias * 86_400_000);
+    // Las dos compraron en la categoría: ese filtro las aísla de las cuentas de otras pruebas
+    const reciente = await nuevaCuenta(ROLES.CLIENTE);
+    await nuevoPedido(reciente.id, formatoCategoria);
+    const antigua = await nuevaCuenta(ROLES.CLIENTE);
+    await nuevoPedido(antigua.id, formatoCategoria);
+    await nuevoPedido(antigua.id, formatoCategoria);
+    await prisma.pedido.updateMany({
+      where: { usuarioId: antigua.id },
+      data: { fechaPedido: hace(200) },
+    });
+    await prisma.usuario.update({
+      where: { id: reciente.id },
+      data: {
+        fechaNacimiento: new Date('1990-03-15'),
+        genero: 'Femenino',
+        fechaRegistro: hace(10),
+        direcciones: {
+          create: { comunaId: comuna.id, calle: 'Calle', numero: '1' },
+        },
+        carrito: {
+          create: {
+            items: { create: { articuloId: formatoOtro, cantidad: 1 } },
+          },
+        },
+      },
+    });
+    await prisma.usuario.update({
+      where: { id: antigua.id },
+      data: {
+        fechaRegistro: hace(400),
+        direcciones: {
+          create: { comunaId: otraComuna.id, calle: 'Otra', numero: '2' },
+        },
+      },
+    });
+
+    const cuantos = async (filtros: Record<string, unknown>) =>
+      (
+        await vistaPrevia(
+          await crearCampana({
+            tipos: ['cliente'],
+            categorias: [categoriaPadre],
+            ...filtros,
+          }),
+        )
+      ).destinatarios;
+
+    expect(await cuantos({})).toBe(2);
+    expect(await cuantos({ compraEnUltimosDias: 30 })).toBe(1);
+    expect(await cuantos({ sinComprarHaceDias: 90 })).toBe(1);
+    expect(await cuantos({ pedidosMinimo: 2 })).toBe(1);
+    expect(await cuantos({ gastoMaximo: 11900 })).toBe(1);
+    expect(await cuantos({ comunas: [comuna.codigoCut] })).toBe(1);
+    expect(await cuantos({ regiones: [otraComuna.region.codigoCut] })).toBe(
+      comuna.regionId === otraComuna.regionId ? 2 : 1,
+    );
+    expect(await cuantos({ mesesCumpleanos: [3] })).toBe(1);
+    expect(await cuantos({ edadMinima: 18, edadMaxima: 60 })).toBe(1);
+    expect(await cuantos({ generos: ['Femenino'] })).toBe(1);
+    expect(await cuantos({ registroHaceMasDias: 365 })).toBe(1);
+    expect(await cuantos({ registroUltimosDias: 30 })).toBe(1);
+    expect(await cuantos({ conCarrito: true })).toBe(1);
+    // Todos a la vez se suman: la reciente los cumple; con uno de la antigua, nadie
+    expect(
+      await cuantos({
+        compraEnUltimosDias: 30,
+        comunas: [comuna.codigoCut],
+        generos: ['Femenino'],
+        conCarrito: true,
+      }),
+    ).toBe(1);
+    expect(await cuantos({ conCarrito: true, sinComprarHaceDias: 90 })).toBe(0);
+
+    // Que no cuenten en las demás pruebas, que también filtran por esta categoría
+    await prisma.usuario.updateMany({
+      where: { id: { in: [reciente.id, antigua.id] } },
+      data: { aceptaMarketingEmail: false },
+    });
+  });
+
+  it('SCRUM-150 · filtros de cuenta: con suscriptores o con un mínimo mayor que el máximo responde 400 junto al campo', async () => {
+    const pedir = (segmento: Record<string, unknown>) =>
+      servidor()
+        .post(RUTA)
+        .auth(tokenAdministrador, { type: 'bearer' })
+        .send({ asunto: `${PREFIJO} filtros`, cuerpo: 'Hola', segmento });
+
+    const conSuscriptores = await pedir({
+      tipos: ['cliente', 'suscriptor'],
+      conCarrito: true,
+    }).expect(400);
+    expect(JSON.stringify(conSuscriptores.body)).toContain('suscriptores');
+
+    const rango = await pedir({
+      tipos: ['cliente'],
+      edadMinima: 40,
+      edadMaxima: 30,
+    }).expect(400);
+    expect(JSON.stringify(rango.body)).toContain('La edad máxima');
+
+    await pedir({ tipos: ['cliente'], mesesCumpleanos: [13] }).expect(400);
+    await pedir({ tipos: ['cliente'], regiones: ['99'] }).expect(400);
+    await pedir({ tipos: ['cliente'], comunas: ['santiago'] }).expect(400);
+  });
+
   it('E12-H3 · CA1 campaña enviada · CA3 destinatarios sin consentimiento: tras la vista previa, encola solo a quienes compraron, aceptan publicidad y verificaron su correo, y guarda el segmento', async () => {
     const { incluidas, excluidas } = await prepararCompradores();
     const id = await crearCampana(SEGMENTO_COMPRAS());
@@ -390,6 +508,56 @@ describe('Marketing · campañas de correo (e2e)', () => {
       enviada: true,
       envios: { total: 3, pendientes: 3 },
     });
+  });
+
+  it('SCRUM-150 · listado: cada borrador dice a cuántos llegaría hoy y cada enviada a cuántos salió y su apertura, con los contadores de contactos', async () => {
+    await prepararCompradores();
+    const borrador = await crearCampana(SEGMENTO_COMPRAS());
+    const enviada = await crearCampana(SEGMENTO_COMPRAS());
+    const vista = await vistaPrevia(enviada);
+    await enviar(enviada, vista.confirmacion).expect(202);
+    // Dos de los tres correos salieron y uno se abrió
+    const correos = await correosDe(enviada);
+    await prisma.notificacion.updateMany({
+      where: { id: { in: correos.slice(0, 2).map((c) => c.id) } },
+      data: { estadoEnvio: ESTADOS_NOTIFICACION.ENVIADA },
+    });
+    await prisma.notificacion.update({
+      where: { id: correos[0].id },
+      data: { fechaApertura: new Date() },
+    });
+
+    const respuesta = await servidor()
+      .get(RUTA)
+      .query({ limite: 50 })
+      .auth(tokenAdministrador, { type: 'bearer' })
+      .expect(200);
+
+    const cuerpo = respuesta.body as {
+      contactos: Record<string, number>;
+      items: {
+        id: number;
+        destinatarios: number;
+        porcentajeApertura: number | null;
+      }[];
+    };
+    const fila = (id: number) => cuerpo.items.find((item) => item.id === id);
+    // El borrador cuenta como la vista previa, que es lo que saldría hoy
+    expect(fila(borrador)).toMatchObject({
+      destinatarios: (await vistaPrevia(borrador)).destinatarios,
+      porcentajeApertura: null,
+    });
+    // A cuántos salió y 1 abierto de 2 enviados
+    expect(fila(enviada)).toMatchObject({
+      destinatarios: vista.destinatarios,
+      porcentajeApertura: 50,
+    });
+    const { contactos } = cuerpo;
+    expect(contactos.cuentasVerificadas).toBeGreaterThanOrEqual(3);
+    expect(contactos.aceptanPublicidad).toBe(
+      contactos.cuentasVerificadas + contactos.suscriptoresSinCuenta,
+    );
+    expect(contactos.conRebote).toBeGreaterThanOrEqual(0);
   });
 
   it('E12-H3 · CA2 envío repetido: una campaña enviada no se reenvía, no se edita ni tiene otra vista previa', async () => {
@@ -580,6 +748,41 @@ describe('Marketing · campañas de correo (e2e)', () => {
       .expect(404);
   });
 
+  describe('SCRUM-150 · vista previa en vivo', () => {
+    it('SCRUM-150 · arma el correo de lo que se escribe, sin guardar campaña ni entregar la confirmación', async () => {
+      const antes = await prisma.campana.count();
+      const respuesta = await servidor()
+        .post(`${RUTA}/vista-previa`)
+        .auth(tokenAdministrador, { type: 'bearer' })
+        .send({
+          asunto: 'Novedades en vivo',
+          cuerpo: ['Hola:', '', 'Llegó la línea.'].join('\n'),
+        })
+        .expect(200);
+
+      expect(respuesta.body).toEqual({
+        asunto: 'Novedades en vivo',
+        html: expect.stringContaining('Llegó la línea.'),
+        texto: expect.stringContaining('Llegó la línea.'),
+      });
+      expect(respuesta.body).not.toHaveProperty('confirmacion');
+      expect(await prisma.campana.count()).toBe(antes);
+    });
+
+    it('SCRUM-150 · asunto vacío o un segmento (que no corresponde) responden 400', async () => {
+      await servidor()
+        .post(`${RUTA}/vista-previa`)
+        .auth(tokenAdministrador, { type: 'bearer' })
+        .send({ asunto: '', cuerpo: 'Hola' })
+        .expect(400);
+      await servidor()
+        .post(`${RUTA}/vista-previa`)
+        .auth(tokenAdministrador, { type: 'bearer' })
+        .send({ asunto: 'A', cuerpo: 'Hola', segmento: { tipos: ['cliente'] } })
+        .expect(400);
+    });
+  });
+
   describe('RNF-03 · permisos', () => {
     const rutas = [
       ['get', RUTA],
@@ -587,6 +790,7 @@ describe('Marketing · campañas de correo (e2e)', () => {
       ['get', `${RUTA}/1`],
       ['patch', `${RUTA}/1`],
       ['post', `${RUTA}/1/vista-previa`],
+      ['post', `${RUTA}/vista-previa`],
       ['post', `${RUTA}/1/envio`],
     ] as const;
 

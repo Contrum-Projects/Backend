@@ -17,6 +17,7 @@ import {
   type Paginacion,
 } from '../../common/validacion/paginacion.js';
 import type { Entorno } from '../../config/entorno.js';
+import type { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { IMAGEN_PRINCIPAL } from '../catalogo/tienda.service.js';
 import {
@@ -85,7 +86,13 @@ export interface DetallePedidoCuenta {
   tipoEntrega: Valor<typeof TIPOS_ENTREGA>;
   tipoDocumento: Valor<typeof TIPOS_DOCUMENTO>;
   porcentajeIva: number;
-  montos: { neto: number; iva: number; total: number };
+  /**
+   * `descuento`: lo que descontó el cupón, con IVA (SCRUM-150), ya restado del neto, el IVA y el
+   * total; las líneas muestran su precio sin descuento.
+   */
+  montos: { neto: number; iva: number; total: number; descuento: number };
+  /** El código del cupón aplicado; `null` sin cupón. */
+  cupon: string | null;
   items: LineaPedido[];
   /** `null` si el pedido es para retiro en tienda. */
   envio: EnvioPedido | null;
@@ -157,12 +164,23 @@ export class MisPedidosService {
    * cambios de estado. De los cambios solo se muestran estado y fecha: el comentario y quién lo
    * hizo son del personal.
    */
-  async obtener(
+  obtener(
     codigoPublico: string,
     codigoPedido: string,
   ): Promise<DetallePedidoCuenta> {
+    return this.detalle({
+      codigoPublico: codigoPedido,
+      usuario: { codigoPublico },
+    });
+  }
+
+  /**
+   * El detalle del pedido que cumple `where`, o 404. Lo usan la cuenta (siempre con su dueño en el
+   * filtro) y el panel (E8-H2, SCRUM-150), que agrega lo que solo ve el personal.
+   */
+  async detalle(where: Prisma.PedidoWhereInput): Promise<DetallePedidoCuenta> {
     const pedido = await this.prisma.pedido.findFirst({
-      where: { codigoPublico: codigoPedido, usuario: { codigoPublico } },
+      where,
       select: {
         codigoPublico: true,
         fechaPedido: true,
@@ -174,6 +192,8 @@ export class MisPedidosService {
         montoNeto: true,
         montoIva: true,
         montoTotal: true,
+        montoDescuento: true,
+        cupon: { select: { codigo: true } },
         detalles: {
           select: {
             articuloId: true,
@@ -250,7 +270,9 @@ export class MisPedidosService {
         neto: pedido.montoNeto,
         iva: pedido.montoIva,
         total: pedido.montoTotal,
+        descuento: pedido.montoDescuento,
       },
+      cupon: pedido.cupon?.codigo ?? null,
       items: pedido.detalles.map((detalle) => {
         const { articulo } = detalle;
         const clave = articulo.imagenes[0]?.ubicacionArchivo;

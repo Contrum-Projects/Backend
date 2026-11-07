@@ -1,6 +1,10 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { ValidateBy } from 'class-validator';
 import { TextoObligatorio } from '../../../common/validacion/texto-obligatorio.js';
+import {
+  LISTA_MARCADORES,
+  marcadoresDesconocidos,
+} from '../marcadores-campana.js';
 import { Segmento, SegmentoCampanaDto } from './segmento-campana.dto.js';
 
 // Saltos de línea y otros caracteres de control, incluidos los separadores de línea de Unicode
@@ -23,6 +27,25 @@ export const AsuntoDeUnaLinea = () =>
     },
   });
 
+/**
+ * Solo los marcadores de `MARCADORES_CAMPANA` (SCRUM-150): uno mal escrito llegaría tal cual a
+ * cada destinatario. Lo que no es texto lo deja pasar, como `AsuntoDeUnaLinea`.
+ */
+export const SoloMarcadoresConocidos = () =>
+  ValidateBy({
+    name: 'soloMarcadoresConocidos',
+    validator: {
+      validate: (valor: unknown) =>
+        typeof valor !== 'string' || marcadoresDesconocidos(valor).length === 0,
+      defaultMessage: (argumentos) => {
+        const [primero] = marcadoresDesconocidos(
+          String(argumentos?.value ?? ''),
+        );
+        return `El marcador {${primero}} no existe. Usa ${LISTA_MARCADORES}.`;
+      },
+    },
+  });
+
 /** Largo máximo del asunto: el de la columna `campana.asunto` y `notificacion.asunto`. */
 export const MAXIMO_ASUNTO_CAMPANA = 200;
 /** Largo máximo del cuerpo de una campaña (texto plano). */
@@ -39,6 +62,7 @@ export class CrearCampanaDto {
     maximo: MAXIMO_ASUNTO_CAMPANA,
   })
   @AsuntoDeUnaLinea()
+  @SoloMarcadoresConocidos()
   asunto: string;
 
   @ApiProperty({
@@ -46,12 +70,13 @@ export class CrearCampanaDto {
       'Hola:\n\nLlegó la nueva línea reparadora. Encuéntrala en la tienda.',
     maxLength: MAXIMO_CUERPO_CAMPANA,
     description:
-      'Texto plano. Una línea en blanco separa los párrafos; el HTML se muestra tal cual, sin interpretarse.',
+      'Texto plano. Una línea en blanco separa los párrafos; el HTML se muestra tal cual, sin interpretarse. Acepta los marcadores {nombre}, {apellido}, {nombre_completo} y {enlace_tienda}, que cada correo cambia por los datos de quien lo recibe.',
   })
   @TextoObligatorio({
     etiqueta: 'El cuerpo de la campaña',
     maximo: MAXIMO_CUERPO_CAMPANA,
   })
+  @SoloMarcadoresConocidos()
   cuerpo: string;
 
   @ApiProperty({ type: SegmentoCampanaDto })

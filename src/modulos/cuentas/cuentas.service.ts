@@ -22,6 +22,7 @@ import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { RegistrarCuentaDto } from './dto/registrar-cuenta.dto.js';
 import { generarTokenCorreo, hashearTokenCorreo } from './tokens.js';
+import { errorDeCampo } from '../../common/errores/error-de-campo.js';
 
 const ASUNTO_CONFIRMACION = 'Confirma tu correo';
 
@@ -45,7 +46,11 @@ export class CuentasService {
    */
   async registrar(dto: RegistrarCuentaDto): Promise<Mensaje> {
     if (dto.contrasena !== dto.confirmacionContrasena) {
-      throw new BadRequestException('Las contraseñas no coinciden.');
+      throw errorDeCampo(
+        BadRequestException,
+        'Las contraseñas no coinciden.',
+        'confirmacionContrasena',
+      );
     }
     const fechaNacimiento = dto.fechaNacimiento
       ? new Date(`${dto.fechaNacimiento}T00:00:00Z`)
@@ -110,7 +115,12 @@ export class CuentasService {
         error.code === 'P2002'
       ) {
         await this.verificarDatosLibres(dto.email, dto.rut);
-        throw new ConflictException('El correo o el RUT ya está registrado.');
+        throw errorDeCampo(
+          ConflictException,
+          'El correo o el RUT ya está registrado.',
+          'email',
+          'rut',
+        );
       }
       throw error;
     }
@@ -183,13 +193,26 @@ export class CuentasService {
     const rutUsado = !!rut && existentes.some((u) => u.rut === rut);
 
     if (correoUsado && rutUsado) {
-      throw new ConflictException('El correo y el RUT ya están registrados.');
+      throw errorDeCampo(
+        ConflictException,
+        'El correo y el RUT ya están registrados.',
+        'email',
+        'rut',
+      );
     }
     if (correoUsado) {
-      throw new ConflictException('El correo ya está registrado.');
+      throw errorDeCampo(
+        ConflictException,
+        'El correo ya está registrado.',
+        'email',
+      );
     }
     if (rutUsado) {
-      throw new ConflictException('El RUT ya está registrado.');
+      throw errorDeCampo(
+        ConflictException,
+        'El RUT ya está registrado.',
+        'rut',
+      );
     }
   }
 

@@ -352,14 +352,14 @@ describe('Catálogo · imágenes de artículos (e2e)', () => {
       expect(await listar()).toHaveLength(0);
     });
 
-    it('E3-H3 · imagen de más de 5 MB: 413 en español sin guardar nada', async () => {
-      const grande = Buffer.alloc(5 * 1024 * 1024 + 1);
+    it('E3-H3 · imagen de más de 4 MB: 413 en español sin guardar nada', async () => {
+      const grande = Buffer.alloc(4 * 1024 * 1024 + 1);
       grande.set([0xff, 0xd8, 0xff, 0xe0]);
 
       const respuesta = await subir(grande).expect(413);
 
       expect(mensajeDe(respuesta.body)).toBe(
-        'La imagen no puede superar los 5 MB.',
+        'La imagen no puede superar los 4 MB.',
       );
       expect(await listar()).toHaveLength(0);
       expect(almacen.archivos.size).toBe(0);

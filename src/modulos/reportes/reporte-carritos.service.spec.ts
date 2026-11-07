@@ -47,10 +47,20 @@ describe('ReporteCarritosService', () => {
       desde: '2026-10',
       hasta: '2026-11',
       meses: [
-        { mes: '2026-10', abandonados: 1, recuperados: 1 },
-        { mes: '2026-11', abandonados: 2, recuperados: 1 },
+        {
+          mes: '2026-10',
+          abandonados: 1,
+          recuperados: 1,
+          porcentajeRecuperados: 100,
+        },
+        {
+          mes: '2026-11',
+          abandonados: 2,
+          recuperados: 1,
+          porcentajeRecuperados: 50,
+        },
       ],
-      total: { abandonados: 3, recuperados: 2 },
+      total: { abandonados: 3, recuperados: 2, porcentajeRecuperados: 67 },
     });
   });
 
@@ -61,8 +71,18 @@ describe('ReporteCarritosService', () => {
     const reporte = await servicio.carritosPorMes('2026-10', '2026-11');
 
     expect(reporte.meses).toEqual([
-      { mes: '2026-10', abandonados: 1, recuperados: 0 },
-      { mes: '2026-11', abandonados: 0, recuperados: 0 },
+      {
+        mes: '2026-10',
+        abandonados: 1,
+        recuperados: 0,
+        porcentajeRecuperados: 0,
+      },
+      {
+        mes: '2026-11',
+        abandonados: 0,
+        recuperados: 0,
+        porcentajeRecuperados: null,
+      },
     ]);
   });
 
@@ -75,9 +95,18 @@ describe('ReporteCarritosService', () => {
     const reporte = await servicio.carritosPorMes('2026-10', '2026-10');
 
     expect(reporte.meses).toEqual([
-      { mes: '2026-10', abandonados: 1, recuperados: 0 },
+      {
+        mes: '2026-10',
+        abandonados: 1,
+        recuperados: 0,
+        porcentajeRecuperados: 0,
+      },
     ]);
-    expect(reporte.total).toEqual({ abandonados: 1, recuperados: 0 });
+    expect(reporte.total).toEqual({
+      abandonados: 1,
+      recuperados: 0,
+      porcentajeRecuperados: 0,
+    });
   });
 
   it('E14-H3 · carritos por mes: sin abandonos devuelve cada mes en cero, también al cruzar el año', async () => {
@@ -89,7 +118,11 @@ describe('ReporteCarritosService', () => {
       '2027-01',
       '2027-02',
     ]);
-    expect(reporte.total).toEqual({ abandonados: 0, recuperados: 0 });
+    expect(reporte.total).toEqual({
+      abandonados: 0,
+      recuperados: 0,
+      porcentajeRecuperados: null,
+    });
   });
 
   it('E14-H3 · carritos por mes: el mes hasta anterior al desde o más de 24 meses responden 400 sin consultar', async () => {

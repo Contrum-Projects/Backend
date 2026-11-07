@@ -22,8 +22,8 @@ import { detectarTipoImagen } from './tipo-imagen.js';
 
 /** Imágenes que puede tener un artículo (E3-H3, decisión del 24 oct). */
 export const MAXIMO_IMAGENES_ARTICULO = 10;
-/** Tamaño máximo de cada imagen (E3-H3, decisión del 24 oct). */
-export const TAMANO_MAXIMO_IMAGEN_BYTES = 5 * 1024 * 1024;
+/** Tamaño máximo de cada imagen (E3-H3, decisión del 24 oct; 4 MB desde el 6 nov, SCRUM-150). */
+export const TAMANO_MAXIMO_IMAGEN_BYTES = 4 * 1024 * 1024;
 
 /** Lo que el servicio necesita del archivo que recibe el controlador (multer, en memoria). */
 export interface ArchivoSubido {
@@ -111,7 +111,7 @@ export class ImagenesService {
       );
     }
     if (archivo.size > TAMANO_MAXIMO_IMAGEN_BYTES) {
-      throw new BadRequestException('La imagen no puede superar los 5 MB.');
+      throw new BadRequestException('La imagen no puede superar los 4 MB.');
     }
     const tipo = detectarTipoImagen(archivo.buffer);
     if (!tipo) {

@@ -226,14 +226,14 @@ describe('Catálogo · sugerir la descripción desde la foto del reverso (e2e)',
     expect(ia.llamadas).toBe(0);
   });
 
-  it('E4-H1 · foto de más de 5 MB: 413 sin llamar a la IA', async () => {
-    const grande = Buffer.alloc(5 * 1024 * 1024 + 1);
+  it('E4-H1 · foto de más de 4 MB: 413 sin llamar a la IA', async () => {
+    const grande = Buffer.alloc(4 * 1024 * 1024 + 1);
     grande.set([0xff, 0xd8, 0xff, 0xe0]);
 
     const respuesta = await sugerir(token, grande).expect(413);
 
     expect(mensajeDe(respuesta.body)).toBe(
-      'La imagen no puede superar los 5 MB.',
+      'La imagen no puede superar los 4 MB.',
     );
     expect(ia.llamadas).toBe(0);
   });

@@ -28,6 +28,10 @@ import { CarritoService } from '../carrito/carrito.service.js';
 import { FirmaBaja } from '../marketing/firma-baja.js';
 import { FirmaSeguimiento } from '../marketing/firma-seguimiento.js';
 import {
+  aplicarMarcadores,
+  codigoCuponDeCampana,
+} from '../marketing/marcadores-campana.js';
+import {
   leerOferta,
   ofertaDelCorreo,
   SALUDO_POR_DEFECTO,
@@ -193,10 +197,12 @@ export class ContenidoCorreosService {
    */
   private pieConSeguimiento(notificacionId: number): EnlacesPie {
     const { ayuda, terminos, privacidad } = this.rutas.pie;
+    const conClic = (url: string | null) =>
+      url ? this.seguimiento.enlaceClic(notificacionId, url) : null;
     return {
-      ayuda: this.seguimiento.enlaceClic(notificacionId, ayuda),
-      terminos: this.seguimiento.enlaceClic(notificacionId, terminos),
-      privacidad: this.seguimiento.enlaceClic(notificacionId, privacidad),
+      ayuda: conClic(ayuda),
+      terminos: conClic(terminos),
+      privacidad: conClic(privacidad),
     };
   }
 
@@ -265,20 +271,42 @@ export class ContenidoCorreosService {
    */
   private async campana(
     { notificacionId, destinatario }: TrabajoCampana,
-    { asunto, campanaId }: NotificacionACorreo,
+    { asunto, campanaId, usuarioId }: NotificacionACorreo,
   ): Promise<CorreoRenderizado> {
-    const campana = await this.prisma.campana.findUnique({
-      where: { id: campanaId ?? -1 },
-      select: { cuerpo: true },
-    });
+    const [campana, cuenta, codigoCupon] = await Promise.all([
+      this.prisma.campana.findUnique({
+        where: { id: campanaId ?? -1 },
+        select: { cuerpo: true },
+      }),
+      // Un suscriptor sin cuenta no tiene nombre: sus marcadores de nombre quedan vacíos
+      usuarioId
+        ? this.prisma.usuario.findUnique({
+            where: { id: usuarioId },
+            select: { nombre: true, apellido: true },
+          })
+        : null,
+      // SCRUM-150 · El cupón activo de hoy: si lo desactivaron, el correo sale sin código
+      codigoCuponDeCampana(this.prisma, campanaId ?? -1),
+    ]);
     if (!campana) throw new Error('El correo no tiene su campaña');
-    return correoCampana({
-      asunto,
-      cuerpo: campana.cuerpo,
-      enlaceBaja: this.firmaBaja.enlace(destinatario),
-      enlacesPie: this.pieConSeguimiento(notificacionId),
-      seguimiento: this.seguimiento.enlaceApertura(notificacionId),
-    });
+    // SCRUM-150 · Los marcadores se completan con los datos de hoy de quien lo recibe
+    const datos = {
+      nombre: cuenta?.nombre ?? null,
+      apellido: cuenta?.apellido ?? null,
+      urlTienda: this.config.get('URL_TIENDA', { infer: true }),
+      codigoCupon,
+    };
+    const asuntoFinal = aplicarMarcadores(asunto, datos);
+    return {
+      ...correoCampana({
+        asunto: asuntoFinal,
+        cuerpo: aplicarMarcadores(campana.cuerpo, datos),
+        enlaceBaja: this.firmaBaja.enlace(destinatario),
+        enlacesPie: this.pieConSeguimiento(notificacionId),
+        seguimiento: this.seguimiento.enlaceApertura(notificacionId),
+      }),
+      asunto: asuntoFinal,
+    };
   }
 
   /**

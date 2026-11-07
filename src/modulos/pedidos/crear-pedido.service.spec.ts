@@ -22,6 +22,7 @@ import {
   ROL_CAMBIADO,
   SIN_DATOS_FACTURACION,
 } from './crear-pedido.service.js';
+import type { AplicarCuponService } from '../cupones/aplicar-cupon.service.js';
 import type { CrearPedidoDto } from './dto/crear-pedido.dto.js';
 import type { MisPedidosService } from './mis-pedidos.service.js';
 
@@ -110,6 +111,7 @@ describe('CrearPedidoService', () => {
     bultoDelCarrito: ReturnType<typeof vi.fn>;
     cotizar: ReturnType<typeof vi.fn>;
   };
+  let cupones: { evaluar: ReturnType<typeof vi.fn> };
   let servicio: CrearPedidoService;
 
   beforeEach(() => {
@@ -135,6 +137,14 @@ describe('CrearPedidoService', () => {
         .fn()
         .mockResolvedValue({ servicio: 'EXPRESS', costoNeto: 6143 }),
     };
+    cupones = {
+      evaluar: vi.fn().mockResolvedValue({
+        cuponId: 9,
+        codigo: 'LOREAL20',
+        descripcion: null,
+        descuento: 2380,
+      }),
+    };
     const config = {
       get: vi.fn(
         (clave: string) =>
@@ -151,6 +161,7 @@ describe('CrearPedidoService', () => {
       ventaStock as unknown as VentaStockService,
       misPedidos as unknown as MisPedidosService,
       envios as unknown as CotizarEnvioService,
+      cupones as unknown as AplicarCuponService,
     );
   });
 

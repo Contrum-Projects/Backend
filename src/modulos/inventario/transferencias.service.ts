@@ -16,6 +16,7 @@ import {
   stockDe,
   sumarExistencia,
 } from './existencias.js';
+import { errorDeCampo } from '../../common/errores/error-de-campo.js';
 
 /** Una ubicación de la transferencia con el stock que le quedó. */
 export interface UbicacionTransferencia extends UbicacionResumen {
@@ -52,8 +53,10 @@ export class TransferenciasService {
     codigoPublicoUsuario: string,
   ): Promise<TransferenciaRegistrada> {
     if (dto.ubicacionOrigenId === dto.ubicacionDestinoId) {
-      throw new BadRequestException(
+      throw errorDeCampo(
+        BadRequestException,
         'La ubicación de destino debe ser distinta de la de origen.',
+        'ubicacionDestinoId',
       );
     }
     const claveOrigen = {
@@ -74,17 +77,22 @@ export class TransferenciasService {
         throw new UnauthorizedException('Debes iniciar sesión.');
       }
       await comprobarFormato(tx, dto.formatoId);
-      const origen = await ubicacionDe(tx, dto.ubicacionOrigenId);
+      const origen = await ubicacionDe(tx, dto.ubicacionOrigenId, {
+        campo: 'ubicacionOrigenId',
+      });
       const destino = await ubicacionDe(tx, dto.ubicacionDestinoId, {
         activa: true,
+        campo: 'ubicacionDestinoId',
       });
 
       const descontar = () =>
         descontarExistencia(tx, claveOrigen, dto.cantidad, 'la transferencia');
       const sumar = async () => {
         if (!(await sumarExistencia(tx, claveDestino, dto.cantidad))) {
-          throw new BadRequestException(
+          throw errorDeCampo(
+            BadRequestException,
             'El stock de ese formato en la ubicación de destino superaría el máximo permitido.',
+            'cantidad',
           );
         }
       };

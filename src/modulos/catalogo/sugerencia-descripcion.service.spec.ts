@@ -85,7 +85,7 @@ describe('SugerenciaDescripcionService', () => {
     await expect(servicio.sugerir(jpeg())).rejects.toBeInstanceOf(TypeError);
   });
 
-  it('E4-H1 · sin imagen, no es JPEG, PNG ni WebP o pasa de 5 MB: 400 sin llamar a la IA', async () => {
+  it('E4-H1 · sin imagen, no es JPEG, PNG ni WebP o pasa de 4 MB: 400 sin llamar a la IA', async () => {
     await expect(servicio.sugerir(undefined)).rejects.toBeInstanceOf(
       BadRequestException,
     );
@@ -98,7 +98,7 @@ describe('SugerenciaDescripcionService', () => {
         ...jpeg(),
         size: TAMANO_MAXIMO_IMAGEN_BYTES + 1,
       }),
-    ).rejects.toThrow('La imagen no puede superar los 5 MB.');
+    ).rejects.toThrow('La imagen no puede superar los 4 MB.');
     expect(leerReverso).not.toHaveBeenCalled();
   });
 });

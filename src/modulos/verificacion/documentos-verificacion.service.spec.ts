@@ -21,6 +21,7 @@ import {
   SIN_SOLICITUD,
   YA_APROBADA,
 } from './solicitud-verificacion.service.js';
+import { errorDeCampo } from '../../common/errores/error-de-campo.js';
 
 const CODIGO = '5f1d9c1e-7a3b-4c52-9d8e-0a1b2c3d4e5f';
 
@@ -174,11 +175,13 @@ describe('DocumentosVerificacionService', () => {
 
   it('E10-H2 · sin documentos: pide adjuntar al menos uno y no toca el almacén ni la base', async () => {
     await expect(servicio.adjuntar(CODIGO, { tipos: [] }, [])).rejects.toThrow(
-      new BadRequestException(SIN_ARCHIVOS),
+      errorDeCampo(BadRequestException, SIN_ARCHIVOS, 'archivos'),
     );
     await expect(
       servicio.adjuntar(CODIGO, { tipos: ['titulo'] }, undefined),
-    ).rejects.toThrow(new BadRequestException(SIN_ARCHIVOS));
+    ).rejects.toThrow(
+      errorDeCampo(BadRequestException, SIN_ARCHIVOS, 'archivos'),
+    );
     expect(almacen.guardar).not.toHaveBeenCalled();
     expect(db.solicitudVerificacion.findFirst).not.toHaveBeenCalled();
   });
@@ -187,17 +190,17 @@ describe('DocumentosVerificacionService', () => {
     const seis = Array.from({ length: 6 }, () => pdf());
 
     await expect(adjuntar(Array(6).fill('titulo'), seis)).rejects.toThrow(
-      new BadRequestException(SIN_ARCHIVOS),
+      errorDeCampo(BadRequestException, SIN_ARCHIVOS, 'archivos'),
     );
     expect(almacen.guardar).not.toHaveBeenCalled();
   });
 
   it('E10-H2 · los tipos no coinciden con los archivos: responde 400', async () => {
     await expect(adjuntar(['titulo'], [pdf(), pdf()])).rejects.toThrow(
-      new BadRequestException(TIPOS_NO_COINCIDEN),
+      errorDeCampo(BadRequestException, TIPOS_NO_COINCIDEN, 'tipos'),
     );
     await expect(adjuntar(['titulo', 'otro'], [pdf()])).rejects.toThrow(
-      new BadRequestException(TIPOS_NO_COINCIDEN),
+      errorDeCampo(BadRequestException, TIPOS_NO_COINCIDEN, 'tipos'),
     );
     expect(almacen.guardar).not.toHaveBeenCalled();
   });
@@ -206,16 +209,16 @@ describe('DocumentosVerificacionService', () => {
     const falso = archivo('MZ ejecutable disfrazado', 'titulo.pdf');
 
     await expect(adjuntar(['titulo', 'otro'], [pdf(), falso])).rejects.toThrow(
-      new BadRequestException(documentoNoValido(2)),
+      errorDeCampo(BadRequestException, documentoNoValido(2), 'archivos'),
     );
     expect(almacen.guardar).not.toHaveBeenCalled();
   });
 
-  it('E10-H2 · documento de más de 5 MB: responde 400 sin subir nada', async () => {
-    const grande = { ...pdf(), size: 5 * 1024 * 1024 + 1 };
+  it('E10-H2 · documento de más de 4 MB: responde 400 sin subir nada', async () => {
+    const grande = { ...pdf(), size: 4 * 1024 * 1024 + 1 };
 
     await expect(adjuntar(['titulo'], [grande])).rejects.toThrow(
-      new BadRequestException(DOCUMENTO_MUY_GRANDE),
+      errorDeCampo(BadRequestException, DOCUMENTO_MUY_GRANDE, 'archivos'),
     );
     expect(almacen.guardar).not.toHaveBeenCalled();
   });

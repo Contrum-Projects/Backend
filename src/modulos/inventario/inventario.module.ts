@@ -5,6 +5,10 @@ import { AjustesController } from './ajustes.controller.js';
 import { AjustesService } from './ajustes.service.js';
 import { EntradasController } from './entradas.controller.js';
 import { EntradasService } from './entradas.service.js';
+import { ListadoEntradasService } from './listado-entradas.service.js';
+import { ListadoMovimientosService } from './listado-movimientos.service.js';
+import { ListadoStockService } from './listado-stock.service.js';
+import { MovimientosController } from './movimientos.controller.js';
 import { ProveedoresController } from './proveedores.controller.js';
 import { ProveedoresService } from './proveedores.service.js';
 import { SalidasController } from './salidas.controller.js';
@@ -14,6 +18,8 @@ import { StockService } from './stock.service.js';
 import { StockBajoService } from './stock-bajo.service.js';
 import { TransferenciasController } from './transferencias.controller.js';
 import { TransferenciasService } from './transferencias.service.js';
+import { UbicacionesController } from './ubicaciones.controller.js';
+import { UbicacionesService } from './ubicaciones.service.js';
 import { VentaStockService } from './venta-stock.service.js';
 
 /** Épica 11: inventario y bodega (ver src/modulos/README.md). */
@@ -26,6 +32,8 @@ import { VentaStockService } from './venta-stock.service.js';
     AjustesController,
     TransferenciasController,
     StockController,
+    UbicacionesController,
+    MovimientosController,
   ],
   providers: [
     ProveedoresService,
@@ -35,6 +43,10 @@ import { VentaStockService } from './venta-stock.service.js';
     TransferenciasService,
     StockService,
     StockBajoService,
+    ListadoStockService,
+    ListadoMovimientosService,
+    ListadoEntradasService,
+    UbicacionesService,
     VentaStockService,
   ],
   // El pedido (E5) y su cancelación (E6, E8) descuentan y reingresan stock con este servicio; el

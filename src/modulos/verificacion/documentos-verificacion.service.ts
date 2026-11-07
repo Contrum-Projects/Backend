@@ -29,11 +29,12 @@ import {
   TAMANO_MAXIMO_ANTECEDENTE_BYTES,
   type TipoArchivoAntecedente,
 } from './tipo-archivo-antecedente.js';
+import { errorDeCampo } from '../../common/errores/error-de-campo.js';
 
 export const SIN_ARCHIVOS = `Adjunta de 1 a ${MAXIMO_ANTECEDENTES} documentos en el campo «archivos».`;
 export const TIPOS_NO_COINCIDEN =
   'Indica el tipo de cada documento: debe haber un tipo por archivo y en el mismo orden.';
-export const DOCUMENTO_MUY_GRANDE = 'Cada documento puede pesar hasta 5 MB.';
+export const DOCUMENTO_MUY_GRANDE = 'Cada documento puede pesar hasta 4 MB.';
 export const documentoNoValido = (numero: number) =>
   `El documento ${numero} debe ser un PDF, JPG o PNG.`;
 export const SOLICITUD_RECHAZADA =
@@ -62,7 +63,7 @@ interface DocumentoGuardado extends DocumentoRevisado {
 /**
  * Documentos que respaldan la solicitud de quien no pasó la verificación automática (E10-H2,
  * RF-10.01, RF-10.05 y RF-10.09). La cuenta adjunta de 1 a 5 documentos (PDF, JPG o PNG, de hasta
- * 5 MB) y la solicitud pasa de `pendiente` a `revision_manual`, a la espera del personal (E10-H3).
+ * 4 MB) y la solicitud pasa de `pendiente` a `revision_manual`, a la espera del personal (E10-H3).
  * No hay OCR ni puntaje: los documentos los lee una persona. El motivo por el que se piden ya
  * quedó en la solicitud, en el resultado de la consulta al SII (E10-H1).
  *
@@ -199,17 +200,22 @@ const revisarDocumentos = (
   tipos: string[],
 ): DocumentoRevisado[] => {
   if (archivos.length < 1 || archivos.length > MAXIMO_ANTECEDENTES) {
-    throw new BadRequestException(SIN_ARCHIVOS);
+    throw errorDeCampo(BadRequestException, SIN_ARCHIVOS, 'archivos');
   }
   if (tipos.length !== archivos.length) {
-    throw new BadRequestException(TIPOS_NO_COINCIDEN);
+    throw errorDeCampo(BadRequestException, TIPOS_NO_COINCIDEN, 'tipos');
   }
   return archivos.map((archivo, indice) => {
     if (archivo.size > TAMANO_MAXIMO_ANTECEDENTE_BYTES) {
-      throw new BadRequestException(DOCUMENTO_MUY_GRANDE);
+      throw errorDeCampo(BadRequestException, DOCUMENTO_MUY_GRANDE, 'archivos');
     }
     const formato = detectarTipoAntecedente(archivo.buffer);
-    if (!formato) throw new BadRequestException(documentoNoValido(indice + 1));
+    if (!formato)
+      throw errorDeCampo(
+        BadRequestException,
+        documentoNoValido(indice + 1),
+        'archivos',
+      );
     return {
       contenido: archivo.buffer,
       tipo: tipos[indice],

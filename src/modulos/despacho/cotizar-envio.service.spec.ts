@@ -16,6 +16,7 @@ import {
   CotizarEnvioService,
   SIN_COBERTURA,
 } from './cotizar-envio.service.js';
+import type { CuponCarritoService } from '../cupones/cupon-carrito.service.js';
 
 const CUENTA = '3f0c2a52-0b9e-4c55-9d0e-6a3a4f6d1b2c';
 const BULTO = { pesoGramos: 320, altoCm: 18, anchoCm: 6, largoCm: 6 };
@@ -60,15 +61,36 @@ describe('CotizarEnvioService', () => {
       }),
     };
     const config = { get: vi.fn().mockReturnValue(19) };
+    const cupones = {
+      validar: vi.fn().mockResolvedValue({ descuento: 0 }),
+    };
     const servicio = new CotizarEnvioService(
       db as unknown as PrismaService,
       config as unknown as ConfigService<Entorno, true>,
       redis as unknown as Redis,
       cotizador as unknown as CotizadorEnvio,
       carrito as unknown as CarritoService,
+      cupones as unknown as CuponCarritoService,
     );
-    return { db, redis, cotizador, carrito, servicio };
+    return { db, redis, cotizador, carrito, cupones, servicio };
   };
+
+  it('SCRUM-150 · con cupón: el total ya trae el descuento que calcula el cupón', async () => {
+    const { servicio, cupones } = crear();
+    cupones.validar.mockResolvedValue({ descuento: 194 });
+
+    const cotizacion = await servicio.cotizarCarrito(CUENTA, ROLES.CLIENTE, {
+      direccionId: 12,
+      codigoCupon: 'loreal20',
+    });
+
+    expect(cupones.validar).toHaveBeenCalledWith(
+      CUENTA,
+      ROLES.CLIENTE,
+      'loreal20',
+    );
+    expect(cotizacion).toMatchObject({ descuento: 194, total: 8504 - 194 });
+  });
 
   it('E7-H2 · cotización obtenida: suma el costo con IVA al total del carrito y no informa el servicio', async () => {
     const { servicio, carrito, db } = crear();
@@ -80,6 +102,7 @@ describe('CotizarEnvioService', () => {
     expect(cotizacion).toEqual({
       costo: 7310,
       totalCarrito: 1194,
+      descuento: 0,
       total: 8504,
     });
     expect(db.direccion.findFirst.mock.calls[0]![0].where).toEqual({

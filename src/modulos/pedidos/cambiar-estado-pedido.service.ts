@@ -31,6 +31,7 @@ import {
   type SentidoCambio,
   sentidoDelCambio,
 } from './transiciones-estado-pedido.js';
+import { errorDeCampo } from '../../common/errores/error-de-campo.js';
 
 export const COMENTARIO_AL_RETROCEDER =
   'El comentario es obligatorio al volver a un estado anterior.';
@@ -142,15 +143,27 @@ export class CambiarEstadoPedidoService {
         );
       }
       if (sentido === 'retroceso' && !dto.comentario) {
-        throw new BadRequestException(COMENTARIO_AL_RETROCEDER);
+        throw errorDeCampo(
+          BadRequestException,
+          COMENTARIO_AL_RETROCEDER,
+          'comentario',
+        );
       }
       const seDespacha =
         sentido === 'avance' && dto.estado === ESTADOS_PEDIDO.DESPACHADO;
       if (seDespacha && !dto.codigoSeguimiento) {
-        throw new BadRequestException(CODIGO_AL_DESPACHAR);
+        throw errorDeCampo(
+          BadRequestException,
+          CODIGO_AL_DESPACHAR,
+          'codigoSeguimiento',
+        );
       }
       if (!seDespacha && dto.codigoSeguimiento) {
-        throw new BadRequestException(CODIGO_SOLO_AL_DESPACHAR);
+        throw errorDeCampo(
+          BadRequestException,
+          CODIGO_SOLO_AL_DESPACHAR,
+          'codigoSeguimiento',
+        );
       }
 
       const datosEnvio = datosDelEnvio(
@@ -195,7 +208,11 @@ export class CambiarEstadoPedidoService {
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
-        throw new ConflictException(OT_YA_REGISTRADA);
+        throw errorDeCampo(
+          ConflictException,
+          OT_YA_REGISTRADA,
+          'codigoSeguimiento',
+        );
       }
       throw error;
     });

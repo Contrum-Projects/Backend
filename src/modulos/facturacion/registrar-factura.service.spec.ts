@@ -20,6 +20,7 @@ import {
   SIN_DATOS_FACTURACION,
   YA_TIENE_FACTURA,
 } from './registrar-factura.service.js';
+import { errorDeCampo } from '../../common/errores/error-de-campo.js';
 
 const CODIGO = 'AB12CD34EF56';
 const PDF = { buffer: Buffer.from('%PDF-1.7\n...'), size: 12 };
@@ -186,7 +187,7 @@ describe('RegistrarFacturaService', () => {
     );
 
     await expect(registrar()).rejects.toThrow(
-      new ConflictException(folioRepetido(4521)),
+      errorDeCampo(ConflictException, folioRepetido(4521), 'folio'),
     );
     expect(almacen.guardar).not.toHaveBeenCalled();
     expect(db.documentoTributario.create).not.toHaveBeenCalled();
@@ -201,7 +202,7 @@ describe('RegistrarFacturaService', () => {
     );
 
     await expect(registrar()).rejects.toThrow(
-      new ConflictException(folioRepetido(4521)),
+      errorDeCampo(ConflictException, folioRepetido(4521), 'folio'),
     );
     expect(almacen.eliminar).toHaveBeenCalledWith(
       almacen.guardar.mock.calls[0][0],
@@ -254,22 +255,28 @@ describe('RegistrarFacturaService', () => {
   it('E9-H3 · sin PDF, con un archivo que no es PDF, demasiado grande o con fecha futura: 400', async () => {
     await expect(
       servicio.registrar(CODIGO, { folio: 1 }, undefined),
-    ).rejects.toThrow(new BadRequestException(SIN_ARCHIVO));
+    ).rejects.toThrow(
+      errorDeCampo(BadRequestException, SIN_ARCHIVO, 'archivo'),
+    );
     await expect(
       registrar(
         { folio: 1 },
         { buffer: Buffer.from([0xff, 0xd8, 0xff]), size: 3 },
       ),
-    ).rejects.toThrow(new BadRequestException(NO_ES_PDF));
+    ).rejects.toThrow(errorDeCampo(BadRequestException, NO_ES_PDF, 'archivo'));
     await expect(
       registrar(
         { folio: 1 },
-        { buffer: PDF.buffer, size: 5 * 1024 * 1024 + 1 },
+        { buffer: PDF.buffer, size: 4 * 1024 * 1024 + 1 },
       ),
-    ).rejects.toThrow(new BadRequestException(FACTURA_MUY_GRANDE));
+    ).rejects.toThrow(
+      errorDeCampo(BadRequestException, FACTURA_MUY_GRANDE, 'archivo'),
+    );
     await expect(
       registrar({ folio: 1, fechaEmision: '2999-01-01' }),
-    ).rejects.toThrow(new BadRequestException(FECHA_FUTURA));
+    ).rejects.toThrow(
+      errorDeCampo(BadRequestException, FECHA_FUTURA, 'fechaEmision'),
+    );
     expect(db.pedido.findUnique).not.toHaveBeenCalled();
     expect(almacen.guardar).not.toHaveBeenCalled();
   });

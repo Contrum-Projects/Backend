@@ -98,23 +98,34 @@ describe('Inventario · proveedores (e2e)', () => {
       .get(RUTA)
       .auth(token, { type: 'bearer' })
       .expect(200);
+    // E11-H1 criterio 1 (SCRUM-150): con su cantidad de entradas, 0 si es nuevo
     expect(
-      (lista.body as { rut: string }[]).some(
+      (lista.body as { rut: string; cantidadEntradas: number }[]).find(
         (proveedor) => proveedor.rut === RUT,
       ),
-    ).toBe(true);
+    ).toMatchObject({ cantidadEntradas: 0 });
+    expect(respuesta.body).toMatchObject({ cantidadEntradas: 0 });
   });
 
   it('E11-H1 · RUT repetido: rechaza el registro aunque el RUT venga escrito distinto', async () => {
     const token = await tokenDe(ROLES.BODEGUERO);
     await registrar(token, { rut: RUT, razonSocial: 'Primero' }).expect(201);
 
-    await registrar(token, {
+    const repetido = await registrar(token, {
       rut: RUT_CON_PUNTOS,
       razonSocial: 'Segundo',
     }).expect(409);
 
     expect(await prisma.proveedor.count({ where: { rut: RUT } })).toBe(1);
+    // SCRUM-150: el error dice a qué campo pertenece, con el mismo mensaje de siempre
+    expect(repetido.body).toEqual({
+      statusCode: 409,
+      message: 'Ya existe un proveedor con ese RUT.',
+      error: 'Conflict',
+      errores: [
+        { campo: 'rut', mensaje: 'Ya existe un proveedor con ese RUT.' },
+      ],
+    });
   });
 
   it('E11-H1 · dos registros simultáneos con el mismo RUT: solo uno se crea', async () => {
@@ -137,7 +148,19 @@ describe('Inventario · proveedores (e2e)', () => {
     await registrar(token, { rut: '76.086.428-9', razonSocial: 'X' }).expect(
       400,
     );
-    await registrar(token, { rut: RUT, razonSocial: '  ' }).expect(400);
+    const vacia = await registrar(token, {
+      rut: RUT,
+      razonSocial: '  ',
+    }).expect(400);
+    // SCRUM-150: `message` sigue siendo la lista de textos; `errores` dice el campo de cada uno
+    const cuerpo = vacia.body as {
+      message: string[];
+      errores: { campo: string; mensaje: string }[];
+    };
+    expect(cuerpo.errores.map(({ campo }) => campo)).toEqual(['razonSocial']);
+    expect(cuerpo.message).toEqual(
+      cuerpo.errores.map(({ mensaje }) => mensaje),
+    );
     await registrar(token, { rut: RUT }).expect(400);
     expect(await prisma.proveedor.count({ where: { rut: RUT } })).toBe(0);
   });

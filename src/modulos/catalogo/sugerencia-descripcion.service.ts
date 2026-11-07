@@ -51,7 +51,7 @@ export class SugerenciaDescripcionService {
       );
     }
     if (archivo.size > TAMANO_MAXIMO_IMAGEN_BYTES) {
-      throw new BadRequestException('La imagen no puede superar los 5 MB.');
+      throw new BadRequestException('La imagen no puede superar los 4 MB.');
     }
     const tipo = detectarTipoImagen(archivo.buffer);
     if (!tipo) {

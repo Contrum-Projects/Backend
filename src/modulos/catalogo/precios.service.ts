@@ -4,6 +4,9 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { precioConIva } from '../../common/dominio/montos.js';
+import type { Entorno } from '../../config/entorno.js';
 import {
   CANALES_VENTA,
   TIPOS_PRECIO,
@@ -17,6 +20,7 @@ import {
 } from '../../prisma/bloqueos.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { FijarPreciosDto } from './dto/fijar-precios.dto.js';
+import { errorDeCampo } from '../../common/errores/error-de-campo.js';
 
 type TipoPrecio = Valor<typeof TIPOS_PRECIO>;
 
@@ -39,6 +43,12 @@ export interface PreciosArticulo {
   exclusivo: boolean;
   precioMinoristaNeto: number | null;
   precioMayoristaNeto: number | null;
+  /** Tasa de IVA vigente (`IVA_PORCENTAJE`), p. ej. 19 (SCRUM-150). */
+  porcentajeIva: number;
+  /** Minorista con IVA en pesos enteros, como en la tienda (`precioConIva`); `null` sin precio. */
+  precioMinoristaConIva: number | null;
+  /** Mayorista con IVA en pesos enteros; `null` sin precio. */
+  precioMayoristaConIva: number | null;
   historial: CambioPrecio[];
 }
 
@@ -75,7 +85,10 @@ const SELECCION_HISTORIAL = {
  */
 @Injectable()
 export class PreciosService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly config: ConfigService<Entorno, true>,
+  ) {}
 
   /** Precios vigentes del artículo y su historial. */
   async listar(articuloId: number): Promise<PreciosArticulo> {
@@ -118,8 +131,10 @@ export class PreciosService {
         select: SELECCION_ARTICULO,
       });
       if (esExclusivo(articulo) && dto.precioMinoristaNeto !== undefined) {
-        throw new BadRequestException(
+        throw errorDeCampo(
+          BadRequestException,
           'El artículo es exclusivo para profesionales: solo lleva precio mayorista.',
+          'precioMinoristaNeto',
         );
       }
       const usuario = await tx.usuario.findUnique({
@@ -204,11 +219,19 @@ export class PreciosService {
     if (!articulo) {
       throw new NotFoundException('El artículo no existe.');
     }
+    const porcentajeIva = this.config.get('IVA_PORCENTAJE', { infer: true });
+    const minorista = aNumero(articulo.precioMinoristaNeto);
+    const mayorista = aNumero(articulo.precioMayoristaNeto);
+    const conIva = (neto: number | null) =>
+      neto === null ? null : precioConIva(neto, porcentajeIva);
     return {
       articuloId: articulo.id,
       exclusivo: esExclusivo(articulo),
-      precioMinoristaNeto: aNumero(articulo.precioMinoristaNeto),
-      precioMayoristaNeto: aNumero(articulo.precioMayoristaNeto),
+      precioMinoristaNeto: minorista,
+      precioMayoristaNeto: mayorista,
+      porcentajeIva,
+      precioMinoristaConIva: conIva(minorista),
+      precioMayoristaConIva: conIva(mayorista),
       historial: articulo.historialPrecio.map((fila) => ({
         id: fila.id,
         tipoPrecio: fila.tipoPrecio as TipoPrecio,

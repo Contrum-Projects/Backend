@@ -4,6 +4,7 @@ import type { PrismaService } from '../../prisma/prisma.service.js';
 import type { CrearSalidaDto } from './dto/crear-salida.dto.js';
 import { SalidasService } from './salidas.service.js';
 import type { StockBajoService } from './stock-bajo.service.js';
+import { errorDeCampo } from '../../common/errores/error-de-campo.js';
 
 const FECHA = new Date('2026-10-25T15:00:00Z');
 
@@ -145,8 +146,10 @@ describe('SalidasService', () => {
     prisma.tx.existencia.findUnique.mockResolvedValue({ cantidad: 1 });
 
     await expect(servicio.registrar(dtoBase(), 'uuid')).rejects.toThrow(
-      new BadRequestException(
+      errorDeCampo(
+        BadRequestException,
         'No hay stock suficiente en esa ubicación: hay 1 y la salida es de 2.',
+        'cantidad',
       ),
     );
     expect(prisma.tx.movimientoInventario.create).not.toHaveBeenCalled();

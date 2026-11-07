@@ -23,6 +23,71 @@ export const ESTADOS_PEDIDO = {
 } as const;
 
 /**
+ * Grupos del filtro de pedidos del panel (E8-H2, decisión del 6 nov 2026, SCRUM-150), en el
+ * orden de los chips. `estados` vacío es «todos». Solo los grupos que piden una acción muestran
+ * su conteo. Entregados, retirados y cancelados se ven solo en «todos».
+ */
+export const GRUPOS_PEDIDOS_GESTION = [
+  {
+    clave: 'por_preparar',
+    nombre: 'Por preparar',
+    estados: [ESTADOS_PEDIDO.PAGADO, ESTADOS_PEDIDO.EN_PREPARACION],
+    conConteo: true,
+  },
+  {
+    clave: 'listos_para_retiro',
+    nombre: 'Listos para retiro',
+    estados: [ESTADOS_PEDIDO.LISTO_PARA_RETIRO],
+    conConteo: true,
+  },
+  {
+    clave: 'despachados',
+    nombre: 'Despachados',
+    estados: [ESTADOS_PEDIDO.DESPACHADO],
+    conConteo: false,
+  },
+  {
+    clave: 'pendientes_pago',
+    nombre: 'Pendientes de pago',
+    estados: [ESTADOS_PEDIDO.PENDIENTE_PAGO],
+    conConteo: false,
+  },
+  { clave: 'todos', nombre: 'Todos', estados: [], conConteo: false },
+] as const satisfies readonly {
+  clave: string;
+  nombre: string;
+  estados: readonly string[];
+  conConteo: boolean;
+}[];
+
+/** El grupo que se aplica si la consulta no trae uno. */
+export const GRUPO_PEDIDOS_POR_DEFECTO = 'por_preparar';
+
+/**
+ * Estado de un objetivo del proyecto frente a su meta (E14-H1, SCRUM-150): lo decide el backend,
+ * así la pantalla no compara porcentajes (RNF-03).
+ */
+export const ESTADOS_OBJETIVO = {
+  SOBRE_LA_META: 'sobre-la-meta',
+  BAJO_LA_META: 'bajo-la-meta',
+  SIN_DATOS: 'sin-datos',
+} as const;
+
+/**
+ * Orden del listado de la tienda (E2-H1, decisión del 6 nov 2026, SCRUM-150). Sin orden, por
+ * nombre. «más vendidos»: unidades vendidas de sus formatos en los últimos
+ * `DIAS_MAS_VENDIDOS` días, en pedidos que son venta (`ESTADOS_SIN_VENTA`); «novedades»: el
+ * producto creado más recientemente primero. Los empates, por nombre.
+ */
+export const ORDENES_TIENDA = {
+  MAS_VENDIDOS: 'mas-vendidos',
+  NOVEDADES: 'novedades',
+} as const;
+
+/** Días hacia atrás que cuentan para «más vendidos» (decisión del 6 nov 2026). */
+export const DIAS_MAS_VENDIDOS = 30;
+
+/**
  * Un pedido es venta desde que se paga (decisión del 4 nov 2026): quedan fuera los que esperan el
  * pago y los cancelados. Un pedido pagado ya no se cancela (E8-H3). Lo usan los reportes (E14) y
  * el filtro de compras de las campañas (E12-H3).
@@ -87,6 +152,17 @@ export const TIPOS_DOCUMENTO = {
  */
 export const ESTADOS_DOCUMENTO = {
   EMITIDO: 'emitido',
+} as const;
+
+/**
+ * Estado de la factura de un pedido en el panel de facturas (`GET /api/gestion/facturas`, SCRUM-55;
+ * decisión del 6 nov, SCRUM-150). No es una columna: se deduce de si el pedido que pidió factura ya
+ * tiene su DOCUMENTO_TRIBUTARIO registrado. Sin factura registrada, el campo `factura` del pedido
+ * viene `null`.
+ */
+export const ESTADOS_FACTURA_GESTION = {
+  POR_EMITIR: 'por_emitir',
+  EMITIDA: 'emitida',
 } as const;
 
 /** ARTICULO_VENTA.tipo: discriminador del supertipo. */
@@ -158,6 +234,40 @@ export const TIPOS_MOVIMIENTO = {
   REINGRESO: 'reingreso',
 } as const;
 
+/**
+ * Grupos del filtro de movimientos del panel (E11-H5 criterio 2, decisión del 6 nov 2026,
+ * SCRUM-150): «entradas» suma stock (entrada, ajuste positivo y reingreso de un pedido
+ * cancelado), «salidas» lo resta sin ser venta (mermas, consumo y ajuste negativo).
+ */
+export const GRUPOS_MOVIMIENTO = {
+  ENTRADAS: 'entradas',
+  VENTAS: 'ventas',
+  SALIDAS: 'salidas',
+  TRANSFERENCIAS: 'transferencias',
+} as const;
+
+/** Los tipos de movimiento de cada grupo; cada tipo está en uno solo. */
+export const TIPOS_POR_GRUPO_MOVIMIENTO: Readonly<
+  Record<
+    (typeof GRUPOS_MOVIMIENTO)[keyof typeof GRUPOS_MOVIMIENTO],
+    readonly (typeof TIPOS_MOVIMIENTO)[keyof typeof TIPOS_MOVIMIENTO][]
+  >
+> = Object.freeze({
+  [GRUPOS_MOVIMIENTO.ENTRADAS]: [
+    TIPOS_MOVIMIENTO.ENTRADA,
+    TIPOS_MOVIMIENTO.AJUSTE_POSITIVO,
+    TIPOS_MOVIMIENTO.REINGRESO,
+  ],
+  [GRUPOS_MOVIMIENTO.VENTAS]: [TIPOS_MOVIMIENTO.VENTA],
+  [GRUPOS_MOVIMIENTO.SALIDAS]: [
+    TIPOS_MOVIMIENTO.MERMA_VENCIMIENTO,
+    TIPOS_MOVIMIENTO.MERMA_DANO,
+    TIPOS_MOVIMIENTO.CONSUMO_PELUQUERIA,
+    TIPOS_MOVIMIENTO.AJUSTE_NEGATIVO,
+  ],
+  [GRUPOS_MOVIMIENTO.TRANSFERENCIAS]: [TIPOS_MOVIMIENTO.TRANSFERENCIA],
+});
+
 /** Tipos de movimiento que se registran como salida que no es venta (E11-H3, RF-11.06). */
 export const TIPOS_SALIDA = [
   TIPOS_MOVIMIENTO.MERMA_VENCIMIENTO,
@@ -216,6 +326,26 @@ export const TIPOS_ANTECEDENTE = {
  */
 export const ESTADOS_OCR = {
   NO_APLICA: 'no_aplica',
+} as const;
+
+/**
+ * CUPON.tipo_descuento (decisión del 7 de noviembre de 2026, SCRUM-150): un porcentaje (1 a 100,
+ * con tope opcional en pesos) o un monto fijo en pesos con IVA.
+ */
+export const TIPOS_DESCUENTO_CUPON = {
+  PORCENTAJE: 'porcentaje',
+  MONTO_FIJO: 'monto_fijo',
+} as const;
+
+/**
+ * CUPON.alcance (decisión del 7 de noviembre de 2026, SCRUM-150): todo el pedido (sin el despacho),
+ * ciertos formatos o packs, o los productos de ciertas categorías o marcas (un pack, solo si todos
+ * sus componentes calzan).
+ */
+export const ALCANCES_CUPON = {
+  PEDIDO: 'pedido',
+  ARTICULOS: 'articulos',
+  CATEGORIAS_MARCAS: 'categorias_marcas',
 } as const;
 
 /** CAMPANA.tipo: campaña de envío único o saludo de cumpleaños. */

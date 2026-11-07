@@ -20,6 +20,7 @@ export class OfertaCumpleanosDto {
   activa: boolean;
 
   @ApiPropertyOptional({
+    type: String,
     example:
       '20 % de descuento en toda la tienda durante tu semana de cumpleaños.',
     maxLength: MAXIMO_TEXTO_OFERTA,
@@ -39,8 +40,19 @@ export class OfertaCumpleanosDto {
   texto?: string | null;
 }
 
-/** Configuración del saludo de cumpleaños (E12-H5, RF-12.10 y RF-12.11). */
+/**
+ * Configuración del saludo de cumpleaños (E12-H5, RF-12.10 y RF-12.11). Se guarda completa: el
+ * `PUT` reemplaza todo (SCRUM-150).
+ */
 export class ConfigurarCumpleanosDto {
+  @ApiProperty({
+    example: true,
+    description:
+      'Si el saludo sale. Apagado, no se envía ninguno; la oferta y los textos se conservan.',
+  })
+  @Booleano({ etiqueta: 'Activar el saludo', presencia: 'obligatorio' })
+  activo: boolean;
+
   @ApiProperty({
     example: '¡Feliz cumpleaños de parte de Cabello Perfecto!',
     maxLength: MAXIMO_ASUNTO_CAMPANA,

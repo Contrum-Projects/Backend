@@ -14,7 +14,8 @@ import {
   UsuarioOpcional,
 } from '../../autenticacion/sesion-opcional.guard.js';
 import { Paginacion } from '../../common/validacion/paginacion.js';
-import { ListarTiendaDto } from './dto/listar-tienda.dto.js';
+import { FacetasTiendaDto } from './dto/facetas-tienda.dto.js';
+import { FiltrosTiendaDto, ListarTiendaDto } from './dto/listar-tienda.dto.js';
 import { ID_PACK, ID_PRODUCTO } from './ids-ruta.js';
 import { TiendaDetalleService } from './tienda-detalle.service.js';
 import { TiendaPacksService } from './tienda-packs.service.js';
@@ -39,7 +40,7 @@ export class TiendaController {
   @ApiOperation({
     summary: 'Explorar, buscar y filtrar productos (E2-H1, E2-H2 y E2-H4)',
     description:
-      'Productos activos y a la venta, ordenados por nombre y paginados, con imagen, nombre y precio minorista con IVA. Con `categoriaId` incluye los de sus subcategorías. Con `buscar`, cada palabra debe estar en el nombre, la marca o la categoría (propia o superior), sin distinguir mayúsculas. Búsqueda y filtros se combinan; sin coincidencias devuelve una lista vacía. La sesión es opcional: con el token de una cuenta profesional se incluyen los productos exclusivos y cada producto trae además `precioMayorista` con IVA y `exclusivo` (`precio` es `null` en los exclusivos). Visitantes, clientes y personal ven solo los de venta general, sin precio mayorista.',
+      'Productos activos y a la venta, ordenados por nombre y paginados, con imagen, nombre y precio minorista con IVA. `categoriaId` y `marcaId` se repiten para marcar varias: dentro de cada grupo basta una y entre grupos se exigen las dos; cada categoría incluye sus subcategorías. Con `buscar`, cada palabra debe estar en el nombre, la marca o la categoría (propia o superior), sin distinguir mayúsculas. Búsqueda y filtros se combinan; sin coincidencias devuelve una lista vacía. La sesión es opcional: con el token de una cuenta profesional se incluyen los productos exclusivos y cada producto trae además `precioMayorista` con IVA y `exclusivo` (`precio` es `null` en los exclusivos). Visitantes, clientes y personal ven solo los de venta general, sin precio mayorista.',
   })
   @ApiOkResponse({ description: 'Página de productos con el total.' })
   @ApiBadRequestResponse({ description: 'Filtros inválidos.' })
@@ -49,13 +50,41 @@ export class TiendaController {
   })
   @ApiNotFoundResponse({
     description:
-      'La categoría no existe, o la marca no existe o no está activa.',
+      'Alguna categoría no existe, o alguna marca no existe o no está activa.',
   })
   listarProductos(
     @Query() filtros: ListarTiendaDto,
     @UsuarioOpcional() usuario: UsuarioAutenticado | undefined,
   ) {
     return this.tienda.listarProductos(filtros, usuario?.rol);
+  }
+
+  @Get('facetas')
+  @UseGuards(SesionOpcionalGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Conteos de los filtros de la tienda (E2-H2)',
+    description:
+      'Cuántos productos hay en cada categoría (con sus subcategorías) y en cada marca, con la misma búsqueda, filtros y visibilidad que `GET /tienda/productos`. Cada grupo cuenta con la búsqueda y los filtros del otro grupo, no con los suyos, así marcar una categoría no deja en 0 a las demás. Solo trae las opciones con productos.',
+  })
+  @ApiOkResponse({
+    description: 'Conteos por categoría y marca.',
+    type: FacetasTiendaDto,
+  })
+  @ApiBadRequestResponse({ description: 'Filtros inválidos.' })
+  @ApiUnauthorizedResponse({
+    description:
+      'Llegó un token de acceso inválido, vencido o de una sesión cerrada.',
+  })
+  @ApiNotFoundResponse({
+    description:
+      'Alguna categoría no existe, o alguna marca no existe o no está activa.',
+  })
+  facetas(
+    @Query() filtros: FiltrosTiendaDto,
+    @UsuarioOpcional() usuario: UsuarioAutenticado | undefined,
+  ) {
+    return this.tienda.facetas(filtros, usuario?.rol);
   }
 
   @Get('productos/:id')

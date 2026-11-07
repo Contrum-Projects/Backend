@@ -12,6 +12,7 @@ import {
   MAXIMO_ANTECEDENTES,
   TAMANO_MAXIMO_ANTECEDENTE_BYTES,
 } from './tipo-archivo-antecedente.js';
+import { errorDeCampo } from '../../common/errores/error-de-campo.js';
 
 /** Campo del formulario `multipart/form-data` que trae los documentos de la solicitud. */
 export const CAMPO_ANTECEDENTES = 'archivos';
@@ -27,7 +28,7 @@ const Base = FilesInterceptor(CAMPO_ANTECEDENTES, MAXIMO_ANTECEDENTES, {
 });
 
 /**
- * Recibe de 1 a 5 documentos de hasta 5 MB en el campo `archivos`, junto al tipo de cada uno
+ * Recibe de 1 a 5 documentos de hasta 4 MB en el campo `archivos`, junto al tipo de cada uno
  * (E10-H2). Multer corta la subida apenas pasa el tamaño; sus errores, en inglés, se responden en
  * español.
  */
@@ -47,13 +48,17 @@ export class SubidaAntecedentesInterceptor extends Base {
 
 const traducirError = (error: unknown) => {
   if (error instanceof PayloadTooLargeException) {
-    return new PayloadTooLargeException(
-      'Cada documento puede pesar hasta 5 MB.',
+    return errorDeCampo(
+      PayloadTooLargeException,
+      'Cada documento puede pesar hasta 4 MB.',
+      'archivos',
     );
   }
   if (error instanceof HttpException && error.getStatus() === 400) {
-    return new BadRequestException(
+    return errorDeCampo(
+      BadRequestException,
       `Adjunta de 1 a ${MAXIMO_ANTECEDENTES} documentos en el campo «${CAMPO_ANTECEDENTES}», con el tipo de cada uno en el campo «tipos».`,
+      'archivos',
     );
   }
   return error;

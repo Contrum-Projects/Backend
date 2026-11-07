@@ -557,4 +557,80 @@ describe('Catálogo · formatos de venta (e2e)', () => {
       await editar(creado.id, {}).expect(400);
     });
   });
+
+  describe('buscar', () => {
+    interface FormatoBuscado {
+      formatoId: number;
+      sku: string;
+      nombreFormato: string;
+      producto: { id: number; nombre: string };
+      canalVenta: string;
+      stockTotal: number;
+      precioMinoristaNeto: number | null;
+      precioMinoristaConIva: number | null;
+    }
+
+    const buscar = (buscar: string, con = token) =>
+      request(app.getHttpServer())
+        .get('/api/catalogo/formatos')
+        .query({ buscar })
+        .auth(con, { type: 'bearer' });
+
+    it('E3-H6 · solo formatos: busca por producto, formato o SKU, solo activos', async () => {
+      const activo = await nuevo({ nombreFormato: 'Tamaño viaje' });
+      const inactivo = await nuevo({ nombreFormato: '1 litro' });
+      await prisma.articuloVenta.update({
+        where: { id: activo.id },
+        data: { precioMinoristaNeto: 10916 },
+      });
+      await prisma.articuloVenta.update({
+        where: { id: inactivo.id },
+        data: { activo: false },
+      });
+      const producto = await prisma.producto.findUniqueOrThrow({
+        where: { id: productoId },
+      });
+
+      const porProducto = await buscar(producto.nombre).expect(200);
+      expect(porProducto.body).toEqual({
+        items: [
+          {
+            formatoId: activo.id,
+            sku: activo.sku,
+            nombreFormato: 'Tamaño viaje',
+            producto: { id: productoId, nombre: producto.nombre },
+            canalVenta: CANALES_VENTA.GENERAL,
+            stockTotal: 0,
+            precioMinoristaNeto: 10916,
+            precioMinoristaConIva: 12990,
+          },
+        ],
+        total: 1,
+        pagina: 1,
+        limite: 20,
+      });
+      const porSku = await buscar(activo.sku.toLowerCase()).expect(200);
+      expect(
+        (porSku.body as { items: FormatoBuscado[] }).items.map(
+          (formato) => formato.formatoId,
+        ),
+      ).toEqual([activo.id]);
+
+      // Un producto desactivado saca a todos sus formatos
+      await prisma.producto.update({
+        where: { id: productoId },
+        data: { activo: false },
+      });
+      const sinProducto = await buscar(producto.nombre).expect(200);
+      expect(sinProducto.body).toMatchObject({ items: [], total: 0 });
+    });
+
+    it('E13-H2 · la usan catálogo e inventario: el bodeguero busca y el cliente recibe 403', async () => {
+      await buscar('x', await tokenDe(ROLES.BODEGUERO)).expect(200);
+      await buscar('x', await tokenDe(ROLES.CLIENTE)).expect(403);
+      await request(app.getHttpServer())
+        .get('/api/catalogo/formatos')
+        .expect(401);
+    });
+  });
 });

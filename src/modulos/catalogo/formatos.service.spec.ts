@@ -9,6 +9,7 @@ import type { Entorno } from '../../config/entorno.js';
 import type { PrismaService } from '../../prisma/prisma.service.js';
 import type { CrearFormatoDto } from './dto/crear-formato.dto.js';
 import { FormatosService } from './formatos.service.js';
+import { errorDeCampo } from '../../common/errores/error-de-campo.js';
 
 const fila = (extra: object = {}) => ({
   id: 11,
@@ -209,8 +210,10 @@ describe('FormatosService', () => {
       prisma.formatoProducto.findFirst.mockResolvedValue({ id: 4 });
 
       await expect(servicio.crear(5, datosNuevos())).rejects.toThrow(
-        new ConflictException(
+        errorDeCampo(
+          ConflictException,
           'El código de barras ya pertenece a otro artículo.',
+          'codigoBarras',
         ),
       );
       expect(prisma.articuloVenta.create).not.toHaveBeenCalled();
@@ -233,7 +236,11 @@ describe('FormatosService', () => {
         .mockResolvedValueOnce({ id: 3 });
 
       await expect(servicio.crear(5, datosNuevos())).rejects.toThrow(
-        new ConflictException('El SKU ya pertenece a otro artículo.'),
+        errorDeCampo(
+          ConflictException,
+          'El SKU ya pertenece a otro artículo.',
+          'sku',
+        ),
       );
     });
 
@@ -497,6 +504,105 @@ describe('FormatosService', () => {
       await expect(servicio.listar(99)).rejects.toBeInstanceOf(
         NotFoundException,
       );
+    });
+  });
+
+  describe('buscar', () => {
+    const filaBuscada = (extra: object = {}) => ({
+      id: 21,
+      nombreFormato: '300 ml',
+      articulo: {
+        sku: 'SH-REP-300',
+        precioMinoristaNeto: new Prisma.Decimal('10916.4'),
+      },
+      producto: { id: 7, nombre: 'Shampoo reparador', canalVenta: 'general' },
+      ...extra,
+    });
+
+    const prismaBusqueda = (filas: object[], stock: object[] = []) => {
+      const prisma = {
+        formatoProducto: {
+          findMany: vi.fn().mockResolvedValue(filas),
+          count: vi.fn().mockResolvedValue(filas.length),
+        },
+        existencia: { groupBy: vi.fn().mockResolvedValue(stock) },
+        $transaction: vi.fn((consultas: Promise<unknown>[]) =>
+          Promise.all(consultas),
+        ),
+      };
+      const servicio = new FormatosService(
+        prisma as unknown as PrismaService,
+        { get: vi.fn().mockReturnValue(19) } as unknown as ConfigService<
+          Entorno,
+          true
+        >,
+      );
+      return { prisma, servicio };
+    };
+
+    it('E3-H6 · solo formatos: busca en producto, formato y SKU, solo activos y sin packs', async () => {
+      const { prisma, servicio } = prismaBusqueda([]);
+      await servicio.buscar({ buscar: 'rep_' });
+      const { where, skip, take } = prisma.formatoProducto.findMany.mock
+        .calls[0][0] as { where: object; skip: number; take: number };
+      const texto = { contains: 'rep\\_', mode: 'insensitive' };
+      expect(where).toEqual({
+        articulo: { activo: true },
+        producto: { activo: true },
+        OR: [
+          { producto: { nombre: texto } },
+          { nombreFormato: texto },
+          { articulo: { sku: texto } },
+        ],
+      });
+      expect({ skip, take }).toEqual({ skip: 0, take: 20 });
+      // Sin resultados no consulta el stock
+      expect(prisma.existencia.groupBy).not.toHaveBeenCalled();
+    });
+
+    it('E3-H6 · cada formato lleva su stock en ubicaciones activas y el precio minorista con IVA', async () => {
+      const { prisma, servicio } = prismaBusqueda(
+        [
+          filaBuscada(),
+          filaBuscada({
+            id: 22,
+            articulo: { sku: 'SH-REP-1L', precioMinoristaNeto: null },
+          }),
+        ],
+        [{ formatoId: 21, _sum: { cantidad: 2 } }],
+      );
+      const listado = await servicio.buscar({ pagina: 2, limite: 5 });
+      expect(prisma.existencia.groupBy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            formatoId: { in: [21, 22] },
+            ubicacion: { activa: true, bodega: { activa: true } },
+          },
+        }),
+      );
+      expect(listado).toEqual({
+        items: [
+          {
+            formatoId: 21,
+            sku: 'SH-REP-300',
+            nombreFormato: '300 ml',
+            producto: { id: 7, nombre: 'Shampoo reparador' },
+            canalVenta: 'general',
+            stockTotal: 2,
+            precioMinoristaNeto: 10916.4,
+            precioMinoristaConIva: 12990,
+          },
+          expect.objectContaining({
+            formatoId: 22,
+            stockTotal: 0,
+            precioMinoristaNeto: null,
+            precioMinoristaConIva: null,
+          }),
+        ],
+        total: 2,
+        pagina: 2,
+        limite: 5,
+      });
     });
   });
 });

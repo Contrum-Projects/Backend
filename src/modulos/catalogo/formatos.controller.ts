@@ -7,6 +7,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -29,6 +30,8 @@ import {
 import { PERMISOS } from '../../common/dominio/permisos.js';
 import { ActualizarFormatoDto } from './dto/actualizar-formato.dto.js';
 import { CrearFormatoDto } from './dto/crear-formato.dto.js';
+import { ListadoFormatosBuscadosDto } from './dto/formato-buscado.dto.js';
+import { ListarFormatosDto } from './dto/listar-formatos.dto.js';
 import { FormatosService } from './formatos.service.js';
 import { ID_FORMATO, ID_PRODUCTO } from './ids-ruta.js';
 
@@ -76,6 +79,25 @@ export class FormatosController {
   @ApiNotFoundResponse({ description: 'El producto no existe.' })
   listar(@Param('id', ID_PRODUCTO) productoId: number) {
     return this.formatos.listar(productoId);
+  }
+
+  @Get('formatos')
+  @RequierePermiso(PERMISOS.CATALOGO_GESTIONAR, PERMISOS.INVENTARIO_REGISTRAR)
+  @ApiOperation({
+    summary: 'Buscar formatos de venta (E3-H6 y registro de inventario)',
+    description:
+      'Solo formatos activos de productos activos, nunca packs, por nombre del producto, nombre del formato o SKU, ordenados por producto y formato. Lleva el stock en ubicaciones activas y el precio minorista (neto y con IVA). La usan quienes gestionan el catálogo (armar packs) y quienes registran inventario (entradas, salidas, ajustes y transferencias).',
+  })
+  @ApiOkResponse({
+    description: 'Formatos encontrados, paginados.',
+    type: ListadoFormatosBuscadosDto,
+  })
+  @ApiBadRequestResponse({ description: 'Búsqueda o paginación inválidas.' })
+  @ApiForbiddenResponse({
+    description: 'El rol no gestiona el catálogo ni registra inventario.',
+  })
+  buscar(@Query() filtros: ListarFormatosDto) {
+    return this.formatos.buscar(filtros);
   }
 
   @Patch('formatos/:id')

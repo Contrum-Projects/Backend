@@ -16,6 +16,7 @@ import {
   TIPOS_NOTIFICACION,
 } from '../src/common/dominio/valores.js';
 import { configurarApp } from '../src/configurar-app.js';
+import type { ReportePeriodoCampanas } from '../src/modulos/reportes/reporte-campanas.service.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { REDIS } from '../src/redis/redis.module.js';
 
@@ -31,8 +32,17 @@ const PREFIJO_CORREO = 'e2e-reporte-marketing-';
 interface ReporteCarritos {
   desde: string;
   hasta: string;
-  meses: { mes: string; abandonados: number; recuperados: number }[];
-  total: { abandonados: number; recuperados: number };
+  meses: {
+    mes: string;
+    abandonados: number;
+    recuperados: number;
+    porcentajeRecuperados: number | null;
+  }[];
+  total: {
+    abandonados: number;
+    recuperados: number;
+    porcentajeRecuperados: number | null;
+  };
 }
 
 interface ResultadoCampana {
@@ -215,18 +225,39 @@ describe('Reportes · carritos abandonados y resultado de campañas (e2e)', () =
       desde: '2031-06',
       hasta: '2031-08',
       meses: [
-        { mes: '2031-06', abandonados: 3, recuperados: 1 },
-        { mes: '2031-07', abandonados: 1, recuperados: 1 },
-        { mes: '2031-08', abandonados: 0, recuperados: 0 },
+        // SCRUM-150: el porcentaje recuperado lo calcula el backend; sin abandonos, null
+        {
+          mes: '2031-06',
+          abandonados: 3,
+          recuperados: 1,
+          porcentajeRecuperados: 33,
+        },
+        {
+          mes: '2031-07',
+          abandonados: 1,
+          recuperados: 1,
+          porcentajeRecuperados: 100,
+        },
+        {
+          mes: '2031-08',
+          abandonados: 0,
+          recuperados: 0,
+          porcentajeRecuperados: null,
+        },
       ],
-      total: { abandonados: 4, recuperados: 2 },
+      total: { abandonados: 4, recuperados: 2, porcentajeRecuperados: 50 },
     });
 
     // Solo julio: lo de junio no cuenta
     const julio = (await consultarCarritos('2031-07', '2031-07').expect(200))
       .body as ReporteCarritos;
     expect(julio.meses).toEqual([
-      { mes: '2031-07', abandonados: 1, recuperados: 1 },
+      {
+        mes: '2031-07',
+        abandonados: 1,
+        recuperados: 1,
+        porcentajeRecuperados: 100,
+      },
     ]);
   });
 
@@ -298,12 +329,144 @@ describe('Reportes · carritos abandonados y resultado de campañas (e2e)', () =
     await consultarCampana('abc').expect(404);
   });
 
+  it('SCRUM-150 · campañas del período: las enviadas en él y el saludo de cumpleaños por mes, las más recientes primero, con porcentajes sobre los enviados', async () => {
+    const destinatario = await nuevaCuenta(ROLES.CLIENTE);
+    const correo = (
+      datos: { campanaId?: number; tipo?: string; fecha?: string },
+      estadoEnvio: string,
+      seguimiento: { apertura?: boolean; clic?: boolean } = {},
+    ) =>
+      prisma.notificacion.create({
+        data: {
+          usuarioId: destinatario.id,
+          campanaId: datos.campanaId ?? null,
+          tipo: datos.tipo ?? TIPOS_NOTIFICACION.CAMPANA,
+          asunto: 'x',
+          estadoEnvio,
+          fechaCreacion: new Date(datos.fecha ?? '2031-09-10T14:00:00Z'),
+          fechaApertura: seguimiento.apertura ? new Date() : null,
+          fechaClic: seguimiento.clic ? new Date() : null,
+        },
+      });
+    // 3 de septiembre: 3 enviados (2 abiertos, 1 con clic), 1 rebotado, 1 cancelado
+    const septiembre = await nuevaCampana(new Date('2031-09-03T15:00:00Z'));
+    await correo({ campanaId: septiembre.id }, ESTADOS_NOTIFICACION.ENVIADA);
+    await correo({ campanaId: septiembre.id }, ESTADOS_NOTIFICACION.ENVIADA, {
+      apertura: true,
+    });
+    await correo({ campanaId: septiembre.id }, ESTADOS_NOTIFICACION.ENVIADA, {
+      apertura: true,
+      clic: true,
+    });
+    await correo({ campanaId: septiembre.id }, ESTADOS_NOTIFICACION.REBOTADA);
+    await correo({ campanaId: septiembre.id }, ESTADOS_NOTIFICACION.CANCELADA);
+    // 20 de septiembre: sin correos todavía
+    const masNueva = await nuevaCampana(new Date('2031-09-20T15:00:00Z'));
+    // Fuera del período (31 de agosto a las 23:30 de Chile, en UTC ya es septiembre) y un borrador
+    await nuevaCampana(new Date('2031-09-01T02:30:00Z'));
+    await nuevaCampana(null);
+    // Saludos de cumpleaños: septiembre (uno abierto de dos) y octubre
+    const saludo = { tipo: TIPOS_NOTIFICACION.CUMPLEANOS };
+    await correo(
+      { ...saludo, fecha: '2031-09-15T14:00:00Z' },
+      ESTADOS_NOTIFICACION.ENVIADA,
+      { apertura: true },
+    );
+    await correo(
+      { ...saludo, fecha: '2031-09-16T14:00:00Z' },
+      ESTADOS_NOTIFICACION.ENVIADA,
+    );
+    await correo(
+      { ...saludo, fecha: '2031-10-02T14:00:00Z' },
+      ESTADOS_NOTIFICACION.FALLIDA,
+    );
+
+    const respuesta = await servidor()
+      .get(RUTA_CAMPANAS)
+      .query({ desde: '2031-09-01', hasta: '2031-10-31' })
+      .auth(tokenAdministrador, { type: 'bearer' })
+      .expect(200);
+
+    const filas = (respuesta.body as ReportePeriodoCampanas).campanas.map(
+      ({ id: _id, segmento: _segmento, ...fila }) => fila,
+    );
+    expect(filas).toEqual([
+      {
+        nombre: 'Saludo de cumpleaños',
+        automatica: true,
+        fecha: '2031-10',
+        enviados: 0,
+        porcentajeAbiertos: null,
+        porcentajeClic: null,
+        rebotados: 0,
+        cancelados: 0,
+        fallidos: 1,
+      },
+      {
+        nombre: masNueva.asunto,
+        automatica: false,
+        fecha: '2031-09-20T15:00:00.000Z',
+        enviados: 0,
+        porcentajeAbiertos: null,
+        porcentajeClic: null,
+        rebotados: 0,
+        cancelados: 0,
+        fallidos: 0,
+      },
+      {
+        nombre: septiembre.asunto,
+        automatica: false,
+        fecha: '2031-09-03T15:00:00.000Z',
+        enviados: 3,
+        porcentajeAbiertos: 67,
+        porcentajeClic: 33,
+        rebotados: 1,
+        cancelados: 1,
+        fallidos: 0,
+      },
+      {
+        nombre: 'Saludo de cumpleaños',
+        automatica: true,
+        fecha: '2031-09',
+        enviados: 2,
+        porcentajeAbiertos: 50,
+        porcentajeClic: 0,
+        rebotados: 0,
+        cancelados: 0,
+        fallidos: 0,
+      },
+    ]);
+    const cuerpo = respuesta.body as ReportePeriodoCampanas;
+    expect(cuerpo.desde).toBe('2031-09-01');
+    expect(cuerpo.campanas[1]).toMatchObject({
+      id: masNueva.id,
+      segmento: { tipos: [], categorias: [], marcas: [] },
+    });
+    expect(cuerpo.campanas[0].segmento).toBeNull();
+  });
+
+  it('SCRUM-150 · campañas del período: fechas faltantes o inválidas, rango invertido o de más de 366 días responden 400', async () => {
+    const consultar = (query: object) =>
+      servidor()
+        .get(RUTA_CAMPANAS)
+        .query(query)
+        .auth(tokenAdministrador, { type: 'bearer' });
+    await consultar({}).expect(400);
+    await consultar({ desde: '2031-09-31', hasta: '2031-10-01' }).expect(400);
+    await consultar({ desde: '2031-10-01', hasta: '2031-09-01' }).expect(400);
+    await consultar({ desde: '2030-01-01', hasta: '2031-06-01' }).expect(400);
+  });
+
   it('RNF-03 · reportes de marketing: sin sesión responden 401', async () => {
     await servidor()
       .get(RUTA_CARRITOS)
       .query({ desde: '2031-06', hasta: '2031-07' })
       .expect(401);
     await servidor().get(`${RUTA_CAMPANAS}/1`).expect(401);
+    await servidor()
+      .get(RUTA_CAMPANAS)
+      .query({ desde: '2031-06-01', hasta: '2031-06-30' })
+      .expect(401);
   });
 
   it('RNF-03 · reportes de marketing: bodeguero, vendedor, cliente y profesional reciben 403', async () => {
@@ -316,6 +479,11 @@ describe('Reportes · carritos abandonados y resultado de campañas (e2e)', () =
       const token = await tokenDeRol(rol);
       await consultarCarritos('2031-06', '2031-07', token).expect(403);
       await consultarCampana(1, token).expect(403);
+      await servidor()
+        .get(RUTA_CAMPANAS)
+        .query({ desde: '2031-06-01', hasta: '2031-06-30' })
+        .auth(token, { type: 'bearer' })
+        .expect(403);
     }
   });
 });

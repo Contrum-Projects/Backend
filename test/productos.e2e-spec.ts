@@ -612,6 +612,178 @@ describe('Catálogo · productos (e2e)', () => {
     });
   });
 
+  describe('listado del panel (SCRUM-150)', () => {
+    interface FilaListado {
+      id: number;
+      imagen: string | null;
+      formatos: number;
+      precioDesde: number | null;
+      stockTotal: number;
+      stockBajo: boolean;
+    }
+    interface Listado {
+      items: FilaListado[];
+      total: number;
+      conteos: {
+        todos: number;
+        exclusivos: number;
+        stockBajo: number;
+        inactivos: number;
+      };
+    }
+
+    /** Un formato con precios netos, stock mínimo y (si se pide) una foto. */
+    const formato = async (
+      productoId: number,
+      {
+        sku = `${PREFIJO}-${randomUUID().slice(0, 8)}`,
+        minorista = null as number | null,
+        mayorista = null as number | null,
+        activo = true,
+        predeterminado = false,
+        stockMinimo = 0,
+        foto = false,
+      } = {},
+    ) => {
+      const articulo = await prisma.articuloVenta.create({
+        data: {
+          sku,
+          tipo: TIPOS_ARTICULO.FORMATO,
+          precioMinoristaNeto: minorista,
+          precioMayoristaNeto: mayorista,
+          activo,
+        },
+      });
+      await prisma.formatoProducto.create({
+        data: {
+          id: articulo.id,
+          productoId,
+          nombreFormato: '300 ml',
+          pesoGramos: 320,
+          altoCm: 18,
+          anchoCm: 6,
+          largoCm: 6,
+          esPredeterminado: predeterminado,
+          stockMinimo,
+        },
+      });
+      if (foto) {
+        await prisma.imagenArticulo.create({
+          data: {
+            articuloId: articulo.id,
+            ubicacionArchivo: `productos/${articulo.id}/principal.jpg`,
+            orden: 1,
+            esPrincipal: true,
+          },
+        });
+      }
+      return articulo;
+    };
+
+    it('E3-H1 · cada fila trae foto, formatos activos, precio desde con IVA del canal, stock y si está bajo el mínimo', async () => {
+      const token = await tokenDe(ROLES.VENDEDOR);
+      const general = await nuevo(token, { nombre: nombreUnico('Shampoo') });
+      await formato(general.id, {
+        minorista: 10916,
+        predeterminado: true,
+        foto: true,
+      });
+      await formato(general.id, { minorista: 8403, stockMinimo: 5 });
+      // Desactivado: no cuenta ni da precio
+      await formato(general.id, { minorista: 100, activo: false });
+      const exclusivo = await nuevo(token, {
+        nombre: nombreUnico('Tinte'),
+        canalVenta: 'profesional',
+      });
+      await formato(exclusivo.id, { minorista: 9000, mayorista: 6000 });
+
+      const { items } = (await listar(token, { buscar: PREFIJO }).expect(200))
+        .body as Listado;
+      const [shampoo, tinte] = items;
+
+      expect(shampoo).toMatchObject({
+        id: general.id,
+        formatos: 2,
+        // El menor minorista de los activos: 8403 neto → $10.000 con IVA
+        precioDesde: 10000,
+        stockTotal: 0,
+        // Sin unidades y con mínimo 5
+        stockBajo: true,
+      });
+      expect(shampoo.imagen).toContain('principal.jpg');
+      // El exclusivo se muestra con su mayorista: 6000 neto → $7.140
+      expect(tinte).toMatchObject({
+        id: exclusivo.id,
+        formatos: 1,
+        precioDesde: 7140,
+        imagen: null,
+        stockBajo: false,
+      });
+    });
+
+    it('E3-H1 · filtros de los chips, conteos con la búsqueda, y búsqueda por marca y SKU', async () => {
+      const token = await tokenDe(ROLES.VENDEDOR);
+      const activo = await nuevo(token, {
+        nombre: nombreUnico('Acondicionador'),
+      });
+      const exclusivo = await nuevo(token, {
+        nombre: nombreUnico('Tinte'),
+        canalVenta: 'profesional',
+      });
+      const inactivo = await nuevo(token, {
+        nombre: nombreUnico('Mascarilla'),
+      });
+      await desactivar(token, inactivo.id).expect(200);
+      const sku = `${PREFIJO}-SKU${randomUUID().slice(0, 6)}`;
+      await formato(activo.id, { sku, stockMinimo: 3 });
+
+      const ids = async (consulta: object) =>
+        (
+          (await listar(token, { buscar: PREFIJO, ...consulta }).expect(200))
+            .body as Listado
+        ).items.map((fila) => fila.id);
+
+      expect(await ids({ incluirInactivos: 'true' })).toEqual([
+        activo.id,
+        inactivo.id,
+        exclusivo.id,
+      ]);
+      expect(
+        await ids({ incluirInactivos: 'true', canalVenta: 'profesional' }),
+      ).toEqual([exclusivo.id]);
+      expect(
+        await ids({ incluirInactivos: 'true', stockBajo: 'true' }),
+      ).toEqual([activo.id]);
+      expect(await ids({ soloInactivos: 'true' })).toEqual([inactivo.id]);
+
+      const listado = (await listar(token, { buscar: PREFIJO }).expect(200))
+        .body as Listado;
+      expect(listado.conteos).toEqual({
+        todos: 3,
+        exclusivos: 1,
+        stockBajo: 1,
+        inactivos: 1,
+      });
+      // Por SKU de un formato y por nombre de la marca
+      expect(
+        (
+          (await listar(token, { buscar: sku.toLowerCase() }).expect(200))
+            .body as Listado
+        ).items.map((fila) => fila.id),
+      ).toEqual([activo.id]);
+      const { nombre: marca } = await prisma.marca.findUniqueOrThrow({
+        where: { id: marcaId },
+      });
+      expect(
+        ((await listar(token, { buscar: marca }).expect(200)).body as Listado)
+          .total,
+      ).toBe(2);
+
+      await listar(token, { canalVenta: 'mayorista' }).expect(400);
+      await listar(token, { stockBajo: 'quizas' }).expect(400);
+    });
+  });
+
   it('RNF-03 · sin sesión responde 401; solo administrador y vendedor gestionan productos', async () => {
     const admin = await tokenDe(ROLES.ADMINISTRADOR);
     const producto = await nuevo(admin);

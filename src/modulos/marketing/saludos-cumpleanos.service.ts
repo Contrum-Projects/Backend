@@ -23,7 +23,7 @@ import {
   inicioDelAnio,
   puedeRecibirSaludo,
 } from './regla-cumpleanos.js';
-import { SALUDO_POR_DEFECTO } from './saludo-cumpleanos.js';
+import { leerActivo, SALUDO_POR_DEFECTO } from './saludo-cumpleanos.js';
 
 const LOTE_CUENTAS = 100;
 
@@ -53,6 +53,7 @@ export class SaludosCumpleanosService {
    */
   async enviarSaludos(ahora = new Date()): Promise<void> {
     if (!esHoraDeSaludar(ahora)) return;
+    if (!(await this.saludoActivo())) return;
     const dias = cumpleanosDeHoy(ahora);
     const anio = anioEnLaTienda(ahora);
     let ultimoId = 0;
@@ -91,6 +92,16 @@ export class SaludosCumpleanosService {
     }
   }
 
+  /** SCRUM-150 · Apagado por el administrador, no sale ningún saludo. Sin configurar, sale el por defecto. */
+  private async saludoActivo(): Promise<boolean> {
+    const configurado = await this.prisma.campana.findFirst({
+      where: { tipo: TIPOS_CAMPANA.CUMPLEANOS },
+      orderBy: { id: 'asc' },
+      select: { segmento: true },
+    });
+    return !configurado || leerActivo(configurado.segmento);
+  }
+
   /**
    * Con la cuenta bloqueada: dos instancias o dos pasadas solapadas no la saludan dos veces, y un
    * cambio del consentimiento o de la fecha que esperaba el bloqueo se ve aquí (CA3). La
@@ -126,8 +137,10 @@ export class SaludosCumpleanosService {
       const configurado = await tx.campana.findFirst({
         where: { tipo: TIPOS_CAMPANA.CUMPLEANOS },
         orderBy: { id: 'asc' },
-        select: { id: true, asunto: true },
+        select: { id: true, asunto: true, segmento: true },
       });
+      // SCRUM-150: el saludo se pudo apagar mientras esta pasada recorría las cuentas
+      if (configurado && !leerActivo(configurado.segmento)) return null;
       const notificacion = await tx.notificacion.create({
         data: {
           usuarioId: id,

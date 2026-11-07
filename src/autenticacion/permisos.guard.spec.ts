@@ -17,6 +17,9 @@ describe('PermisosGuard', () => {
     cambiarPrecio() {}
 
     consultarStock() {}
+
+    @RequierePermiso(PERMISOS.CATALOGO_GESTIONAR, PERMISOS.INVENTARIO_REGISTRAR)
+    buscarFormatos() {}
   }
 
   class SinPermiso {
@@ -66,6 +69,20 @@ describe('PermisosGuard', () => {
           ForbiddenException,
         );
       }
+    }
+  });
+
+  it('E13-H2 · ruta con varios permisos: basta tener uno de ellos', () => {
+    // El vendedor tiene catálogo; el bodeguero, inventario
+    for (const rol of [ROLES.ADMINISTRADOR, ROLES.VENDEDOR, ROLES.BODEGUERO]) {
+      expect(guard.canActivate(contexto(Panel, 'buscarFormatos', rol))).toBe(
+        true,
+      );
+    }
+    for (const rol of [ROLES.CLIENTE, ROLES.PROFESIONAL]) {
+      expect(() =>
+        guard.canActivate(contexto(Panel, 'buscarFormatos', rol)),
+      ).toThrow(ForbiddenException);
     }
   });
 

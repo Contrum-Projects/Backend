@@ -6,6 +6,8 @@ import {
   interpretarRespuestaIa,
   LARGO_MAXIMO_DESCRIPCION_IA,
   LARGO_MAXIMO_INGREDIENTES_IA,
+  razonamientoPara,
+  ESQUEMA_RESPUESTA_IA,
 } from './cliente-ia.js';
 import type { TipoImagen } from './tipo-imagen.js';
 
@@ -114,7 +116,7 @@ describe('interpretarRespuestaIa · topes', () => {
 });
 
 describe('ClienteGemini', () => {
-  const cliente = new ClienteGemini('clave-gemini', 'gemini-2.5-flash');
+  const cliente = new ClienteGemini('clave-gemini', 'gemini-3.8-flash');
 
   beforeEach(() => {
     generarContenido.mockReset();
@@ -141,7 +143,7 @@ describe('ClienteGemini', () => {
       ingredientes: 'Aqua',
     });
     const [peticion] = generarContenido.mock.calls[0];
-    expect(peticion.model).toBe('gemini-2.5-flash');
+    expect(peticion.model).toBe('gemini-3.8-flash');
     expect(peticion.contents[0].parts[0].inlineData).toEqual({
       mimeType: 'image/jpeg',
       data: IMAGEN.toString('base64'),
@@ -199,5 +201,30 @@ describe('ClienteIaNoConfigurado', () => {
     await expect(
       new ClienteIaNoConfigurado().leerReverso(),
     ).rejects.toBeInstanceOf(ErrorServicioIa);
+  });
+
+  describe('razonamiento según el modelo (SCRUM-150)', () => {
+    it('E4-H1 · los Gemini 3 usan thinkingLevel LOW; los 2.x lo apagan con thinkingBudget 0', () => {
+      expect(razonamientoPara('gemini-3.8-flash')).toEqual({
+        thinkingLevel: 'LOW',
+      });
+      expect(razonamientoPara('gemini-flash-latest')).toEqual({
+        thinkingLevel: 'LOW',
+      });
+      expect(razonamientoPara('gemini-2.5-flash')).toEqual({
+        thinkingBudget: 0,
+      });
+    });
+  });
+
+  it('E4-H1 · el esquema que va a Gemini no lleva maxLength ni propertyOrdering (los «lite» lo rechazan)', () => {
+    const texto = JSON.stringify(ESQUEMA_RESPUESTA_IA);
+    expect(texto).not.toContain('maxLength');
+    expect(texto).not.toContain('propertyOrdering');
+    expect(ESQUEMA_RESPUESTA_IA.required).toEqual([
+      'legible',
+      'descripcion',
+      'ingredientes',
+    ]);
   });
 });

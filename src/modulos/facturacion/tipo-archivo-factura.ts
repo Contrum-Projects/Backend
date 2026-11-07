@@ -1,5 +1,8 @@
-/** Tamaño máximo del PDF de una factura (E9-H3, confirmado por el equipo el 31 de octubre de 2026). */
-export const TAMANO_MAXIMO_FACTURA_BYTES = 5 * 1024 * 1024;
+/**
+ * Tamaño máximo del PDF de una factura (E9-H3, confirmado por el equipo el 31 de octubre de 2026;
+ * bajó de 5 a 4 MB el 6 de noviembre, SCRUM-150, para caber en el proxy de la tienda).
+ */
+export const TAMANO_MAXIMO_FACTURA_BYTES = 4 * 1024 * 1024;
 
 const FIRMA_PDF = Buffer.from('%PDF-', 'latin1');
 

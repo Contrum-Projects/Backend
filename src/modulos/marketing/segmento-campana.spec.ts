@@ -1,5 +1,6 @@
 import {
   conSubcategorias,
+  filtraPorCuenta,
   leerSegmento,
   normalizarSegmento,
   rolesDelSegmento,
@@ -32,28 +33,66 @@ describe('Segmento de campaña', () => {
   });
 
   it('E12-H3 · un segmento guardado ilegible o con valores desconocidos no tiene destinatarios', () => {
-    expect(leerSegmento(null)).toEqual({
-      tipos: [],
-      categorias: [],
-      marcas: [],
-    });
-    expect(leerSegmento('{no es json')).toEqual({
-      tipos: [],
-      categorias: [],
-      marcas: [],
-    });
+    const vacio = normalizarSegmento({});
+    expect(leerSegmento(null)).toEqual(vacio);
+    expect(leerSegmento('{no es json')).toEqual(vacio);
     expect(
       leerSegmento('{"tipos":["cliente","vendedor"],"categorias":[1,"x"]}'),
-    ).toEqual({ tipos: ['cliente'], categorias: [1], marcas: [] });
+    ).toEqual(normalizarSegmento({ tipos: ['cliente'], categorias: [1] }));
+  });
+
+  it('SCRUM-150 · los filtros de cuenta se leen y guardan; los no indicados no se escriben', () => {
+    const segmento = normalizarSegmento({
+      tipos: ['cliente'],
+      compraEnUltimosDias: 30,
+      regiones: ['13', '05', '13'],
+      mesesCumpleanos: [12, 1],
+      generos: [' Femenino ', 'Femenino'],
+      conCarrito: true,
+      edadMinima: null,
+    });
+
+    expect(JSON.parse(textoSegmento(segmento))).toEqual({
+      tipos: ['cliente'],
+      categorias: [],
+      marcas: [],
+      compraEnUltimosDias: 30,
+      regiones: ['05', '13'],
+      mesesCumpleanos: [1, 12],
+      generos: ['Femenino'],
+      conCarrito: true,
+    });
+    expect(leerSegmento(textoSegmento(segmento))).toEqual(segmento);
+    // Un valor que no es entero o no es verdadero se lee como «sin filtro»
+    expect(
+      leerSegmento(
+        '{"tipos":["cliente"],"pedidosMinimo":"3","conCarrito":"si"}',
+      ),
+    ).toMatchObject({ pedidosMinimo: null, conCarrito: false });
+  });
+
+  it('SCRUM-150 · cualquier filtro de cuenta deja fuera a los suscriptores', () => {
+    const base = { tipos: ['cliente' as const] };
+    expect(filtraPorCuenta(normalizarSegmento(base))).toBe(false);
+    expect(
+      filtraPorCuenta(normalizarSegmento({ ...base, sinComprarHaceDias: 90 })),
+    ).toBe(true);
+    expect(
+      filtraPorCuenta(normalizarSegmento({ ...base, comunas: ['13101'] })),
+    ).toBe(true);
+    expect(
+      filtraPorCuenta(normalizarSegmento({ ...base, generos: ['Otro'] })),
+    ).toBe(true);
+    expect(
+      filtraPorCuenta(normalizarSegmento({ ...base, conCarrito: true })),
+    ).toBe(true);
   });
 
   it('E12-H3 · solo cuentas cliente y profesional: el personal nunca es destinatario', () => {
     expect(
-      rolesDelSegmento({
-        tipos: ['cliente', 'profesional', 'suscriptor'],
-        categorias: [],
-        marcas: [],
-      }),
+      rolesDelSegmento(
+        normalizarSegmento({ tipos: ['cliente', 'profesional', 'suscriptor'] }),
+      ),
     ).toEqual(['cliente', 'profesional']);
   });
 

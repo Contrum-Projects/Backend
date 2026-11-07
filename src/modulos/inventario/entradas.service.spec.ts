@@ -6,6 +6,7 @@ import {
   EntradasService,
   normalizarNumeroDocumento,
 } from './entradas.service.js';
+import { errorDeCampo } from '../../common/errores/error-de-campo.js';
 
 const crearPrisma = () => {
   const tx = {
@@ -146,10 +147,20 @@ describe('EntradasService', () => {
           formatoId: 11,
           cantidad: 24,
           costoUnitarioNeto: 3500,
+          subtotalNeto: 84000,
           movimientoId: 900,
         },
-        { formatoId: 12, cantidad: 6, costoUnitarioNeto: 0, movimientoId: 901 },
+        {
+          formatoId: 12,
+          cantidad: 6,
+          costoUnitarioNeto: 0,
+          subtotalNeto: 0,
+          movimientoId: 901,
+        },
       ],
+      // SCRUM-150: los totales los suma el backend
+      unidades: 30,
+      costoNetoTotal: 84000,
     });
   });
 
@@ -158,7 +169,13 @@ describe('EntradasService', () => {
 
     await expect(
       servicio.registrar(dtoBase(), 'uuid-bodeguero'),
-    ).rejects.toThrow(new BadRequestException('El proveedor no existe.'));
+    ).rejects.toThrow(
+      errorDeCampo(
+        BadRequestException,
+        'El proveedor no existe.',
+        'proveedorId',
+      ),
+    );
     expect(prisma.tx.entradaInventario.create).not.toHaveBeenCalled();
     expect(prisma.tx.$executeRaw).not.toHaveBeenCalled();
   });
@@ -174,8 +191,10 @@ describe('EntradasService', () => {
     await expect(
       servicio.registrar(dtoBase(), 'uuid-bodeguero'),
     ).rejects.toThrow(
-      new BadRequestException(
+      errorDeCampo(
+        BadRequestException,
         'El proveedor está desactivado: no se le pueden registrar entradas.',
+        'proveedorId',
       ),
     );
     expect(prisma.tx.entradaInventario.create).not.toHaveBeenCalled();
@@ -185,7 +204,13 @@ describe('EntradasService', () => {
     prisma.tx.ubicacion.findUnique.mockResolvedValueOnce(null);
     await expect(
       servicio.registrar(dtoBase(), 'uuid-bodeguero'),
-    ).rejects.toThrow(new BadRequestException('La ubicación no existe.'));
+    ).rejects.toThrow(
+      errorDeCampo(
+        BadRequestException,
+        'La ubicación no existe.',
+        'ubicacionId',
+      ),
+    );
 
     for (const [activa, bodegaActiva] of [
       [false, true],
@@ -211,12 +236,26 @@ describe('EntradasService', () => {
 
     await expect(
       servicio.registrar(dtoBase(), 'uuid-bodeguero'),
-    ).rejects.toThrow(new BadRequestException('El formato 12 no existe.'));
+    ).rejects.toThrow(
+      // SCRUM-150: el formato 12 es la primera línea, tal como llegó
+      errorDeCampo(
+        BadRequestException,
+        'El formato 12 no existe.',
+        'detalles.0.formatoId',
+      ),
+    );
 
     prisma.tx.formatoProducto.findMany.mockResolvedValue([]);
     await expect(
       servicio.registrar(dtoBase(), 'uuid-bodeguero'),
-    ).rejects.toThrow('Los formatos 11, 12 no existen.');
+    ).rejects.toThrow(
+      errorDeCampo(
+        BadRequestException,
+        'Los formatos 11, 12 no existen.',
+        'detalles.0.formatoId',
+        'detalles.1.formatoId',
+      ),
+    );
     expect(prisma.tx.entradaInventario.create).not.toHaveBeenCalled();
   });
 
@@ -235,8 +274,10 @@ describe('EntradasService', () => {
         'uuid-bodeguero',
       ),
     ).rejects.toThrow(
-      new BadRequestException(
+      errorDeCampo(
+        BadRequestException,
         'La fecha de recepción no puede ser posterior a hoy.',
+        'fechaRecepcion',
       ),
     );
     expect(prisma.$transaction).not.toHaveBeenCalled();
@@ -261,8 +302,11 @@ describe('EntradasService', () => {
     await expect(
       servicio.registrar(dtoBase(), 'uuid-bodeguero'),
     ).rejects.toThrow(
-      new BadRequestException(
+      // SCRUM-150: el 11 es la segunda línea del cuerpo, aunque se procese primero (orden por formato)
+      errorDeCampo(
+        BadRequestException,
         'El stock del formato 11 en esa ubicación superaría el máximo permitido.',
+        'detalles.1.cantidad',
       ),
     );
     expect(
@@ -281,8 +325,10 @@ describe('EntradasService', () => {
     await expect(
       servicio.registrar(dtoBase(), 'uuid-bodeguero'),
     ).rejects.toThrow(
-      new ConflictException(
+      errorDeCampo(
+        ConflictException,
         'Ya hay una entrada registrada con ese documento del proveedor.',
+        'numeroDocumento',
       ),
     );
     expect(prisma.tx.$executeRaw).not.toHaveBeenCalled();

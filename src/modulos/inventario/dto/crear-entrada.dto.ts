@@ -153,6 +153,7 @@ export class CrearEntradaDto {
   ubicacionId: number;
 
   @ApiPropertyOptional({
+    type: String,
     example: 'Llegó una caja abierta',
     maxLength: MAXIMO_OBSERVACION_ENTRADA,
     nullable: true,

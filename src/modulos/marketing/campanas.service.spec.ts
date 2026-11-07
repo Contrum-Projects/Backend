@@ -69,6 +69,7 @@ const crearPrisma = () => {
     }),
     categoria: { findMany: vi.fn().mockResolvedValue([]) },
     campana: { update: vi.fn().mockResolvedValue({}) },
+    cupon: { findFirst: vi.fn().mockResolvedValue(null) },
     notificacion: {
       createManyAndReturn: vi.fn(
         ({ data }: { data: { usuarioId?: number; leadId?: number }[] }) =>
@@ -312,11 +313,11 @@ describe('CampanasService', () => {
       prisma.bd.cuentas = [{ id: 1, email: 'camila@correo.cl' }];
       prisma.bd.suscriptores = [{ id: 20, email: 'visita@correo.cl' }];
 
-      const vista = await servicio.vistaPrevia(4);
+      const vista = await servicio.vistaPrevia(4, 'u-autora');
 
       expect(vista.destinatarios).toBe(2);
       expect(vista.html).toContain('Llegó la línea reparadora.');
-      expect(vista.html).toContain('https://tienda.cl/suscripcion/baja"');
+      expect(vista.html).toContain('https://tienda.cl/ofertas/baja"');
       expect(
         huella.verificar(
           {
@@ -336,7 +337,52 @@ describe('CampanasService', () => {
         fechaEncolado: new Date(),
       });
 
-      await expect(servicio.vistaPrevia(4)).rejects.toThrow(ConflictException);
+      await expect(servicio.vistaPrevia(4, 'u-autora')).rejects.toThrow(
+        ConflictException,
+      );
+    });
+
+    it('SCRUM-150 · la vista previa en vivo arma el correo sin leer la campaña y nunca entrega la confirmación', async () => {
+      const vista = await servicio.renderizar(
+        {
+          asunto: 'Nueva línea',
+          cuerpo: ['Hola:', '', 'Llegó la línea <b>reparadora</b>.'].join('\n'),
+        },
+        'u-autora',
+      );
+
+      expect(vista.asunto).toBe('Nueva línea');
+      expect(vista.html).toContain(
+        'Llegó la línea &lt;b&gt;reparadora&lt;/b&gt;.',
+      );
+      expect(vista.html).toContain('https://tienda.cl/ofertas/baja"');
+      expect(vista.texto).toContain('Llegó la línea');
+      expect(vista).not.toHaveProperty('confirmacion');
+      expect(vista).not.toHaveProperty('destinatarios');
+      expect(prisma.campana.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('SCRUM-150 · la vista previa completa los marcadores con los datos de quien la mira', async () => {
+      prisma.usuario.findUnique.mockResolvedValue({
+        nombre: 'Rosa',
+        apellido: 'Pérez',
+      });
+
+      const vista = await servicio.renderizar(
+        {
+          asunto: '{nombre}, tenemos novedades',
+          cuerpo: 'Hola, {nombre_completo}:\n\nMira {enlace_tienda}',
+        },
+        'u-autora',
+      );
+
+      expect(prisma.usuario.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { codigoPublico: 'u-autora' } }),
+      );
+      expect(vista.asunto).toBe('Rosa, tenemos novedades');
+      expect(vista.html).toContain('Hola, Rosa Pérez:');
+      expect(vista.texto).toContain('Mira https://tienda.cl');
+      expect(vista.html).not.toContain('{nombre');
     });
   });
 

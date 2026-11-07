@@ -5,14 +5,12 @@ import {
 } from '@nestjs/common';
 import { ORIGENES_DESCRIPCION } from '../../common/dominio/valores.js';
 import type { Prisma } from '../../generated/prisma/client.js';
-import { escaparComodines } from '../../common/validacion/texto-busqueda.js';
-import { POR_PAGINA } from '../../common/validacion/paginacion.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { ActualizarProductoDto } from './dto/actualizar-producto.dto.js';
 import type { CrearProductoDto } from './dto/crear-producto.dto.js';
-import type { ListarProductosDto } from './dto/listar-productos.dto.js';
 import type { SugerenciaUsadaDto } from './dto/sugerencia-usada.dto.js';
 import { FirmaSugerencia } from './firma-sugerencia.js';
+import { errorDeCampo } from '../../common/errores/error-de-campo.js';
 
 /** Lo que el panel necesita ver de un producto: sus datos y el nombre de su marca y categoría. */
 const INCLUIR = {
@@ -168,38 +166,17 @@ export class ProductosService {
     return producto;
   }
 
-  /** Productos del panel, ordenados por nombre. Por defecto solo los activos. */
-  async listar(filtros: ListarProductosDto) {
-    const pagina = filtros.pagina ?? 1;
-    const limite = filtros.limite ?? POR_PAGINA;
-    const where: Prisma.ProductoWhereInput = {
-      activo: filtros.incluirInactivos ? undefined : true,
-      categoriaId: filtros.categoriaId,
-      marcaId: filtros.marcaId,
-      nombre: filtros.buscar
-        ? { contains: escaparComodines(filtros.buscar), mode: 'insensitive' }
-        : undefined,
-    };
-    const [items, total] = await this.prisma.$transaction([
-      this.prisma.producto.findMany({
-        where,
-        include: INCLUIR,
-        orderBy: [{ nombre: 'asc' }, { id: 'asc' }],
-        skip: (pagina - 1) * limite,
-        take: limite,
-      }),
-      this.prisma.producto.count({ where }),
-    ]);
-    return { items, total, pagina, limite };
-  }
-
   private async exigirCategoria(categoriaId: number) {
     const categoria = await this.prisma.categoria.findUnique({
       where: { id: categoriaId },
       select: { id: true },
     });
     if (!categoria) {
-      throw new NotFoundException('La categoría no existe.');
+      throw errorDeCampo(
+        NotFoundException,
+        'La categoría no existe.',
+        'categoriaId',
+      );
     }
   }
 
@@ -209,10 +186,14 @@ export class ProductosService {
       select: { activa: true },
     });
     if (!marca) {
-      throw new NotFoundException('La marca no existe.');
+      throw errorDeCampo(NotFoundException, 'La marca no existe.', 'marcaId');
     }
     if (!marca.activa) {
-      throw new BadRequestException('La marca está desactivada.');
+      throw errorDeCampo(
+        BadRequestException,
+        'La marca está desactivada.',
+        'marcaId',
+      );
     }
   }
 }

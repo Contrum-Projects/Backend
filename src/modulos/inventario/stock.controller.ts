@@ -1,5 +1,6 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import {
+  ApiBadRequestResponse,
   ApiBearerAuth,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
@@ -15,6 +16,9 @@ import {
 } from '../../autenticacion/permisos.guard.js';
 import { PERMISOS } from '../../common/dominio/permisos.js';
 import { IdRutaPipe } from '../../common/validacion/id-ruta.pipe.js';
+import { ListarStockDto } from './dto/listar-stock.dto.js';
+import { ListadoStockDto } from './dto/stock-listado.dto.js';
+import { ListadoStockService } from './listado-stock.service.js';
 import { StockService } from './stock.service.js';
 import { StockBajoService } from './stock-bajo.service.js';
 
@@ -33,7 +37,22 @@ export class StockController {
   constructor(
     private readonly stock: StockService,
     private readonly stockBajo: StockBajoService,
+    private readonly listado: ListadoStockService,
   ) {}
+
+  @Get()
+  @ApiOperation({
+    summary: 'Listar el stock por formato (E11-H5)',
+    description:
+      'Un formato por fila (también los desactivados y los que nunca se recibieron, con stock 0), por producto y formato. Con `bodegaId`, solo los formatos con unidades en esa bodega, y sus ubicaciones y stock son los de ella. `bajoMinimo` sigue la regla del aviso (E11-H6): el stock total en todas las ubicaciones bajo un mínimo mayor que 0; `stockMinimo: 0` es «sin mínimo». Lleva el costo unitario neto y el proveedor de la entrada más reciente, o `null` si nunca se recibió.',
+  })
+  @ApiOkResponse({ description: 'Stock por formato.', type: ListadoStockDto })
+  @ApiBadRequestResponse({
+    description: 'Bodega, búsqueda o paginación inválidas.',
+  })
+  listar(@Query() filtros: ListarStockDto) {
+    return this.listado.listar(filtros);
+  }
 
   // Decisión del 28 de octubre de 2026: solo bodega y administración, que son quienes reciben
   // el correo; el vendedor consulta stock pero no ve este aviso

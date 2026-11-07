@@ -2,6 +2,7 @@ import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import type { PrismaService } from '../../prisma/prisma.service.js';
 import type { CrearTransferenciaDto } from './dto/crear-transferencia.dto.js';
 import { TransferenciasService } from './transferencias.service.js';
+import { errorDeCampo } from '../../common/errores/error-de-campo.js';
 
 const FECHA = new Date('2026-10-25T15:00:00Z');
 
@@ -127,8 +128,10 @@ describe('TransferenciasService', () => {
     prisma.tx.existencia.findUnique.mockResolvedValue({ cantidad: 3 });
 
     await expect(servicio.registrar(dtoBase(), 'uuid')).rejects.toThrow(
-      new BadRequestException(
+      errorDeCampo(
+        BadRequestException,
         'No hay stock suficiente en esa ubicación: hay 3 y la transferencia es de 5.',
+        'cantidad',
       ),
     );
     expect(prisma.tx.movimientoInventario.create).not.toHaveBeenCalled();

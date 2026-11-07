@@ -1,5 +1,6 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import {
+  ApiBadRequestResponse,
   ApiBearerAuth,
   ApiConflictResponse,
   ApiForbiddenResponse,
@@ -16,7 +17,10 @@ import {
 } from '../../autenticacion/permisos.guard.js';
 import { PERMISOS } from '../../common/dominio/permisos.js';
 import { IdRutaPipe } from '../../common/validacion/id-ruta.pipe.js';
+import { PeriodoReporteDto } from './dto/periodo-reporte.dto.js';
+import { ReportePeriodoCampanasDto } from './dto/reporte-campanas.dto.js';
 import {
+  type ReportePeriodoCampanas,
   type ResultadoCampana,
   ReporteCampanasService,
 } from './reporte-campanas.service.js';
@@ -35,6 +39,26 @@ const ID_CAMPANA = new IdRutaPipe('La campaña no existe.');
 })
 export class ReporteCampanasController {
   constructor(private readonly reporte: ReporteCampanasService) {}
+
+  @Get('campanas')
+  @ApiOperation({
+    summary: 'Resultados de las campañas de un período (E14-H3, SCRUM-150)',
+    description:
+      'Las campañas enviadas entre `desde` y `hasta` (ambos incluidos, hora de Chile) y una fila por mes con el saludo de cumpleaños, las más recientes primero. Los porcentajes son sobre los correos enviados.',
+  })
+  @ApiOkResponse({
+    description: 'Resultados del período.',
+    type: ReportePeriodoCampanasDto,
+  })
+  @ApiBadRequestResponse({
+    description:
+      'Fechas inválidas, `hasta` anterior a `desde` o un período de más de 366 días.',
+  })
+  periodo(
+    @Query() periodo: PeriodoReporteDto,
+  ): Promise<ReportePeriodoCampanas> {
+    return this.reporte.periodo(periodo.desde, periodo.hasta);
+  }
 
   @Get('campanas/:id')
   @ApiOperation({

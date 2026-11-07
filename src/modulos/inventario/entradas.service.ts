@@ -15,6 +15,8 @@ import { PrismaService } from '../../prisma/prisma.service.js';
 import { type UbicacionResumen, ubicacionDe } from './comprobaciones.js';
 import type { CrearEntradaDto } from './dto/crear-entrada.dto.js';
 import { sumarExistencia } from './existencias.js';
+import { errorDeCampo } from '../../common/errores/error-de-campo.js';
+import { subtotalNeto, totalesEntrada } from './totales-entrada.js';
 
 type Tx = Prisma.TransactionClient;
 type TipoDocumentoProveedor = Valor<typeof TIPOS_DOCUMENTO_PROVEEDOR>;
@@ -24,6 +26,8 @@ export interface DetalleEntradaRegistrado {
   formatoId: number;
   cantidad: number;
   costoUnitarioNeto: number;
+  /** Cantidad por costo unitario neto (SCRUM-150). */
+  subtotalNeto: number;
   movimientoId: number;
 }
 
@@ -37,6 +41,10 @@ export interface EntradaRegistrada {
   observacion: string | null;
   ubicacion: UbicacionResumen;
   detalles: DetalleEntradaRegistrado[];
+  /** Unidades recibidas en total (SCRUM-150). */
+  unidades: number;
+  /** Suma de los subtotales netos (SCRUM-150). */
+  costoNetoTotal: number;
 }
 
 /**
@@ -58,8 +66,10 @@ export class EntradasService {
     codigoPublicoUsuario: string,
   ): Promise<EntradaRegistrada> {
     if (dto.fechaRecepcion > hoyEnLaTienda()) {
-      throw new BadRequestException(
+      throw errorDeCampo(
+        BadRequestException,
         'La fecha de recepción no puede ser posterior a hoy.',
+        'fechaRecepcion',
       );
     }
     // Las existencias se tocan en orden de formato: dos entradas simultáneas no se bloquean
@@ -81,10 +91,7 @@ export class EntradasService {
       const ubicacion = await ubicacionDe(tx, dto.ubicacionId, {
         activa: true,
       });
-      await this.comprobarFormatos(
-        tx,
-        detalles.map((detalle) => detalle.formatoId),
-      );
+      await this.comprobarFormatos(tx, dto.detalles);
 
       const entrada = await this.crearEntrada(
         tx,
@@ -99,8 +106,11 @@ export class EntradasService {
           detalle.cantidad,
         );
         if (!sumada) {
-          throw new BadRequestException(
+          // El campo es la línea tal como llegó (SCRUM-150), no la del orden por formato
+          throw errorDeCampo(
+            BadRequestException,
             `El stock del formato ${detalle.formatoId} en esa ubicación superaría el máximo permitido.`,
+            ...lineasDe(dto.detalles, [detalle.formatoId], 'cantidad'),
           );
         }
       }
@@ -131,8 +141,13 @@ export class EntradasService {
           formatoId: detalle.formatoId,
           cantidad: detalle.cantidad,
           costoUnitarioNeto: detalle.costoUnitarioNeto,
+          subtotalNeto: subtotalNeto(
+            detalle.cantidad,
+            detalle.costoUnitarioNeto,
+          ).toNumber(),
           movimientoId: movimientoDe.get(detalle.formatoId)!,
         })),
+        ...totalesEntrada(detalles),
       };
     });
   }
@@ -143,11 +158,17 @@ export class EntradasService {
       select: { id: true, rut: true, razonSocial: true, activo: true },
     });
     if (!proveedor) {
-      throw new BadRequestException('El proveedor no existe.');
+      throw errorDeCampo(
+        BadRequestException,
+        'El proveedor no existe.',
+        'proveedorId',
+      );
     }
     if (!proveedor.activo) {
-      throw new BadRequestException(
+      throw errorDeCampo(
+        BadRequestException,
         'El proveedor está desactivado: no se le pueden registrar entradas.',
+        'proveedorId',
       );
     }
     return {
@@ -157,19 +178,25 @@ export class EntradasService {
     };
   }
 
-  /** Todos los formatos existen; si falta alguno, dice cuáles. */
-  private async comprobarFormatos(tx: Tx, ids: number[]) {
+  /** Todos los formatos existen; si falta alguno, dice cuáles y en qué líneas están (SCRUM-150). */
+  private async comprobarFormatos(tx: Tx, lineas: CrearEntradaDto['detalles']) {
+    const ids = lineas.map((linea) => linea.formatoId);
     const existentes = await tx.formatoProducto.findMany({
       where: { id: { in: ids } },
       select: { id: true },
     });
     const encontrados = new Set(existentes.map((formato) => formato.id));
-    const faltantes = ids.filter((id) => !encontrados.has(id));
+    // En orden de formato, como antes de que llegaran las líneas sin ordenar
+    const faltantes = [
+      ...new Set(ids.filter((id) => !encontrados.has(id))),
+    ].sort((a, b) => a - b);
     if (faltantes.length > 0) {
-      throw new BadRequestException(
+      throw errorDeCampo(
+        BadRequestException,
         faltantes.length === 1
           ? `El formato ${faltantes[0]} no existe.`
           : `Los formatos ${faltantes.join(', ')} no existen.`,
+        ...lineasDe(lineas, faltantes, 'formatoId'),
       );
     }
   }
@@ -209,8 +236,10 @@ export class EntradasService {
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
-        throw new ConflictException(
+        throw errorDeCampo(
+          ConflictException,
           'Ya hay una entrada registrada con ese documento del proveedor.',
+          'numeroDocumento',
         );
       }
       throw error;
@@ -224,3 +253,20 @@ export class EntradasService {
  */
 export const normalizarNumeroDocumento = (numero: string) =>
   numero.replace(/\s+/g, '').toUpperCase();
+
+/**
+ * Las rutas `detalles.<n>.<propiedad>` de las líneas con esos formatos, en el orden en que
+ * llegaron (SCRUM-150): así el panel marca la línea exacta. Siempre hay al menos una.
+ */
+const lineasDe = (
+  lineas: CrearEntradaDto['detalles'],
+  formatoIds: number[],
+  propiedad: 'formatoId' | 'cantidad',
+): [string, ...string[]] => {
+  const rutas = lineas.flatMap((linea, indice) =>
+    formatoIds.includes(linea.formatoId)
+      ? [`detalles.${indice}.${propiedad}`]
+      : [],
+  );
+  return rutas.length > 0 ? (rutas as [string, ...string[]]) : ['detalles'];
+};

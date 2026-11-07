@@ -45,6 +45,7 @@ export class CrearSalidaDto {
   cantidad: number;
 
   @ApiPropertyOptional({
+    type: String,
     example: 'Envase roto al reponer',
     maxLength: MAXIMO_OBSERVACION_SALIDA,
     nullable: true,

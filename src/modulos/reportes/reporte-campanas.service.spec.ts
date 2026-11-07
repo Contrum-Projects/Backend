@@ -111,4 +111,59 @@ describe('ReporteCampanasService', () => {
       NotFoundException,
     );
   });
+
+  describe('periodo (SCRUM-150)', () => {
+    const conteos = (enviados: bigint, abiertos: bigint, clics: bigint) => ({
+      enviados,
+      abiertos,
+      clics,
+      rebotados: 0n,
+      cancelados: 0n,
+      fallidos: 0n,
+    });
+
+    it('SCRUM-150 · junta campañas y meses del saludo, de la más reciente a la más antigua; sin fila de saludo, su id es null', async () => {
+      prisma.$queryRaw
+        .mockReset()
+        .mockResolvedValueOnce([
+          {
+            id: 7,
+            asunto: 'Ofertas',
+            segmento: '{"tipos":["cliente"],"categorias":[],"marcas":[]}',
+            fechaEnvio: new Date('2026-11-05T15:00:00Z'),
+            ...conteos(4n, 1n, 0n),
+          },
+        ])
+        .mockResolvedValueOnce([
+          { mes: '2026-12', ...conteos(2n, 2n, 1n) },
+          { mes: '2026-11', ...conteos(0n, 0n, 0n) },
+        ]);
+      (prisma.campana as { findFirst?: ReturnType<typeof vi.fn> }).findFirst =
+        vi.fn().mockResolvedValue(null);
+
+      const reporte = await servicio.periodo('2026-11-01', '2026-12-31');
+
+      expect(reporte.campanas.map((fila) => [fila.fecha, fila.id])).toEqual([
+        ['2026-12', null],
+        ['2026-11-05T15:00:00.000Z', 7],
+        ['2026-11', null],
+      ]);
+      expect(reporte.campanas[0]).toMatchObject({
+        porcentajeAbiertos: 100,
+        porcentajeClic: 50,
+      });
+      expect(reporte.campanas[1]).toMatchObject({
+        segmento: { tipos: ['cliente'], categorias: [], marcas: [] },
+        porcentajeAbiertos: 25,
+      });
+      expect(reporte.campanas[2].porcentajeAbiertos).toBeNull();
+    });
+
+    it('SCRUM-150 · un período invertido responde 400 sin consultar', async () => {
+      await expect(
+        servicio.periodo('2026-12-01', '2026-11-01'),
+      ).rejects.toThrow('anterior');
+      expect(prisma.$queryRaw).not.toHaveBeenCalled();
+    });
+  });
 });

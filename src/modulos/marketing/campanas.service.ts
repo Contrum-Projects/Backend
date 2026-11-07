@@ -17,8 +17,10 @@ import { encolarCorreos } from '../../colas/encolar-correo.js';
 import {
   ESTADOS_NOTIFICACION,
   TIPOS_CAMPANA,
+  TIPOS_DESTINATARIO_CAMPANA,
   TIPOS_NOTIFICACION,
 } from '../../common/dominio/valores.js';
+import { porcentaje } from '../../common/dominio/porcentajes.js';
 import { POR_PAGINA } from '../../common/validacion/paginacion.js';
 import type { Paginacion } from '../../common/validacion/paginacion.js';
 import type { Entorno } from '../../config/entorno.js';
@@ -30,11 +32,17 @@ import { buscarDestinatarios } from './destinatarios-campana.js';
 import type { ActualizarCampanaDto } from './dto/actualizar-campana.dto.js';
 import type { CrearCampanaDto } from './dto/crear-campana.dto.js';
 import type { SegmentoCampanaDto } from './dto/segmento-campana.dto.js';
+import {
+  aplicarMarcadores,
+  codigoCuponDeCampana,
+  usaMarcador,
+} from './marcadores-campana.js';
 import { HuellaCampana } from './huella-campana.js';
 import {
   conSubcategorias,
   type Destinatarios,
   filtraPorCompras,
+  filtraPorCuenta,
   incluyeSuscriptores,
   leerSegmento,
   normalizarSegmento,
@@ -42,6 +50,7 @@ import {
   textoSegmento,
   totalDestinatarios,
 } from './segmento-campana.js';
+import { errorDeCampo } from '../../common/errores/error-de-campo.js';
 
 const NO_EXISTE = 'La campaña no existe.';
 const YA_ENVIADA = 'La campaña ya fue enviada: cada campaña sale una sola vez.';
@@ -54,7 +63,37 @@ const SIN_DESTINATARIOS =
 
 /** Trabajos por operación al encolar: una campaña grande no arma una sola llamada enorme a Redis. */
 const LOTE_ENCOLAR = 500;
+/** Mínimo y máximo de un mismo filtro: el mínimo no puede pasar al máximo (SCRUM-150). */
+const RANGOS_SEGMENTO = [
+  [
+    'pedidosMinimo',
+    'pedidosMaximo',
+    'pedidosMaximo',
+    'El máximo de pedidos no puede ser menor que el mínimo.',
+  ],
+  [
+    'gastoMinimo',
+    'gastoMaximo',
+    'gastoMaximo',
+    'El gasto máximo no puede ser menor que el mínimo.',
+  ],
+  [
+    'edadMinima',
+    'edadMaxima',
+    'edadMaxima',
+    'La edad máxima no puede ser menor que la mínima.',
+  ],
+] as const satisfies readonly [
+  keyof SegmentoCampana,
+  keyof SegmentoCampana,
+  string,
+  string,
+][];
+
 /** Crear las NOTIFICACION de una campaña grande puede pasar del plazo por omisión de Prisma (5 s). */
+export const SIN_CUPON =
+  'El mensaje usa {cupon}, pero la campaña no tiene un cupón activo. Crea uno en Cupones y elige esta campaña.';
+
 const PLAZO_TRANSACCION_MS = 30_000;
 
 const SELECCION = {
@@ -95,17 +134,46 @@ export interface DetalleCampana extends CampanaPanel {
   envios: EnviosCampana;
 }
 
+/**
+ * Contactos con consentimiento, para los contadores de «Campañas» (SCRUM-150). Se cuentan con las
+ * mismas reglas que el envío: cada dirección una vez y, si una cuenta y un suscriptor comparten
+ * correo, decide la cuenta.
+ */
+export interface ContactosCampanas {
+  /** Direcciones que recibirían hoy una campaña a todos: cuentas y suscriptores sin cuenta. */
+  aceptanPublicidad: number;
+  /** Cuentas cliente o profesional activas, con el correo verificado, que aceptan publicidad. */
+  cuentasVerificadas: number;
+  /** Suscriptores confirmados, sin baja y sin una cuenta con el mismo correo. */
+  suscriptoresSinCuenta: number;
+  /** Direcciones (de cuentas o suscriptores) con algún correo rebotado (E12-H6). */
+  conRebote: number;
+}
+
+/** Una fila del listado, con sus cifras (SCRUM-150). */
+export interface CampanaListada extends CampanaPanel {
+  /** Borrador: cuántas direcciones la recibirían hoy. Enviada: a cuántas salió. */
+  destinatarios: number;
+  /** Enviada: de los correos enviados, cuántos se abrieron (0 a 100). Borrador o sin envíos: `null`. */
+  porcentajeApertura: number | null;
+}
+
 export interface ListadoCampanas {
-  items: CampanaPanel[];
+  contactos: ContactosCampanas;
+  items: CampanaListada[];
   total: number;
   pagina: number;
   limite: number;
 }
 
-export interface VistaPreviaCampana {
+/** El correo de una campaña tal como saldría (asunto, HTML y texto plano). */
+export interface CorreoCampana {
   asunto: string;
   html: string;
   texto: string;
+}
+
+export interface VistaPreviaCampana extends CorreoCampana {
   /** Direcciones que lo recibirían hoy (cada una una vez). */
   destinatarios: number;
   /** Se entrega al confirmar el envío (`POST /:id/envio`). */
@@ -173,12 +241,94 @@ export class CampanasService {
       }),
       this.prisma.campana.count({ where: donde }),
     ]);
+    const enviadas = filas
+      .filter((fila) => fila.fechaEncolado !== null)
+      .map((fila) => fila.id);
+    const [contactos, envios, items] = await Promise.all([
+      this.contactos(),
+      this.enviosDe(enviadas),
+      filas.map((fila) => this.aRespuesta(fila)),
+    ]);
     return {
-      items: filas.map((fila) => this.aRespuesta(fila)),
+      contactos,
+      items: await Promise.all(
+        items.map(async (campana) => {
+          if (!campana.enviada) {
+            return {
+              ...campana,
+              destinatarios: totalDestinatarios(
+                await this.destinatarios(this.prisma, campana.segmento),
+              ),
+              porcentajeApertura: null,
+            };
+          }
+          const conteo = envios.get(campana.id);
+          return {
+            ...campana,
+            destinatarios: conteo?.total ?? 0,
+            porcentajeApertura: porcentaje(
+              conteo?.abiertos ?? 0,
+              conteo?.enviados ?? 0,
+            ),
+          };
+        }),
+      ),
       total,
       pagina,
       limite,
     };
+  }
+
+  /** SCRUM-150 · Los contadores de «Campañas», con las reglas del envío. */
+  private async contactos(): Promise<ContactosCampanas> {
+    const [{ cuentas, suscriptores }, [rebotes]] = await Promise.all([
+      this.destinatarios(
+        this.prisma,
+        normalizarSegmento({
+          tipos: Object.values(TIPOS_DESTINATARIO_CAMPANA),
+        }),
+      ),
+      this.prisma.$queryRaw<{ total: bigint }[]>`
+        SELECT COUNT(DISTINCT COALESCE('u' || id_usuario::text, 'l' || id_lead::text)) AS "total"
+        FROM notificacion
+        WHERE estado_envio = ${ESTADOS_NOTIFICACION.REBOTADA}
+          AND (id_usuario IS NOT NULL OR id_lead IS NOT NULL)`,
+    ]);
+    return {
+      aceptanPublicidad: cuentas.length + suscriptores.length,
+      cuentasVerificadas: cuentas.length,
+      suscriptoresSinCuenta: suscriptores.length,
+      conRebote: Number(rebotes?.total ?? 0n),
+    };
+  }
+
+  /** Correos de las campañas enviadas de la página: todos, los enviados y los abiertos de estos. */
+  private async enviosDe(
+    ids: number[],
+  ): Promise<
+    Map<number, { total: number; enviados: number; abiertos: number }>
+  > {
+    if (ids.length === 0) return new Map();
+    const filas = await this.prisma.$queryRaw<
+      { id: number; total: bigint; enviados: bigint; abiertos: bigint }[]
+    >`
+      SELECT id_campana AS "id",
+             COUNT(*) AS "total",
+             COUNT(*) FILTER (WHERE estado_envio = ${ESTADOS_NOTIFICACION.ENVIADA}) AS "enviados",
+             COUNT(*) FILTER (WHERE estado_envio = ${ESTADOS_NOTIFICACION.ENVIADA} AND fecha_apertura IS NOT NULL) AS "abiertos"
+      FROM notificacion
+      WHERE id_campana = ANY(${ids}::int[])
+      GROUP BY id_campana`;
+    return new Map(
+      filas.map((fila) => [
+        fila.id,
+        {
+          total: Number(fila.total),
+          enviados: Number(fila.enviados),
+          abiertos: Number(fila.abiertos),
+        },
+      ]),
+    );
   }
 
   async obtener(id: number): Promise<DetalleCampana> {
@@ -233,24 +383,17 @@ export class CampanasService {
    * que exige el envío. El enlace de baja de la vista previa lleva a la pantalla de baja sin token:
    * así no da de baja a nadie.
    */
-  async vistaPrevia(id: number): Promise<VistaPreviaCampana> {
+  async vistaPrevia(
+    id: number,
+    codigoUsuario: string,
+  ): Promise<VistaPreviaCampana> {
     const fila = await this.buscar(id);
     if (fila.fechaEncolado) throw new ConflictException(YA_ENVIADA);
+    await this.exigirCupon(this.prisma, id, fila);
     const segmento = leerSegmento(fila.segmento);
     const destinatarios = await this.destinatarios(this.prisma, segmento);
-    const urlTienda = this.config
-      .get('URL_TIENDA', { infer: true })
-      .replace(/\/+$/, '');
-    const { html, texto } = correoCampana({
-      asunto: fila.asunto,
-      cuerpo: fila.cuerpo,
-      enlaceBaja: `${urlTienda}/suscripcion/baja`,
-      enlacesPie: rutasTienda(urlTienda).pie,
-    });
     return {
-      asunto: fila.asunto,
-      html,
-      texto,
+      ...(await this.renderizar(fila, codigoUsuario, id)),
       destinatarios: totalDestinatarios(destinatarios),
       confirmacion: this.huella.calcular({
         id,
@@ -259,6 +402,53 @@ export class CampanasService {
         segmento: textoSegmento(segmento),
       }),
     };
+  }
+
+  /**
+   * SCRUM-150 · Vista previa en vivo, mientras se redacta: solo arma el correo con la misma
+   * plantilla. No lee ni guarda la campaña, no cuenta destinatarios y **nunca** devuelve la
+   * confirmación: para enviar hay que guardar el borrador y pedir `vistaPrevia(id)`. Los
+   * marcadores se completan con los datos de quien mira la vista previa: así se ve cómo le
+   * llegará a cada cuenta.
+   */
+  async renderizar(
+    {
+      asunto,
+      cuerpo,
+    }: {
+      asunto: string;
+      cuerpo: string;
+    },
+    codigoUsuario: string,
+    /** Con la campaña, `{cupon}` muestra el código de su cupón activo (SCRUM-150). */
+    campanaId?: number,
+  ): Promise<CorreoCampana> {
+    const urlTienda = this.config
+      .get('URL_TIENDA', { infer: true })
+      .replace(/\/+$/, '');
+    const cuenta = await this.prisma.usuario.findUnique({
+      where: { codigoPublico: codigoUsuario },
+      select: { nombre: true, apellido: true },
+    });
+    // Sin cupón ligado, `{cupon}` queda a la vista: así se nota que falta crearlo
+    const codigoCupon =
+      campanaId === undefined
+        ? null
+        : await codigoCuponDeCampana(this.prisma, campanaId);
+    const datos = {
+      nombre: cuenta?.nombre ?? null,
+      apellido: cuenta?.apellido ?? null,
+      urlTienda,
+      ...(codigoCupon !== null && { codigoCupon }),
+    };
+    const asuntoFinal = aplicarMarcadores(asunto, datos);
+    const { html, texto } = correoCampana({
+      asunto: asuntoFinal,
+      cuerpo: aplicarMarcadores(cuerpo, datos),
+      enlaceBaja: `${urlTienda}/ofertas/baja`,
+      enlacesPie: rutasTienda(urlTienda).pie,
+    });
+    return { asunto: asuntoFinal, html, texto };
   }
 
   /**
@@ -300,6 +490,7 @@ export class CampanasService {
           throw new ConflictException(VISTA_PREVIA_VIEJA);
         }
 
+        await this.exigirCupon(tx, id, fila);
         const destinatarios = await this.destinatarios(tx, segmento);
         if (totalDestinatarios(destinatarios) === 0) {
           throw new ConflictException(SIN_DESTINATARIOS);
@@ -335,6 +526,27 @@ export class CampanasService {
       fechaEnvio: resultado.fechaEnvio,
       destinatarios: resultado.correos.length,
     };
+  }
+
+  /**
+   * SCRUM-150 · Un mensaje con `{cupon}` necesita un cupón activo ligado a la campaña: sin él cada
+   * correo saldría sin código. Se revisa en la vista previa que confirma y otra vez al enviar.
+   */
+  private async exigirCupon(
+    cliente: Prisma.TransactionClient,
+    id: number,
+    { asunto, cuerpo }: { asunto: string; cuerpo: string },
+  ): Promise<void> {
+    if (
+      !usaMarcador(
+        `${asunto}
+${cuerpo}`,
+        'cupon',
+      )
+    )
+      return;
+    if ((await codigoCuponDeCampana(cliente, id)) !== null) return;
+    throw new ConflictException(SIN_CUPON);
   }
 
   /** Una NOTIFICACION `campana` por dirección, con la cuenta o el suscriptor al que va. */
@@ -390,21 +602,69 @@ export class CampanasService {
   ): Promise<SegmentoCampana> {
     const segmento = normalizarSegmento(dto);
     if (filtraPorCompras(segmento) && incluyeSuscriptores(segmento)) {
-      throw new BadRequestException(
+      throw errorDeCampo(
+        BadRequestException,
         'Los suscriptores sin cuenta no tienen compras: quítalos del segmento o quita las categorías y marcas.',
+        'segmento.tipos',
       );
     }
-    const [categorias, marcas] = await Promise.all([
+    if (filtraPorCuenta(segmento) && incluyeSuscriptores(segmento)) {
+      throw errorDeCampo(
+        BadRequestException,
+        'Los suscriptores sin cuenta no tienen compras, dirección ni datos de perfil: quítalos del segmento o quita esos filtros.',
+        'segmento.tipos',
+      );
+    }
+    for (const [minimo, maximo, campo, texto] of RANGOS_SEGMENTO) {
+      const desde = segmento[minimo];
+      const hasta = segmento[maximo];
+      if (desde !== null && hasta !== null && desde > hasta) {
+        throw errorDeCampo(BadRequestException, texto, `segmento.${campo}`);
+      }
+    }
+    const [categorias, marcas, regiones, comunas] = await Promise.all([
       this.prisma.categoria.count({
         where: { id: { in: segmento.categorias } },
       }),
       this.prisma.marca.count({ where: { id: { in: segmento.marcas } } }),
+      segmento.regiones.length === 0
+        ? 0
+        : this.prisma.region.count({
+            where: { codigoCut: { in: segmento.regiones } },
+          }),
+      segmento.comunas.length === 0
+        ? 0
+        : this.prisma.comuna.count({
+            where: { codigoCut: { in: segmento.comunas } },
+          }),
     ]);
+    if (regiones !== segmento.regiones.length) {
+      throw errorDeCampo(
+        BadRequestException,
+        'Alguna región indicada no existe.',
+        'segmento.regiones',
+      );
+    }
+    if (comunas !== segmento.comunas.length) {
+      throw errorDeCampo(
+        BadRequestException,
+        'Alguna comuna indicada no existe.',
+        'segmento.comunas',
+      );
+    }
     if (categorias !== segmento.categorias.length) {
-      throw new BadRequestException('Alguna categoría indicada no existe.');
+      throw errorDeCampo(
+        BadRequestException,
+        'Alguna categoría indicada no existe.',
+        'segmento.categorias',
+      );
     }
     if (marcas !== segmento.marcas.length) {
-      throw new BadRequestException('Alguna marca indicada no existe.');
+      throw errorDeCampo(
+        BadRequestException,
+        'Alguna marca indicada no existe.',
+        'segmento.marcas',
+      );
     }
     return segmento;
   }

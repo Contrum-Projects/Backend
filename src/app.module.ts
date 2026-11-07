@@ -17,6 +17,9 @@ import { InventarioModule } from './modulos/inventario/inventario.module.js';
 import { CambiarEstadoPedidoModule } from './modulos/pedidos/cambiar-estado-pedido.module.js';
 import { CancelarPedidoModule } from './modulos/pedidos/cancelar-pedido.module.js';
 import { CrearPedidoModule } from './modulos/pedidos/crear-pedido.module.js';
+import { CuponesModule } from './modulos/cupones/cupones.module.js';
+import { GestionFacturasModule } from './modulos/facturacion/gestion-facturas.module.js';
+import { GestionPedidosModule } from './modulos/pedidos/gestion-pedidos.module.js';
 import { MisPedidosModule } from './modulos/pedidos/mis-pedidos.module.js';
 import { MarketingModule } from './modulos/marketing/marketing.module.js';
 import { NotificacionesModule } from './modulos/notificaciones/notificaciones.module.js';
@@ -96,8 +99,11 @@ import { SaludController } from './salud/salud.controller.js';
     DespachoModule,
     MisPedidosModule,
     CrearPedidoModule,
+    CuponesModule,
     CancelarPedidoModule,
     CambiarEstadoPedidoModule,
+    GestionPedidosModule,
+    GestionFacturasModule,
     PagosModule,
     ReportesModule,
     TerritorioModule,

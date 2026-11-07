@@ -92,3 +92,53 @@ export const sentidoDelCambio = (
   if (RETROCESOS[actual] === destino) return 'retroceso';
   return null;
 };
+
+/** Un cambio que el personal puede hacer desde el estado actual (E8-H2, SCRUM-150). */
+export interface CambioPermitido {
+  estado: Estado;
+  sentido: SentidoCambio;
+  /** Al despachar se pide el número de la OT de Chilexpress (E7-H3). */
+  pideCodigoSeguimiento: boolean;
+  /** Si se avisa al cliente por correo (`ESTADOS_CON_AVISO`; volver atrás nunca avisa). */
+  avisaAlCliente: boolean;
+  /** Si exige un comentario: volver a un estado anterior lo pide (SCRUM-150). */
+  pideComentario: boolean;
+}
+
+/**
+ * Los cambios que el panel ofrece desde `actual`, con la misma secuencia que valida
+ * `sentidoDelCambio`: primero los avances, después el retroceso. Vacío si el pedido ya no cambia.
+ */
+export const cambiosPermitidos = (
+  actual: string,
+  tipoEntrega: string,
+): CambioPermitido[] => {
+  const avances =
+    (
+      AVANCES as Record<
+        string,
+        ((tipoEntrega: string) => readonly Estado[]) | undefined
+      >
+    )[actual]?.(tipoEntrega) ?? [];
+  const retroceso = RETROCESOS[actual];
+  return [
+    ...avances.map((estado) => ({
+      estado,
+      sentido: 'avance' as const,
+      pideCodigoSeguimiento: estado === ESTADOS_PEDIDO.DESPACHADO,
+      avisaAlCliente: ESTADOS_CON_AVISO.includes(estado),
+      pideComentario: false,
+    })),
+    ...(retroceso
+      ? [
+          {
+            estado: retroceso,
+            sentido: 'retroceso' as const,
+            pideCodigoSeguimiento: false,
+            avisaAlCliente: false,
+            pideComentario: true,
+          },
+        ]
+      : []),
+  ];
+};

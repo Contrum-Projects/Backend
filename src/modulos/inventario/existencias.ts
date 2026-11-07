@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { MAXIMO_INT4 } from '../../common/validacion/enteros.js';
 import type { Prisma } from '../../generated/prisma/client.js';
+import { errorDeCampo } from '../../common/errores/error-de-campo.js';
 
 type Tx = Prisma.TransactionClient;
 
@@ -47,8 +48,10 @@ export const descontarExistencia = async (
   });
   const disponible = await stockDe(tx, clave);
   if (count === 0) {
-    throw new BadRequestException(
+    throw errorDeCampo(
+      BadRequestException,
       `No hay stock suficiente en esa ubicación: hay ${disponible} y ${operacion} es de ${cantidad}.`,
+      'cantidad',
     );
   }
   return disponible;

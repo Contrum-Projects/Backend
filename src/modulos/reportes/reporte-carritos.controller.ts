@@ -14,6 +14,7 @@ import {
   RequierePermiso,
 } from '../../autenticacion/permisos.guard.js';
 import { PERMISOS } from '../../common/dominio/permisos.js';
+import { ReporteCarritosRespuestaDto } from './dto/indicadores-carritos-respuesta.dto.js';
 import { ReporteCarritosDto } from './dto/reporte-carritos.dto.js';
 import {
   type ReporteCarritos,
@@ -41,7 +42,8 @@ export class ReporteCarritosController {
   })
   @ApiOkResponse({
     description:
-      '`desde`, `hasta`, `meses` (cada uno con `mes`, `abandonados` y `recuperados`) y `total`.',
+      '`desde`, `hasta`, `meses` (cada uno con `mes`, `abandonados`, `recuperados` y `porcentajeRecuperados`) y `total`.',
+    type: ReporteCarritosRespuestaDto,
   })
   @ApiBadRequestResponse({
     description:

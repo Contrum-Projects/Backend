@@ -68,6 +68,23 @@ suscribirse a ofertas. No hay compra como invitado.
 - Todo dato del negocio vive en PostgreSQL; Redis solo guarda colas, contadores y copias temporales
   (RNF-29). Si Redis cae, la tienda sigue vendiendo (RNF-32).
 
+## Errores de la API (decisión del 6 nov, SCRUM-150)
+
+- El cuerpo es el de Nest: `{ statusCode, message, error }`, con `message` en español (un texto, o la
+  lista de textos en un 400 de validación). Cuando el error es de uno o más campos de la entrada,
+  trae además `errores: [{ campo, mensaje }]`; `message` no cambia.
+- `campo` es la ruta de la propiedad en el cuerpo, con puntos e índices (`email`, `oferta.texto`,
+  `detalles.0.cantidad`, `segmento.categorias`); en una subida, el nombre del campo del archivo
+  (`imagen`, `archivo`, `archivos`). En una lista, el índice es el de la línea tal como llegó (la
+  entrada de inventario dice así qué formato no existe o qué cantidad pasaría el máximo:
+  `detalles.1.formatoId`, `detalles.0.cantidad`). Un mensaje que vale para dos campos aparece una vez por cada uno
+  (p. ej. «El correo y el RUT ya están registrados.» en `email` y `rut`).
+- Todo error de validación (`ValidationPipe`) lo trae. Un error de negocio que pertenece a un campo
+  (dato repetido, referencia que no existe, stock insuficiente para la cantidad, enlace de
+  recuperación o de invitación que no sirve, en `token`…) se lanza con
+  `errorDeCampo()` (`src/common/errores/error-de-campo.ts`). Los que no son de un campo (estado del
+  pedido, permisos, servicio caído) no lo traen y el frontend los muestra como aviso general.
+
 ## Por épica (lo que el backend debe respetar)
 
 **E1 Cuentas.** Registro con nombre, apellido, correo y contraseña; teléfono, RUT, fecha de
@@ -148,8 +165,11 @@ estado actual del pedido, con el asunto de ese estado, y queda `fallida` si ese 
 `RESEND_API_KEY` reemplaza a `SMTP_URL`; sin ella, fuera de producción, los correos se simulan y solo
 se registra el id de la notificación; en producción la app no arranca sin ella, y con ella
 `CORREO_REMITENTE` es obligatorio. `CORREOS_WORKER_ACTIVO=false` apaga el worker (los e2e leen los
-enlaces desde la cola). Sin cambios al MER. **PROPUESTA por confirmar con frontend:** las rutas
-`/ayuda`, `/terminos`, `/privacidad`, `/mis-pedidos/<código>` y `/panel/inventario` de los correos.
+enlaces desde la cola). Sin cambios al MER. Rutas de los correos (alineadas
+con el frontend el 6 nov, SCRUM-150): el pedido lleva a `/cuenta/pedidos/<código>` y el stock bajo a
+`/panel/inventario`. El pie **no enlaza** ayuda, términos ni privacidad mientras esas páginas no
+existan en la tienda (sus textos están pendientes); cuando existan irán a `/ayuda`,
+`/terminos-y-condiciones` y `/politica-de-privacidad`.
 
 **E13 Personal y acceso.** El administrador crea y desactiva cuentas del personal; la desactivada
 pierde el acceso de inmediato. Cada acción del panel exige un permiso del rol (guard en backend).
@@ -233,7 +253,7 @@ vencimiento solo sale en las respuestas del panel. Desactivar formatos queda fue
 Decisiones del 24 oct (E3-H3): las imágenes se guardan en **Cloudflare R2** (API S3, variables
 `R2_*`; sin ellas subir responde 503) y `imagen_articulo.ubicacion_archivo` guarda la clave del
 objeto (`articulos/<id>/<uuid>.<ext>`); la URL se arma con `R2_URL_PUBLICA` al responder. JPEG, PNG
-o WebP reconocidos por su contenido, hasta 5 MB (413), hasta 10 por artículo (409). Rutas, con
+o WebP reconocidos por su contenido, hasta 4 MB (413), hasta 10 por artículo (409). Rutas, con
 `catalogo.gestionar`: `POST` (multipart, campo `imagen`), `GET` y `PUT`
 `/api/catalogo/articulos/:id/imagenes` y `DELETE /api/catalogo/articulos/:id/imagenes/:imagenId`
 (el id del artículo es el del formato). La primera imagen queda principal; `PUT` recibe todas las
@@ -275,11 +295,42 @@ de Chile; el término no puede ser anterior al inicio (400). `PATCH` cambia solo
 `null` quita una fecha y `componentes` reemplaza la lista completa; si cambian el canal o los
 componentes se revisan otra vez las reglas, con la fila del pack bloqueada. El panel devuelve
 `vigente` calculado con el día de hoy.
+Desde SCRUM-150 (6 nov) el pack del panel trae además, por componente, `stockTotal` (unidades
+vendibles, las mismas de la tienda), `precioMinoristaNeto` y `precioMinoristaConIva`; y del pack,
+`disponibilidad` (packs completos con ese stock, como en la tienda, aunque esté fuera de
+vigencia), `componenteLimitante` (`{ formatoId, stockTotal }`, el que menos packs permite; `null`
+sin componentes) y `precioMinoristaPorSeparadoConIva` (suma de precio con IVA × cantidad; `null`
+si algún componente no tiene minorista). Los precios del panel (`GET`/`PUT
+/api/catalogo/articulos/:id/precios`) traen `porcentajeIva` y los dos precios con IVA
+(`precioConIva`, `null` sin precio). El listado `GET /api/catalogo/productos` busca también en
+la marca y el SKU, filtra por `canalVenta`, `stockBajo` y `soloInactivos`, y cada fila trae
+`imagen` (principal del predeterminado), `formatos` (activos), `precioDesde` (menor precio con IVA
+del canal del producto entre los activos), `stockTotal` (ubicaciones activas de bodegas activas)
+y `stockBajo` (regla de E11-H6); `conteos` da los números de los chips con la búsqueda, la
+categoría y la marca aplicadas («todos» incluye los inactivos).
+Búsqueda de formatos (SCRUM-150, 6 nov): `GET /api/catalogo/formatos?buscar=&pagina=&limite=`
+la usan el armado de packs y el registro de inventario (entradas, salidas, ajustes y
+transferencias), así que acepta `catalogo.gestionar` **o** `inventario.registrar`
+(`@RequierePermiso` con varios permisos: basta uno). Devuelve solo formatos activos de productos
+activos, nunca packs, buscando en el nombre del producto, el del formato y el SKU, ordenados por
+producto y formato. Cada uno lleva el canal del producto, `stockTotal` (ubicaciones activas de
+bodegas activas, vendan o no en línea) y el precio minorista neto y con IVA (`precioConIva`); el
+mayorista no va, porque bodega también la ve (RNF-04).
 
 **E2 Catálogo público.** Precio según rol calculado en el backend. Disponibilidad desde el stock
 vendible (solo bodegas con `abasteceVentaOnline`); la de un pack es la de su componente más escaso.
 Búsqueda por nombre, marca, categoría o subcategoría; filtros combinables. Caché permitida solo
 para el árbol de categorías y marcas (RNF-30).
+Decisiones del 6 nov (SCRUM-150): `categoriaId` y `marcaId` de `GET /api/tienda/productos` se
+repiten para marcar varias (hasta 30 de cada una): dentro de un grupo basta una (cada categoría
+con sus subcategorías) y entre grupos se exigen los dos; un id inexistente o una marca inactiva,
+404. `GET /api/tienda/facetas` (mismos filtros y visibilidad, sin paginar) cuenta los productos
+por categoría (con sus subcategorías) y por marca; cada grupo cuenta con la búsqueda y los
+filtros del **otro** grupo, y solo vienen las opciones con productos. `orden` (`ORDENES_TIENDA`):
+sin él, por nombre; `mas-vendidos`, por unidades vendidas de sus formatos en los últimos
+`DIAS_MAS_VENDIDOS` (30) días en pedidos que son venta (`ESTADOS_SIN_VENTA` fuera; los packs
+vendidos no suman a sus componentes); `novedades`, por `producto.fecha_creacion` descendente.
+Los empates, por nombre.
 Decisiones del 24 oct (E2-H2): la búsqueda es el parámetro `buscar` de `GET /api/tienda/productos`
 (no un endpoint aparte) y se combina con `categoriaId`, `marcaId` y la paginación. Se separa en
 palabras y **cada** palabra debe estar en el nombre del producto, en el de su marca o en el de su
@@ -344,7 +395,21 @@ tipo y número) no se registra dos veces: 409 por un índice único nuevo en `en
 (cambio al MER). Si la suma pasaría el máximo de `existencia.cantidad` (int4), 400 sin cambios. Un formato desactivado sí se puede recibir. En una
 transacción: entrada + detalle, stock sumado con `INSERT ... ON CONFLICT` en EXISTENCIA y un
 movimiento `TIPOS_MOVIMIENTO.ENTRADA` por formato con `id_entrada` y ubicación de destino.
+Ubicaciones (SCRUM-150, 6 nov): `GET /api/inventario/ubicaciones` con `inventario.consultar`
+lista las ubicaciones activas de bodegas activas (`[{ id, codigo, bodega: { id, nombre } }]`,
+por bodega y código): el destino de entradas, ajustes y transferencias y el filtro por bodega.
 PENDIENTE: ninguna historia crea bodegas ni ubicaciones (ni las comunas que la bodega exige).
+Mientras tanto, `pnpm db:seed` fuera de producción crea dos bodegas de prueba («Bodega de
+desarrollo» con A-01, A-02 y B-01, y «Sala de ventas de desarrollo» con S-01; SCRUM-150), y
+`bodega.tipo` sigue sin lista en `valores.ts` (las pruebas usan `bodega` y `tienda`).
+Totales y lista de entradas (SCRUM-150, 6 nov): la respuesta del `POST` trae `subtotalNeto` por
+formato (cantidad × costo, con Decimal), `unidades` y `costoNetoTotal`.
+`GET /api/inventario/entradas?bodegaId&buscar&desde&hasta&pagina&limite` (`inventario.registrar`)
+las lista de la fecha de recepción más reciente a la más antigua (el mismo día, la registrada
+después) con proveedor, documento, ubicación de destino (la de sus movimientos), cantidad de
+formatos, unidades, costo neto total y quién la registró; `buscar` en razón social o número de
+documento, `desde`/`hasta` sobre la fecha de recepción (al revés: 400). El listado de proveedores
+y el `POST` traen `cantidadEntradas` (E11-H1 criterio 1).
 Decisiones del 25 oct (E11-H3): `POST /api/inventario/salidas` con `inventario.registrar`. Una
 salida es de **un formato en una ubicación**, con tipo (`TIPOS_SALIDA`: `merma_vencimiento`,
 `merma_dano` o `consumo_peluqueria`), cantidad entera > 0 y observación opcional (hasta 500). Se
@@ -375,6 +440,24 @@ falso), el total y la última entrada: proveedor y costo unitario neto de la ent
 recepción** más reciente (empate: la registrada después, id mayor); sin entradas, `null` y total 0.
 Un formato desactivado se consulta; uno inexistente o un id imposible, 404. Solo lectura desde
 PostgreSQL, sin caché. Sin listado de formatos en esta historia. Sin cambios al MER.
+Listado de stock (SCRUM-150, 6 nov): `GET /api/inventario/stock?bodegaId&buscar&bajoMinimo&pagina&limite`
+con `inventario.consultar`. Un formato por fila (también desactivados y nunca recibidos, con stock
+0), por producto y formato; `buscar` en producto, formato o SKU. Con `bodegaId`, solo los formatos
+con unidades en esa bodega, y `ubicaciones` (con stock > 0, por código) y `stock` son los de ella.
+`stockMinimo: 0` es «sin mínimo» (no `null`: la columna es `Int @default(0)`). `bajoMinimo` usa
+la regla de E11-H6 (stock total en todas las ubicaciones bajo un mínimo > 0), sin importar la
+bodega elegida; `totalBajoMinimo` cuenta esos formatos con la misma bodega y búsqueda. La última
+entrada (costo y proveedor) sigue la regla de arriba; el vendedor también la ve.
+Movimientos (SCRUM-150, 6 nov): `GET /api/inventario/movimientos?bodegaId&grupo&desde&hasta&buscar&pagina&limite`
+con `inventario.consultar`, del más reciente al más antiguo. `grupo` usa `GRUPOS_MOVIMIENTO` de
+`valores.ts` (decisión del 6 nov): **entradas** = entrada, ajuste positivo y reingreso; **ventas**
+= venta; **salidas** = mermas, consumo y ajuste negativo; **transferencias** = transferencia.
+`bodegaId` toma el origen o el destino; `desde`/`hasta` son días en hora de Chile, ambos
+incluidos (`hasta` antes de `desde`: 400). `cantidad` va con signo (negativa si solo tiene
+origen; la transferencia, positiva); `ubicacion` es el origen o, si no hay, el destino, y
+`destino` solo en la transferencia. `referencia`: n.º de documento de la entrada, código del
+pedido o la observación. `registradoPor` es la cuenta del personal, `null` en ventas y
+reingresos (los registra el sistema, aunque la cancelación tenga cuenta).
 Decisiones del 28 oct (E11-H6): se compara el **stock total** del formato (todas sus ubicaciones,
 también las desactivadas) con `stock_minimo`. El correo sale solo cuando un movimiento lo hace
 **cruzar** (antes ≥ mínimo, después < mínimo); los movimientos siguientes, ya bajo el mínimo, no lo
@@ -628,15 +711,23 @@ PROPUESTAS por confirmar: (1) la historia solo pide guardar y consultar; editar 
 agregaron porque en el RF-09.02 dice administrar. (2) El mismo RUT puede repetirse en varios
 registros de la cuenta (una empresa con sucursales); no hay límite de registros. (3) El RUT de
 facturación puede ser distinto del RUT personal de la cuenta (E1-H5) y no se compara con él.
+Lista y detalle del panel (SCRUM-150, 6 nov): `GET /api/gestion/facturas?pagina&limite` y
+`GET /api/gestion/facturas/:codigoPedido`, con `facturacion.gestionar`. Entran los pedidos que
+pidieron factura y son venta (fuera `ESTADOS_SIN_VENTA`); `estado` es `ESTADOS_FACTURA_GESTION`:
+`emitida` con la factura vigente y su PDF (`FACTURA_CON_ARCHIVO`), si no `por_emitir`. Orden
+(decisión del 6 nov): primero las por emitir, del pedido más antiguo al más nuevo; después las
+emitidas, de la emisión más reciente a la más antigua. `porEmitir` es el conteo de la pestaña. El
+detalle da el receptor, los montos y la tasa: por emitir, de los datos de facturación del pedido;
+emitida, los que copió la factura. Una boleta o un pedido aún no pagado responde 404.
 Decisiones del 31 oct (E9-H3): `POST /api/pedidos/:codigoPedido/factura` con `facturacion.gestionar`
 (permiso nuevo, solo administrador y vendedor; bodeguero, cliente y profesional reciben 403 y sin
-sesión 401). El equipo lo confirmó el 31 oct, junto con el PDF de hasta 5 MB, la fecha de emisión
+sesión 401). El equipo lo confirmó el 31 oct, junto con el PDF de hasta 4 MB, la fecha de emisión
 opcional, el archivo privado y el estado `emitido`. Es
 `multipart/form-data`: el PDF en el campo `archivo`, el `folio` (entero positivo que cabe en la
 base) y, opcional, la `fechaEmision` (AAAA-MM-DD, no futura; sin ella, hoy en la zona horaria de la
 tienda). El PDF se reconoce por su contenido, no por la extensión. Un código inexistente o mal
 formado, 404; sin PDF, un archivo que no es PDF, folio o fecha inválidos o campos de más, 400; un
-PDF de más de 5 MB, 413; el almacén sin configurar o caído, 503. 409 si el pedido pidió boleta,
+PDF de más de 4 MB, 413; el almacén sin configurar o caído, 503. 409 si el pedido pidió boleta,
 no está pagado (pendiente de pago o cancelado; cualquier estado posterior sirve), ya tiene una
 factura vigente (`id_documento_anulador` nulo) o el folio ya existe entre las facturas. En **una
 transacción** bloquea la fila del pedido (`FOR NO KEY UPDATE`) y crea el `DOCUMENTO_TRIBUTARIO`
@@ -688,6 +779,7 @@ Con despacho, la cotización va antes de la transacción: si Chilexpress no resp
 antes que este 409. PROPUESTAS por confirmar: (1) Mostrar solo el id de transacción como
 presentación de la boleta, que E9-H4 dejó para esta historia. (2) El código 409, que la historia no
 define. Sin cambios al MER.
+Decisión del 6 nov (SCRUM-150), para cuando se haga SCRUM-55 (panel de facturas, `GET /api/gestion/facturas`): el estado de la factura de cada pedido es `ESTADOS_FACTURA_GESTION` (`por_emitir` o `emitida`), deducido de si ya tiene su documento registrado; sin factura registrada, el campo `factura` viene `null`.
 
 **E8 Pedidos.** Estados: pendiente de pago, pagado, en preparación, despachado, entregado, listo
 para retiro, retirado, cancelado (`ESTADOS_PEDIDO`). Cada cambio guarda fecha, quién y comentario,
@@ -709,6 +801,17 @@ pago y cancelación no se pisen. PROPUESTA por confirmar: esta historia no enví
 el aviso por cambio de estado (RF-08.03) lo define E8-H2 (SCRUM-58), y la cancelación automática
 por impago (E6-H3) reutilizará este mismo reingreso. Sin cambios al MER.
 
+Lista y detalle del panel (SCRUM-150, 6 nov): `GET /api/gestion/pedidos?grupo&q&pagina&limite` y
+`GET /api/gestion/pedidos/:codigoPedido`, con `pedidos.gestionar`. Grupos (`GRUPOS_PEDIDOS_GESTION`,
+decisión del 6 nov): **por preparar** (pagado y en preparación; por defecto), **listos para
+retiro**, **despachados**, **pendientes de pago** y **todos** (entregados, retirados y cancelados
+solo ahí); solo por preparar y listos para retiro muestran su conteo, con la misma búsqueda. `q`
+busca en el código, el nombre, apellido o correo del cliente, la razón social de su factura y los
+productos o packs del pedido. El cliente de la lista es la razón social si pidió factura. El detalle
+es el de la cuenta (E8-H1) más el cliente, el historial con comentario y `realizadoPor` («Sistema»
+sin cuenta, «Cliente» si fue su dueño, o el nombre del personal), `cambiosPermitidos` (de
+`cambiosPermitidos()`, la misma secuencia que valida el cambio) y `sePuedeCancelar` (pendiente
+de pago, E8-H3).
 Decisiones del 29 oct (E8-H2): `POST /api/pedidos/:codigoPedido/estado` con `pedidos.gestionar`
 (administrador, bodeguero y vendedor); cliente y profesional reciben 403 y sin sesión 401. Cuerpo
 `{ estado, comentario? }` (el comentario, hasta 500 caracteres, se recorta). En **una transacción**:
@@ -738,8 +841,15 @@ envío: el código de seguimiento y el paso automático a entregado con Chilexpr
 **E4 IA.** Descripción sugerida e ingredientes desde la foto del reverso; nunca se publica sin
 revisión; se guarda el origen: manual, IA o IA editada.
 Decisiones del 2 nov (E4-H1): proveedor **Gemini Flash** (`@google/genai`, modelo en
-`GEMINI_MODELO`, por defecto `gemini-2.5-flash`). Ruta `POST /api/catalogo/descripciones/sugerencia`
-con `catalogo.gestionar`: recibe la foto (JPEG, PNG o WebP hasta 5 MB, campo `imagen`) y devuelve
+`GEMINI_MODELO`, por defecto `gemini-3.8-flash`; `gemini-2.5-flash` dejó de habilitarse para cuentas nuevas el 7 nov 2026; con los modelos Gemini 3 el razonamiento va en `thinkingLevel: LOW`, porque ignoran `thinkingBudget: 0` y pasan el plazo). Ruta `POST /api/catalogo/descripciones/sugerencia`
+Respaldo de la sugerencia (decisión del 7 nov 2026): si el modelo principal falla (503, 504, sin
+respuesta a tiempo o una respuesta que no es el JSON pedido) se prueba `GEMINI_MODELO_RESPALDO`
+(por defecto `gemini-3.5-flash-lite`) y al final Groq (`GROQ_API_KEY`, `GROQ_MODELO` con visión, por defecto `qwen/qwen3.8-27b`, el único con visión en la cuenta el 7 nov 2026,
+por `fetch` a su API compatible con OpenAI), sin pasar del plazo total de 30 s: hasta 15 s el
+principal, 8 s el respaldo de Gemini y lo que quede Groq. El esquema de respuesta que va a Gemini lleva solo tipos y campos obligatorios: los modelos
+«lite» rechazan `maxLength` y `propertyOrdering` (400); los largos los exige el backend. Una foto ilegible es una respuesta y no
+pasa al respaldo. Sin clave de Gemini ni de Groq, la sugerencia no está disponible (503).
+con `catalogo.gestionar`: recibe la foto (JPEG, PNG o WebP hasta 4 MB, campo `imagen`) y devuelve
 `{ descripcion, ingredientes }` (`ingredientes` es `null` si la foto no los muestra). No guarda la
 foto ni la sugerencia: aceptarla, editarla y registrar el origen es de E4-H2. Foto ilegible: 422;
 IA caída, sin respuesta en 30 s (un solo intento) o sin `GEMINI_API_KEY`: 503. En ambos casos la
@@ -759,7 +869,11 @@ sin cambios; en el PATCH, `sugerencia` sin `descripcion`: 400. PATCH de la descr
 `manual` no cambian). La sugerencia sola nunca escribe nada: solo se guarda lo que el personal
 envía al crear o editar. **Cambio al MER:** `producto.ingredientes` (texto opcional, hasta 3000;
 en el PATCH `null` lo borra). Solo sale en las respuestas del panel; mostrarlo en la tienda no
-está en la historia.
+está en la historia. Decisiones del 7 nov (SCRUM-150): la ficha pública (`GET
+/api/tienda/productos/:id`) trae `ingredientes` (texto o `null`) para todos, y la IA entrega la
+lista **en español**: si el envase la trae en INCI u otro idioma, el nombre común en español de
+cada ingrediente (los que no lo tienen quedan como en el envase), sin agregar ni quitar. El
+personal la revisa antes de guardar, como la descripción.
 
 **E10 Verificación.** Requiere RUT. Flujo (cambio del 2 nov 2026, SCRUM-62 a 67): primero se
 consulta el **inicio de actividades en el SII** y, si no aprueba, el cliente adjunta documentos
@@ -803,12 +917,12 @@ sobre la solicitud más reciente de la cuenta, que debe estar `pendiente` (la ve
 automática no la aprobó). Pasa a `revision_manual`. **Tipos de documento (propuesta, por confirmar
 con el equipo):** `titulo`, `certificado` (un certificado de curso vale) y `otro`; el inicio de
 actividades ya no se adjunta porque se consulta al SII, y el carnet no se pide. PDF, JPG o PNG de
-hasta 5 MB cada uno, reconocidos por su contenido y no por la extensión. Los archivos se suben
+hasta 4 MB cada uno, reconocidos por su contenido y no por la extensión. Los archivos se suben
 privados a `verificaciones/<cuenta>/<uuid>` antes de la transacción y se borran si la base no
 llega a registrarlos. **409** si la solicitud ya fue aprobada, ya tiene documentos en revisión o fue
 rechazada (hay que enviar una nueva, que vuelve a consultar al SII); **404** si la cuenta nunca
 solicitó; **400** sin documentos, más de 5, formato inválido o tipos que no calzan; **413** sobre
-5 MB. Cada antecedente guarda su hash SHA-256 y `estado_ocr` `no_aplica` (sin OCR, la columna
+4 MB. Cada antecedente guarda su hash SHA-256 y `estado_ocr` `no_aplica` (sin OCR, la columna
 obligatoria queda con ese valor). El motivo por el que se piden documentos (sin inicio de
 actividades, otro giro o consulta no disponible) ya está en `resultado_consulta_sii` de la
 solicitud (E10-H1): el personal lo lee de ahí. La fila de la cuenta se bloquea, como al solicitar:
@@ -947,8 +1061,8 @@ esta baja (aunque estuviera pendiente o ya de baja: así ningún enlace de confi
 activa). Responde 200 con el mismo mensaje exista o no la dirección y aunque se repita; firma
 inválida, **400**. El enlace va firmado (HMAC-SHA256 del correo, clave derivada de
 `JWT_ACCESS_SECRET` con su propio dominio, `FirmaBaja`) y **no vence**: la baja funciona desde
-cualquier correo antiguo. PROPUESTA por confirmar con frontend (SCRUM-139): la pantalla es
-`/suscripcion/baja?token=…`. Al enviar, todo correo de campaña o con tipo en
+cualquier correo antiguo. La pantalla es `/ofertas/baja?token=…` (la de la
+tienda, SCRUM-139; alineado el 6 nov, SCRUM-150). Al enviar, todo correo de campaña o con tipo en
 `TIPOS_NOTIFICACION_PUBLICIDAD` revisa otra vez el consentimiento (cuenta activa, con correo
 verificado y que acepta; o LEAD activo); si no lo tiene, no se envía y queda **`cancelada`**
 (nuevo valor de `ESTADOS_NOTIFICACION`). Sin cambios al MER.
@@ -1024,11 +1138,32 @@ pagado (todo estado salvo `ESTADOS_SIN_VENTA`) con algún producto de esas categ
 sus subcategorías) **o** de esas marcas; un pack cuenta por sus formatos. Los suscriptores sin
 cuenta no tienen compras: pedirlos con un filtro de compras responde 400. **Vista previa:**
 `POST /:id/vista-previa` devuelve `{ asunto, html, texto, destinatarios, confirmacion }`; el
-enlace de baja de la vista previa lleva a `/suscripcion/baja` sin token (no da de baja a nadie).
+enlace de baja de la vista previa lleva a `/ofertas/baja` sin token (no da de baja a nadie).
 `confirmacion` es `emisión.firma`: un HMAC-SHA256 de id + asunto + cuerpo + segmento + emisión
 (clave derivada de `JWT_ACCESS_SECRET` con su propio dominio, `HuellaCampana`; sin variable ni
 columna nueva). **Vence a la hora** (`VIGENCIA_VISTA_PREVIA_MS`): pasada, 409 «más de una hora»
-y hay que pedir otra vista previa.
+y hay que pedir otra vista previa. **Vista previa en vivo** (decisión del 6 nov, SCRUM-150): `POST /vista-previa` `{ asunto, cuerpo }` arma el correo con la misma plantilla mientras se redacta y responde `{ asunto, html, texto }`; no guarda nada, no cuenta destinatarios y **nunca** entrega la `confirmacion` (no sirve para enviar). **Cifras del listado** (decisión del 6 nov, SCRUM-150): `GET` trae `contactos` (`aceptanPublicidad`: direcciones que recibirían hoy una campaña a todos; `cuentasVerificadas` y `suscriptoresSinCuenta`, sus dos partes, con las mismas reglas que el envío; `conRebote`: direcciones con algún correo `rebotada`) y, en cada fila, `destinatarios` (borrador: los de hoy, como su vista previa; enviada: a cuántas direcciones salió) y `porcentajeApertura` (enviada: de los correos `enviada`, cuántos tienen apertura, 0 a 100 redondeado; `null` en un borrador o sin envíos). Las respuestas de campañas se declaran en el Swagger.
+**Filtros de cuenta** (decisión del 7 nov, SCRUM-150): además de tipos, categorías y marcas, el
+segmento acepta (todos opcionales; `null`, lista vacía o `false` = sin ese filtro; se cumplen
+todos a la vez y dentro de una lista basta una opción): **compras** `compraEnUltimosDias` (un
+pedido pagado en los últimos N días), `sinComprarHaceDias` (compró alguna vez y el último pedido
+pagado es de hace más de N días), `pedidosMinimo`/`pedidosMaximo` (0 a 10.000; máximo 0 = nunca
+compró) y `gastoMinimo`/`gastoMaximo` (total con IVA de sus pedidos pagados, en pesos); pagado =
+todo estado salvo `ESTADOS_SIN_VENTA`. **Ubicación** `regiones` y `comunas` (hasta 50 códigos CUT
+que existan, como en `/api/territorio`; alguna dirección guardada en una de ellas). **Perfil** `mesesCumpleanos` (1 a 12),
+`edadMinima`/`edadMaxima` (años cumplidos con la fecha de hoy en Chile; sin fecha de nacimiento
+no entra) y `generos` (el texto que escribió la cuenta, hasta 10). **Antigüedad**
+`registroUltimosDias` y `registroHaceMasDias` (1 a 3650) y `conCarrito` (productos en el
+carrito). Un mínimo mayor que su máximo: 400 junto al máximo. Los suscriptores sin cuenta no tienen
+estos datos: pedirlos con cualquiera de estos filtros responde 400, como con las compras. En
+`campana.segmento` solo se escriben los filtros indicados (un segmento anterior se guarda igual).
+**Marcadores** (decisión del 7 nov, SCRUM-150; `marcadores-campana.ts`): el asunto y el cuerpo
+aceptan `{nombre}`, `{apellido}`, `{nombre_completo}`, `{enlace_tienda}` (`URL_TIENDA`) y `{cupon}` (el código del cupón activo más reciente ligado a la campaña; con `{cupon}` y sin cupón activo, la vista previa que confirma y el envío responden 409, y en la vista previa en vivo, que acepta `campanaId`, queda a la vista; si lo desactivan mientras se envía, los correos que faltan salen sin código). Cada
+correo los completa **al enviarse** con los datos de la cuenta que lo recibe (el asunto guardado en
+NOTIFICACION queda con los marcadores). Un marcador que no existe (`{palabra}` en minúsculas) se
+rechaza al crear o editar (400, «El marcador {x} no existe…»). PROPUESTA por confirmar: a un
+suscriptor sin cuenta, los de nombre quedan vacíos y se quitan con su coma («Hola, {nombre}:» →
+«Hola:»). Las vistas previas los completan con los datos de quien las pide.
 **Envío:** `POST /:id/envio` `{ confirmacion }` responde **202** `{ id, fechaEnvio,
 destinatarios }`. En una transacción con la campaña bloqueada (`FOR UPDATE`): ya enviada, 409
 (CA2); huella distinta (cambió después de la vista previa), 409 «Pide otra vista previa»; sin
@@ -1048,12 +1183,12 @@ del pie del correo y que la vista previa de una enviada responda 409. Sin cambio
 Decisiones del 5 nov (E12-H5, SCRUM-72): la **oferta es texto libre** que redacta el administrador
 (el backend no aplica descuentos ni cupones). El saludo vive en **una sola fila de CAMPANA con tipo
 `cumpleanos`**: asunto (1-200, una línea) y saludo (1-10.000, texto plano escapado) editables, y la
-oferta en `campana.segmento` como `{ "oferta": { "activa", "texto" } }` (texto 1-1.000, obligatorio
+oferta en `campana.segmento` como `{ "activo", "oferta": { "activa", "texto" } }` (texto 1-1.000, obligatorio
 si está activa; inactiva se conserva). `GET` y `PUT /api/marketing/cumpleanos` con
 `campanas.gestionar` (401 sin sesión, 403 sin el permiso, 400 datos inválidos u oferta activa sin
 texto); el `PUT` reemplaza todo y la primera vez crea la fila (autor: quien guarda), con un candado
 de transacción (`CANDADOS.SALUDO_CUMPLEANOS`) para que no haya dos. Sin configurar rige un saludo
-por defecto sin oferta (`configurado: false`); textos PROPUESTA por confirmar. La fila no aparece en
+por defecto sin oferta (`configurado: false`); textos PROPUESTA por confirmar. **Encendido y cifras** (decisión del 6 nov, SCRUM-150): `activo` (obligatorio en el `PUT`, que reemplaza todo) apaga el saludo: el job no saluda a nadie y lo revisa otra vez con la cuenta bloqueada. Sin configurar o en una fila guardada antes, el saludo está **activo** (como hasta ahora). `GET` y `PUT` devuelven además `programadosEsteMes` (cuentas que cumplen años este mes en Chile y recibirían el saludo: mismas condiciones que el envío; 0 con el saludo apagado) y `porcentajeAperturaUltimoMes` (saludos `enviada` del mes calendario anterior en Chile con apertura registrada, 0 a 100 redondeado al entero; `null` si no salió ninguno). La fila no aparece en
 `/api/marketing/campanas` (solo `envio_unico`). **Envío:** job repetible cada 30 s en su propia cola
 `cumpleanos` (RNF-20, RNF-31). Saluda a cuentas cliente o profesional activas, con correo
 verificado, que aceptan publicidad y con `fecha_nacimiento` (CA3; los LEAD no tienen fecha), el
@@ -1073,6 +1208,34 @@ PENDIENTE (auditoría del 5 nov): la cuenta puede editar su fecha de nacimiento 
 no sea futura), así que puede poner la de hoy para recibir la oferta, una vez al año por cuenta. Hay
 que decidir si se acepta (la oferta se canjea a mano) o si se limita (fecha no editable una vez
 fijada, o no saludar si cambió hace poco, que cambiaría el MER).
+
+**Cupones** (decisiones del 7 nov 2026, SCRUM-150; módulo `cupones`). **Cambio al MER:** tablas
+CUPON, CUPON_ARTICULO, CUPON_CATEGORIA y CUPON_MARCA, y en PEDIDO `id_cupon` y `monto_descuento`
+(migración `agregar_cupones`, con CHECK de valores). **Cupón:** código único (letras, números y
+guiones, en mayúsculas), descripción opcional, `tipo_descuento` de `TIPOS_DESCUENTO_CUPON`
+(`porcentaje` 1 a 100 con tope opcional en pesos, o `monto_fijo` en pesos con IVA), `alcance` de
+`ALCANCES_CUPON` (`pedido`: todos los productos, sin el despacho; `articulos`: ciertos formatos o
+packs; `categorias_marcas`: productos de esas categorías, con sus subcategorías, o de esas marcas,
+y un pack solo si **todos** sus componentes calzan), compra mínima (subtotal de productos con IVA),
+vigencia (inicio y fin opcionales), usos máximos y usos por cuenta (opcionales), si aplica al
+precio profesional (por omisión no) y activo. **Uno por pedido.** Con `id_campana` (de envío único)
+solo lo usan las cuentas con una NOTIFICACION `enviada` de esa campaña; a las demás se les responde
+como si no existiera. Sin campaña, cualquier comprador que tenga el código. **Panel:**
+`/api/marketing/cupones` (`GET`, `GET /:id`, `POST`, `PATCH /:id`) con `campanas.gestionar`; no se
+borran, se desactivan; editar no cambia lo descontado en pedidos ya creados. El listado trae `usos`
+y `descontado` (pedidos no cancelados). **Comprador:** `POST /api/carrito/cupon { codigo }`
+devuelve `{ codigo, descripcion, descuento, totalProductos }` sobre el carrito actual, sin reservar (10/min por
+cuenta, `LIMITES.VALIDAR_CUPON`); `GET /api/despacho/cotizacion` acepta `codigoCupon` y devuelve `descuento` y el `total` ya descontado (así el checkout no resta nada); `POST /api/pedidos` acepta `codigoCupon` y lo revisa otra vez en
+su transacción con la fila del cupón bloqueada (`FOR UPDATE`): dos pedidos simultáneos no pasan
+del máximo. Un uso cuenta **desde que se crea el pedido** y se libera si se cancela (por el plazo
+de pago o a mano). Cada rechazo responde 400 junto a `codigoCupon` (no existe o inactivo, aún no
+vigente, vencido, no es para la cuenta, profesional sin permiso, usos agotados, compra mínima, no
+cubre el carrito) y el pedido no se crea. **Montos:** el descuento (con IVA, redondeado al peso; el
+porcentaje con su tope; el monto fijo sin pasar de lo que cubre) se resta del total, su parte neta
+del neto, y el IVA queda como la diferencia; las líneas guardan su precio sin descuento. El detalle
+del pedido trae `montos.descuento` y `cupon` (código). PROPUESTA por confirmar: el pedido siempre
+cobra al menos $1 de productos (Mercado Pago no cobra $0), y el reparto neto/IVA del descuento con
+quien lleve la contabilidad.
 
 **E14 Reportes.** Solo administrador. OE1 30 %, OE2 70 % en 48 h, OE3 80 %; ventas por período y
 tipo de cliente; carritos abandonados y recuperados; resultado de campañas; stock bajo el mínimo.
@@ -1115,6 +1278,11 @@ productos con `fecha_creacion` en el período, cuántos tienen `origen_descripci
 desactivaron** (decisión del 5 nov: OE3 mide cómo se hizo la descripción al crearlo, y eso no cambia
 al desactivarlo). Se calcula al consultar, una consulta
 agregada por indicador, sin caché. Sin cambios al MER.
+SCRUM-150 (6 nov): cada indicador trae `estado` (`ESTADOS_OBJETIVO`): `sobre-la-meta` si
+`cumplidos / total` alcanza o supera la meta (se compara con los conteos, no con el porcentaje
+redondeado), `bajo-la-meta` si no, y `sin-datos` sin total. El reporte de carritos trae
+`porcentajeRecuperados` (recuperados / abandonados, al entero; `null` sin abandonos) por mes y en
+el total. Las dos respuestas quedan tipadas en el Swagger.
 Decisiones del 6 nov (E14-H3, SCRUM-76): dos rutas con `reportes.ver` (401 sin sesión, 403 sin el
 permiso). **Carritos:** `GET /api/reportes/carritos-abandonados?desde=AAAA-MM&hasta=AAAA-MM`, ambos
 meses obligatorios e incluidos, en hora de Chile; **400** si un mes no es válido (AAAA-MM, años
@@ -1138,6 +1306,16 @@ envios }` con `total`, `pendientes`, `enviados`, `abiertos`, `clics`, `rebotados
 las campañas de envío único y para el saludo de cumpleaños (sin `fechaEnvio`); un borrador sin
 enviar responde **409** y una campaña inexistente, 404. Ambos se calculan al consultar, sin caché.
 `ESTADOS_SIN_VENTA` pasó a `common/dominio/valores.ts`. Sin cambios al MER.
+Decisión del 6 nov (SCRUM-150, pantalla de SCRUM-144): **campañas por período**, `GET
+/api/reportes/campanas?desde=AAAA-MM-DD&hasta=AAAA-MM-DD` (mismas reglas de período que E14-H2:
+ambos incluidos, hora de Chile, hasta 366 días; 400 si no). Responde `{ desde, hasta, campanas }`,
+las más recientes primero: cada campaña de envío único **confirmada** en el período (`fecha`: la
+del envío, ISO) y una fila **automática** por mes con los saludos de cumpleaños creados ese mes
+(`fecha` AAAA-MM, `nombre` «Saludo de cumpleaños», `segmento` null, `id` el del saludo o null si
+nunca se configuró). Cada fila trae `id`, `nombre`, `segmento` (el guardado, estructurado),
+`enviados`, `rebotados`, `cancelados`, `fallidos` y `porcentajeAbiertos` / `porcentajeClic`:
+de los correos `enviada`, cuántos tienen apertura o clic, 0 a 100 redondeado al entero; `null`
+si no salió ninguno (RNF-03).
 
 ## Rendimiento y operación
 
@@ -1145,3 +1323,10 @@ enviar responde **409** y una campaña inexistente, 404. Ambos se calculan al co
 - Sin estado en memoria: varias instancias del backend deben funcionar igual; cada tarea programada
   corre una sola vez (RNF-20) — usa los jobs repetibles de BullMQ, no `setInterval`.
 - Tareas con plazo con ≤ 1 min de atraso (RNF-31).
+- **Subidas de archivos (decisión del 6 nov, SCRUM-150):** cada archivo pesa hasta **4 MB**
+  (imágenes de productos, foto para la sugerencia de descripción, PDF de la factura y cada documento
+  de verificación; 413 con el mensaje en español). Bajó de 5 MB porque las subidas pasan por el
+  proxy de la tienda, y si se despliega en Vercel sus funciones aceptan cuerpos de unos 4,5 MB.
+  **Deuda técnica:** subir directo a R2 con una URL prefirmada (el backend firma y luego confirma
+  la subida). Hasta entonces, el envío de verificación con **varios** documentos en una sola
+  petición (hasta 5 de 4 MB) puede pasar del límite del proxy aunque cada archivo lo cumpla.

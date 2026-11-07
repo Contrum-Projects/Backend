@@ -61,6 +61,7 @@ const DETALLE = {
   id: true,
   nombre: true,
   descripcion: true,
+  ingredientes: true,
   marca: { select: { id: true, nombre: true } },
   categoria: { select: { id: true, nombre: true } },
   formatos: {
@@ -152,6 +153,8 @@ export interface ProductoDetalle {
   id: number;
   nombre: string;
   descripcion: string;
+  /** Lista de ingredientes del reverso (E4-H2, SCRUM-150); `null` si el producto no la tiene. */
+  ingredientes: string | null;
   marca: { id: number; nombre: string } | null;
   categoria: { id: number; nombre: string };
   formatos: FormatoDetalle[];
@@ -207,6 +210,7 @@ export class TiendaDetalleService {
         id: fila.id,
         nombre: fila.nombre,
         descripcion: fila.descripcion,
+        ingredientes: fila.ingredientes,
         marca: fila.marca,
         categoria: fila.categoria,
         exclusivo,
