@@ -101,6 +101,8 @@ export interface CambioPermitido {
   pideCodigoSeguimiento: boolean;
   /** Si se avisa al cliente por correo (`ESTADOS_CON_AVISO`; volver atrás nunca avisa). */
   avisaAlCliente: boolean;
+  /** Si exige un comentario: volver a un estado anterior lo pide (SCRUM-150). */
+  pideComentario: boolean;
 }
 
 /**
@@ -125,6 +127,7 @@ export const cambiosPermitidos = (
       sentido: 'avance' as const,
       pideCodigoSeguimiento: estado === ESTADOS_PEDIDO.DESPACHADO,
       avisaAlCliente: ESTADOS_CON_AVISO.includes(estado),
+      pideComentario: false,
     })),
     ...(retroceso
       ? [
@@ -133,6 +136,7 @@ export const cambiosPermitidos = (
             sentido: 'retroceso' as const,
             pideCodigoSeguimiento: false,
             avisaAlCliente: false,
+            pideComentario: true,
           },
         ]
       : []),

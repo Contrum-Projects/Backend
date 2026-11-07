@@ -16,6 +16,10 @@ import {
 } from '../../autenticacion/permisos.guard.js';
 import { PERMISOS } from '../../common/dominio/permisos.js';
 import { Paginacion } from '../../common/validacion/paginacion.js';
+import {
+  DetalleFacturaGestionDto,
+  ListadoFacturasGestionDto,
+} from './dto/gestion-facturas-respuesta.dto.js';
 import { CodigoPedidoPipe } from '../pedidos/codigo-pedido.pipe.js';
 import {
   type DetalleFacturaGestion,
@@ -44,6 +48,7 @@ export class GestionFacturasController {
   })
   @ApiOkResponse({
     description: 'Facturas, paginadas, con el conteo por emitir.',
+    type: ListadoFacturasGestionDto,
   })
   @ApiBadRequestResponse({ description: 'Paginación inválida.' })
   listar(@Query() paginacion: Paginacion): Promise<ListadoFacturasGestion> {
@@ -56,7 +61,10 @@ export class GestionFacturasController {
     description:
       'El receptor (razón social, RUT, giro, dirección y comuna), los montos, la tasa de IVA y, si ya se emitió, folio y fecha. Por emitir, los datos de facturación del pedido; emitida, los que copió la factura.',
   })
-  @ApiOkResponse({ description: 'Datos de la factura del pedido.' })
+  @ApiOkResponse({
+    description: 'Datos de la factura del pedido.',
+    type: DetalleFacturaGestionDto,
+  })
   @ApiNotFoundResponse({
     description: 'El pedido no existe, no pidió factura o aún no está pagado.',
   })

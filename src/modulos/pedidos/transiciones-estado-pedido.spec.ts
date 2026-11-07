@@ -90,12 +90,14 @@ describe('cambiosPermitidos (SCRUM-150)', () => {
         sentido: 'avance',
         pideCodigoSeguimiento: true,
         avisaAlCliente: true,
+        pideComentario: false,
       },
       {
         estado: 'pagado',
         sentido: 'retroceso',
         pideCodigoSeguimiento: false,
         avisaAlCliente: false,
+        pideComentario: true,
       },
     ]);
     // Pagado solo avanza, y en preparación no avisa
@@ -105,6 +107,7 @@ describe('cambiosPermitidos (SCRUM-150)', () => {
         sentido: 'avance',
         pideCodigoSeguimiento: false,
         avisaAlCliente: false,
+        pideComentario: false,
       },
     ]);
   });

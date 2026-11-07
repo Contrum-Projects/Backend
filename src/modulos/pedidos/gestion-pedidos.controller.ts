@@ -16,6 +16,10 @@ import {
 } from '../../autenticacion/permisos.guard.js';
 import { PERMISOS } from '../../common/dominio/permisos.js';
 import { CodigoPedidoPipe } from './codigo-pedido.pipe.js';
+import {
+  DetallePedidoGestionDto,
+  ListadoPedidosGestionDto,
+} from './dto/gestion-pedidos-respuesta.dto.js';
 import { ListarPedidosGestionDto } from './dto/listar-pedidos-gestion.dto.js';
 import {
   type DetallePedidoGestion,
@@ -42,7 +46,10 @@ export class GestionPedidosController {
     description:
       'Del más reciente al más antiguo, paginados, del `grupo` pedido (por defecto `por_preparar`: pagados y en preparación; `listos_para_retiro`, `despachados`, `pendientes_pago` y `todos`) y con la búsqueda `q`. Cada pedido trae código, fecha, cliente (razón social si pidió factura), entrega, estado, total con IVA y unidades. `grupos` da los chips en orden con su `cantidad` (`null` en los que no muestran conteo) y `grupo`, el aplicado.',
   })
-  @ApiOkResponse({ description: 'Pedidos, grupos y el grupo aplicado.' })
+  @ApiOkResponse({
+    description: 'Pedidos, grupos y el grupo aplicado.',
+    type: ListadoPedidosGestionDto,
+  })
   @ApiBadRequestResponse({
     description: 'Grupo, búsqueda o paginación inválidos.',
   })
@@ -58,7 +65,10 @@ export class GestionPedidosController {
     description:
       'El detalle del pedido (artículos, montos, entrega, documento) más el cliente (nombre, correo y teléfono), el historial del primero al último con su comentario y quién lo hizo («Sistema», «Cliente» o el nombre del personal), los `cambiosPermitidos` desde el estado actual (con su sentido, si piden código de seguimiento y si avisan al cliente) y `sePuedeCancelar` (solo pendiente de pago).',
   })
-  @ApiOkResponse({ description: 'Detalle del pedido para el personal.' })
+  @ApiOkResponse({
+    description: 'Detalle del pedido para el personal.',
+    type: DetallePedidoGestionDto,
+  })
   @ApiNotFoundResponse({ description: 'El pedido no existe.' })
   obtener(
     @Param('codigoPedido', new CodigoPedidoPipe()) codigoPedido: string,
