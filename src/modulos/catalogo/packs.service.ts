@@ -34,6 +34,13 @@ import {
 import { estaVigente } from './vigencia-pack.js';
 import { errorDeCampo } from '../../common/errores/error-de-campo.js';
 
+import { precioConIva } from '../../common/dominio/montos.js';
+import {
+  stockVendible,
+  unidadesDeFormato,
+  unidadesDePack,
+} from './disponibilidad.js';
+
 const NO_EXISTE = 'El pack no existe.';
 
 /**
@@ -62,7 +69,7 @@ const SELECCION = {
         select: {
           id: true,
           nombreFormato: true,
-          articulo: { select: { sku: true } },
+          articulo: { select: { sku: true, precioMinoristaNeto: true } },
           producto: { select: { id: true, nombre: true } },
         },
       },
@@ -79,6 +86,11 @@ export interface ComponentePackPanel {
   nombreFormato: string;
   producto: { id: number; nombre: string };
   cantidad: number;
+  /** Unidades vendibles del formato, las mismas que usa la tienda (SCRUM-150). */
+  stockTotal: number;
+  precioMinoristaNeto: number | null;
+  /** En pesos enteros, como en la tienda; `null` sin precio. */
+  precioMinoristaConIva: number | null;
 }
 
 /** Pack tal como lo devuelve el panel; las fechas de vigencia en AAAA-MM-DD. */
@@ -96,6 +108,15 @@ export interface PackPanel {
   fechaCreacion: Date;
   componentes: ComponentePackPanel[];
   imagenes: ImagenPanel[];
+  /**
+   * Packs que alcanzan con el stock vendible de hoy: los del componente más escaso, contando las
+   * unidades que lleva (como en la tienda), aunque esté fuera de su vigencia (SCRUM-150).
+   */
+  disponibilidad: number;
+  /** El componente que limita la disponibilidad; `null` sin componentes. */
+  componenteLimitante: { formatoId: number; stockTotal: number } | null;
+  /** Los componentes por separado, con IVA; `null` si alguno no tiene precio minorista. */
+  precioMinoristaPorSeparadoConIva: number | null;
 }
 
 export interface ListadoPacks {
@@ -142,8 +163,9 @@ export class PacksService {
       this.prisma.pack.count(),
     ]);
     const hoy = hoyEnLaTienda();
+    const stock = await this.stockDe(filas);
     return {
-      items: filas.map((fila) => this.aRespuesta(fila, hoy)),
+      items: filas.map((fila) => this.aRespuesta(fila, hoy, stock)),
       total,
       pagina,
       limite,
@@ -158,7 +180,7 @@ export class PacksService {
     if (!fila) {
       throw new NotFoundException(NO_EXISTE);
     }
-    return this.aRespuesta(fila, hoyEnLaTienda());
+    return this.aRespuesta(fila, hoyEnLaTienda(), await this.stockDe([fila]));
   }
 
   /**
@@ -192,7 +214,7 @@ export class PacksService {
           select: SELECCION,
         });
       });
-      return this.aRespuesta(fila, hoyEnLaTienda());
+      return this.aRespuesta(fila, hoyEnLaTienda(), await this.stockDe([fila]));
     } catch (error) {
       await this.explicarChoque(error, dto.sku);
       throw error;
@@ -266,15 +288,64 @@ export class PacksService {
           select: SELECCION,
         });
       });
-      return this.aRespuesta(fila, hoyEnLaTienda());
+      return this.aRespuesta(fila, hoyEnLaTienda(), await this.stockDe([fila]));
     } catch (error) {
       await this.explicarChoque(error, dto.sku, id);
       throw error;
     }
   }
 
-  private aRespuesta(fila: FilaPack, hoy: string): PackPanel {
+  /** Unidades vendibles de los componentes de estos packs, leídas fuera de la transacción. */
+  private stockDe(filas: FilaPack[]) {
+    return stockVendible(this.prisma, [
+      ...new Set(
+        filas.flatMap((fila) =>
+          fila.componentes.map((componente) => componente.formato.id),
+        ),
+      ),
+    ]);
+  }
+
+  private aRespuesta(
+    fila: FilaPack,
+    hoy: string,
+    stock: Map<number, number>,
+  ): PackPanel {
     const urlBaseImagenes = this.config.get('R2_URL_PUBLICA', { infer: true });
+    const porcentajeIva = this.config.get('IVA_PORCENTAJE', { infer: true });
+    const componentes = fila.componentes.map(({ cantidad, formato }) => {
+      const neto = formato.articulo.precioMinoristaNeto?.toNumber() ?? null;
+      return {
+        formatoId: formato.id,
+        sku: formato.articulo.sku,
+        nombreFormato: formato.nombreFormato,
+        producto: formato.producto,
+        cantidad,
+        stockTotal: unidadesDeFormato(stock, formato.id),
+        precioMinoristaNeto: neto,
+        precioMinoristaConIva:
+          neto === null ? null : precioConIva(neto, porcentajeIva),
+      };
+    });
+    // El que menos packs completos permite; el empate, el primero (por formato)
+    const limitante = componentes.reduce<(typeof componentes)[number] | null>(
+      (menor, componente) =>
+        menor === null ||
+        Math.floor(componente.stockTotal / componente.cantidad) <
+          Math.floor(menor.stockTotal / menor.cantidad)
+          ? componente
+          : menor,
+      null,
+    );
+    const porSeparado = componentes.every(
+      (componente) => componente.precioMinoristaConIva !== null,
+    )
+      ? componentes.reduce(
+          (suma, componente) =>
+            suma + componente.precioMinoristaConIva! * componente.cantidad,
+          0,
+        )
+      : null;
     const inicio = deFechaSinHora(fila.fechaInicioVigencia);
     const fin = deFechaSinHora(fila.fechaFinVigencia);
     return {
@@ -288,16 +359,16 @@ export class PacksService {
       vigente: estaVigente(inicio, fin, hoy),
       activo: fila.articulo.activo,
       fechaCreacion: fila.fechaCreacion,
-      componentes: fila.componentes.map(({ cantidad, formato }) => ({
-        formatoId: formato.id,
-        sku: formato.articulo.sku,
-        nombreFormato: formato.nombreFormato,
-        producto: formato.producto,
-        cantidad,
-      })),
+      componentes,
       imagenes: fila.articulo.imagenes.map((imagen) =>
         aImagenPanel(imagen, urlBaseImagenes),
       ),
+      disponibilidad: unidadesDePack(componentes, stock),
+      componenteLimitante: limitante
+        ? { formatoId: limitante.formatoId, stockTotal: limitante.stockTotal }
+        : null,
+      precioMinoristaPorSeparadoConIva:
+        componentes.length > 0 ? porSeparado : null,
     };
   }
 

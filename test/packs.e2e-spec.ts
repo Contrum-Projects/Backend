@@ -282,6 +282,17 @@ describe('Catálogo · packs (e2e)', () => {
       .auth(token, { type: 'bearer' })
       .expect(200);
     expect((visto.body as PackRespuesta).componentes).toHaveLength(2);
+    // SCRUM-150: sin stock en los componentes no alcanza para ningún pack
+    expect(visto.body).toMatchObject({
+      disponibilidad: 0,
+      componenteLimitante: { stockTotal: 0 },
+      // Los formatos aún no tienen precio: tampoco hay «por separado»
+      precioMinoristaPorSeparadoConIva: null,
+      componentes: [
+        { stockTotal: 0, precioMinoristaConIva: null },
+        { stockTotal: 0, precioMinoristaConIva: null },
+      ],
+    });
   });
 
   it('E3-H6 · pack creado: sus precios se fijan después, con el historial de E3-H5', async () => {

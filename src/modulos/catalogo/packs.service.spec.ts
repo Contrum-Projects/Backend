@@ -43,8 +43,12 @@ const articulo = (id: number, extra: object = {}) => ({
   ...extra,
 });
 
+const variables: Partial<Record<keyof Entorno, unknown>> = {
+  R2_URL_PUBLICA: 'https://imagenes.cabelloperfecto.cl',
+  IVA_PORCENTAJE: 19,
+};
 const config = {
-  get: vi.fn().mockReturnValue('https://imagenes.cabelloperfecto.cl'),
+  get: vi.fn((nombre: keyof Entorno) => variables[nombre]),
 } as unknown as ConfigService<Entorno, true>;
 
 const crearPrisma = () => {
@@ -70,7 +74,13 @@ const crearPrisma = () => {
       update: vi.fn().mockResolvedValue(fila()),
     },
     componentePack: { deleteMany: vi.fn().mockResolvedValue({ count: 1 }) },
-    existencia: { create: vi.fn() },
+    existencia: {
+      create: vi.fn(),
+      // Stock vendible de los componentes (SCRUM-150)
+      groupBy: vi
+        .fn()
+        .mockResolvedValue([{ formatoId: 11, _sum: { cantidad: 5 } }]),
+    },
     $transaction: vi.fn(),
   };
   prisma.$transaction.mockImplementation((trabajo: unknown) =>
@@ -440,6 +450,61 @@ describe('PacksService', () => {
       await expect(servicio.obtener(99)).rejects.toThrow(
         new NotFoundException('El pack no existe.'),
       );
+    });
+  });
+
+  describe('disponibilidad y precios por componente (SCRUM-150)', () => {
+    const conComponentes = (componentes: object[]) =>
+      prisma.pack.findUnique.mockResolvedValueOnce(fila({ componentes }));
+    const componente = (id: number, cantidad: number, neto: string | null) => ({
+      cantidad,
+      formato: {
+        id,
+        nombreFormato: '300 ml',
+        articulo: {
+          sku: `SKU-${id}`,
+          precioMinoristaNeto: neto === null ? null : new Prisma.Decimal(neto),
+        },
+        producto: { id: 5, nombre: 'Shampoo' },
+      },
+    });
+
+    it('E3-H6 · disponibilidad: la del componente más escaso contando sus unidades, con su stock y precio con IVA', async () => {
+      prisma.existencia.groupBy.mockResolvedValueOnce([
+        { formatoId: 11, _sum: { cantidad: 5 } },
+        { formatoId: 12, _sum: { cantidad: 9 } },
+      ]);
+      conComponentes([componente(11, 2, '8403'), componente(12, 1, '5000')]);
+
+      const pack = await servicio.obtener(30);
+
+      expect(pack.componentes).toMatchObject([
+        { formatoId: 11, stockTotal: 5, precioMinoristaConIva: 10000 },
+        { formatoId: 12, stockTotal: 9, precioMinoristaConIva: 5950 },
+      ]);
+      // 5 / 2 = 2 packs; 9 / 1 = 9
+      expect(pack.disponibilidad).toBe(2);
+      expect(pack.componenteLimitante).toEqual({
+        formatoId: 11,
+        stockTotal: 5,
+      });
+      // 2 × 10.000 + 1 × 5.950
+      expect(pack.precioMinoristaPorSeparadoConIva).toBe(25950);
+    });
+
+    it('E3-H6 · sin precio en un componente no hay «por separado»; sin componentes, nada limita', async () => {
+      conComponentes([componente(11, 1, '8403'), componente(12, 1, null)]);
+      expect(
+        (await servicio.obtener(30)).precioMinoristaPorSeparadoConIva,
+      ).toBeNull();
+
+      conComponentes([]);
+      const vacio = await servicio.obtener(30);
+      expect(vacio).toMatchObject({
+        disponibilidad: 0,
+        componenteLimitante: null,
+        precioMinoristaPorSeparadoConIva: null,
+      });
     });
   });
 });

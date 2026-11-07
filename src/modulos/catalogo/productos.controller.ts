@@ -31,6 +31,8 @@ import { ActualizarProductoDto } from './dto/actualizar-producto.dto.js';
 import { CrearProductoDto } from './dto/crear-producto.dto.js';
 import { ListarProductosDto } from './dto/listar-productos.dto.js';
 import { ID_PRODUCTO } from './ids-ruta.js';
+import { ListadoProductosPanelDto } from './dto/producto-listado.dto.js';
+import { ListadoProductosService } from './listado-productos.service.js';
 import { ProductosService } from './productos.service.js';
 
 @ApiTags('catalogo')
@@ -43,7 +45,10 @@ import { ProductosService } from './productos.service.js';
   description: 'El rol no tiene el permiso de gestionar el catálogo.',
 })
 export class ProductosController {
-  constructor(private readonly productos: ProductosService) {}
+  constructor(
+    private readonly productos: ProductosService,
+    private readonly listado: ListadoProductosService,
+  ) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -66,12 +71,15 @@ export class ProductosController {
   @ApiOperation({
     summary: 'Listar productos',
     description:
-      'Por defecto solo los activos, ordenados por nombre y paginados. Se puede filtrar por texto, categoría y marca.',
+      'Por defecto solo los activos, ordenados por nombre y paginados. Busca en el nombre, la marca o el SKU y filtra por categoría, marca, canal, stock bajo e inactivos. Cada fila trae su foto, formatos activos, precio desde (con IVA, del canal del producto), stock total y si está bajo el mínimo; `conteos` son los números de los chips.',
   })
-  @ApiOkResponse({ description: 'Página de productos con el total.' })
+  @ApiOkResponse({
+    description: 'Página de productos con el total y los conteos.',
+    type: ListadoProductosPanelDto,
+  })
   @ApiBadRequestResponse({ description: 'Filtros inválidos.' })
   listar(@Query() filtros: ListarProductosDto) {
-    return this.productos.listar(filtros);
+    return this.listado.listar(filtros);
   }
 
   @Get(':id')

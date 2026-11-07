@@ -295,6 +295,19 @@ de Chile; el término no puede ser anterior al inicio (400). `PATCH` cambia solo
 `null` quita una fecha y `componentes` reemplaza la lista completa; si cambian el canal o los
 componentes se revisan otra vez las reglas, con la fila del pack bloqueada. El panel devuelve
 `vigente` calculado con el día de hoy.
+Desde SCRUM-150 (6 nov) el pack del panel trae además, por componente, `stockTotal` (unidades
+vendibles, las mismas de la tienda), `precioMinoristaNeto` y `precioMinoristaConIva`; y del pack,
+`disponibilidad` (packs completos con ese stock, como en la tienda, aunque esté fuera de
+vigencia), `componenteLimitante` (`{ formatoId, stockTotal }`, el que menos packs permite; `null`
+sin componentes) y `precioMinoristaPorSeparadoConIva` (suma de precio con IVA × cantidad; `null`
+si algún componente no tiene minorista). Los precios del panel (`GET`/`PUT
+/api/catalogo/articulos/:id/precios`) traen `porcentajeIva` y los dos precios con IVA
+(`precioConIva`, `null` sin precio). El listado `GET /api/catalogo/productos` busca también en
+la marca y el SKU, filtra por `canalVenta`, `stockBajo` y `soloInactivos`, y cada fila trae
+`imagen` (principal del predeterminado), `formatos` (activos), `precioDesde` (menor precio con IVA
+del canal del producto entre los activos), `stockTotal` (ubicaciones activas de bodegas activas)
+y `stockBajo` (regla de E11-H6); `conteos` da los números de los chips con la búsqueda, la
+categoría y la marca aplicadas («todos» incluye los inactivos).
 Búsqueda de formatos (SCRUM-150, 6 nov): `GET /api/catalogo/formatos?buscar=&pagina=&limite=`
 la usan el armado de packs y el registro de inventario (entradas, salidas, ajustes y
 transferencias), así que acepta `catalogo.gestionar` **o** `inventario.registrar`

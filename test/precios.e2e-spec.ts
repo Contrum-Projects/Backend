@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { App } from 'supertest/types.js';
 import { AppModule } from '../src/app.module.js';
+import { precioConIva } from '../src/common/dominio/montos.js';
 import { calcularMontos } from '../src/common/dominio/montos.js';
 import { ROLES, type Rol } from '../src/common/dominio/roles.js';
 import {
@@ -196,6 +197,12 @@ describe('Catálogo · precios minorista y mayorista (e2e)', () => {
       exclusivo: false,
       precioMinoristaNeto: 10500.5,
       precioMayoristaNeto: 8000,
+    });
+    // SCRUM-150: con IVA y la misma regla de la tienda (el neto se redondea al peso primero)
+    const { porcentajeIva } = respuesta.body as { porcentajeIva: number };
+    expect(respuesta.body).toMatchObject({
+      precioMinoristaConIva: precioConIva(10500.5, porcentajeIva),
+      precioMayoristaConIva: precioConIva(8000, porcentajeIva),
     });
     const fijadoPor = {
       nombre: 'Marcela',

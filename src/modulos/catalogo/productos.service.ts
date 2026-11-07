@@ -5,12 +5,9 @@ import {
 } from '@nestjs/common';
 import { ORIGENES_DESCRIPCION } from '../../common/dominio/valores.js';
 import type { Prisma } from '../../generated/prisma/client.js';
-import { escaparComodines } from '../../common/validacion/texto-busqueda.js';
-import { POR_PAGINA } from '../../common/validacion/paginacion.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { ActualizarProductoDto } from './dto/actualizar-producto.dto.js';
 import type { CrearProductoDto } from './dto/crear-producto.dto.js';
-import type { ListarProductosDto } from './dto/listar-productos.dto.js';
 import type { SugerenciaUsadaDto } from './dto/sugerencia-usada.dto.js';
 import { FirmaSugerencia } from './firma-sugerencia.js';
 import { errorDeCampo } from '../../common/errores/error-de-campo.js';
@@ -167,31 +164,6 @@ export class ProductosService {
       throw new NotFoundException('El producto no existe.');
     }
     return producto;
-  }
-
-  /** Productos del panel, ordenados por nombre. Por defecto solo los activos. */
-  async listar(filtros: ListarProductosDto) {
-    const pagina = filtros.pagina ?? 1;
-    const limite = filtros.limite ?? POR_PAGINA;
-    const where: Prisma.ProductoWhereInput = {
-      activo: filtros.incluirInactivos ? undefined : true,
-      categoriaId: filtros.categoriaId,
-      marcaId: filtros.marcaId,
-      nombre: filtros.buscar
-        ? { contains: escaparComodines(filtros.buscar), mode: 'insensitive' }
-        : undefined,
-    };
-    const [items, total] = await this.prisma.$transaction([
-      this.prisma.producto.findMany({
-        where,
-        include: INCLUIR,
-        orderBy: [{ nombre: 'asc' }, { id: 'asc' }],
-        skip: (pagina - 1) * limite,
-        take: limite,
-      }),
-      this.prisma.producto.count({ where }),
-    ]);
-    return { items, total, pagina, limite };
   }
 
   private async exigirCategoria(categoriaId: number) {

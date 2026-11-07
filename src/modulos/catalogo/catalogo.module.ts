@@ -23,6 +23,7 @@ import { PacksService } from './packs.service.js';
 import { PreciosController } from './precios.controller.js';
 import { PreciosService } from './precios.service.js';
 import { ProductosController } from './productos.controller.js';
+import { ListadoProductosService } from './listado-productos.service.js';
 import { ProductosService } from './productos.service.js';
 import { SugerenciaDescripcionController } from './sugerencia-descripcion.controller.js';
 import { SugerenciaDescripcionService } from './sugerencia-descripcion.service.js';
@@ -67,6 +68,7 @@ import { TiendaService } from './tienda.service.js';
     MarcasService,
     CategoriasService,
     ProductosService,
+    ListadoProductosService,
     FormatosService,
     ImagenesService,
     PacksService,
