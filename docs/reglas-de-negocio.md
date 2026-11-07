@@ -842,6 +842,12 @@ envío: el código de seguimiento y el paso automático a entregado con Chilexpr
 revisión; se guarda el origen: manual, IA o IA editada.
 Decisiones del 2 nov (E4-H1): proveedor **Gemini Flash** (`@google/genai`, modelo en
 `GEMINI_MODELO`, por defecto `gemini-3.8-flash`; `gemini-2.5-flash` dejó de habilitarse para cuentas nuevas el 7 nov 2026; con los modelos Gemini 3 el razonamiento va en `thinkingLevel: LOW`, porque ignoran `thinkingBudget: 0` y pasan el plazo). Ruta `POST /api/catalogo/descripciones/sugerencia`
+Respaldo de la sugerencia (decisión del 7 nov 2026): si el modelo principal falla (503, 504, sin
+respuesta a tiempo o una respuesta que no es el JSON pedido) se prueba `GEMINI_MODELO_RESPALDO`
+(por defecto `gemini-3.5-flash-lite`) y al final Groq (`GROQ_API_KEY`, `GROQ_MODELO` con visión,
+por `fetch` a su API compatible con OpenAI), sin pasar del plazo total de 30 s: hasta 15 s el
+principal, 8 s el respaldo de Gemini y lo que quede Groq. Una foto ilegible es una respuesta y no
+pasa al respaldo. Sin clave de Gemini ni de Groq, la sugerencia no está disponible (503).
 con `catalogo.gestionar`: recibe la foto (JPEG, PNG o WebP hasta 4 MB, campo `imagen`) y devuelve
 `{ descripcion, ingredientes }` (`ingredientes` es `null` si la foto no los muestra). No guarda la
 foto ni la sugerencia: aceptarla, editarla y registrar el origen es de E4-H2. Foto ilegible: 422;

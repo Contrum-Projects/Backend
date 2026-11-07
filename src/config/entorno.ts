@@ -115,6 +115,24 @@ export const esquemaEntorno = z
     /** Modelo de Gemini con visión que lee el reverso del producto. */
     GEMINI_MODELO: z.string().min(1).default('gemini-3.8-flash'),
     /**
+     * Modelo de Gemini que se prueba si el principal falla (503, 504, sin respuesta a tiempo).
+     * Más liviano y rápido. Vacío, no hay respaldo de Gemini.
+     */
+    GEMINI_MODELO_RESPALDO: z
+      .string()
+      .default('gemini-3.5-flash-lite')
+      .transform((valor) => valor.trim()),
+    /**
+     * Clave de la API de Groq: el último respaldo de la sugerencia, si Gemini no responde
+     * (decisión del 7 nov 2026). Vacía, no se usa Groq.
+     */
+    GROQ_API_KEY: opcional(z.string()),
+    /** Modelo de Groq con visión que lee el reverso cuando Gemini falla. */
+    GROQ_MODELO: z
+      .string()
+      .min(1)
+      .default('meta-llama/llama-4-scout-17b-16e-instruct'),
+    /**
      * Clave de la API de Khipu (E10-H1, decisión del 2 nov 2026), que consulta la «Situación
      * tributaria de terceros» del SII. Sin ella la app arranca, pero la consulta falla y quien
      * solicita la verificación debe adjuntar documentos.

@@ -1,3 +1,4 @@
+import { armarClienteIa } from './armar-cliente-ia.js';
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AlmacenModule } from '../../almacen/almacen.module.js';
@@ -5,12 +6,7 @@ import type { Entorno } from '../../config/entorno.js';
 import { CacheCatalogo } from './cache-catalogo.js';
 import { CategoriasController } from './categorias.controller.js';
 import { CategoriasService } from './categorias.service.js';
-import {
-  CLIENTE_IA,
-  type ClienteIa,
-  ClienteGemini,
-  ClienteIaNoConfigurado,
-} from './cliente-ia.js';
+import { CLIENTE_IA, type ClienteIa } from './cliente-ia.js';
 import { FirmaSugerencia } from './firma-sugerencia.js';
 import { FormatosController } from './formatos.controller.js';
 import { FormatosService } from './formatos.service.js';
@@ -53,15 +49,14 @@ import { TiendaService } from './tienda.service.js';
     {
       provide: CLIENTE_IA,
       inject: [ConfigService],
-      useFactory: (config: ConfigService<Entorno, true>): ClienteIa => {
-        const clave = config.get('GEMINI_API_KEY', { infer: true });
-        return clave
-          ? new ClienteGemini(
-              clave,
-              config.get('GEMINI_MODELO', { infer: true }),
-            )
-          : new ClienteIaNoConfigurado();
-      },
+      useFactory: (config: ConfigService<Entorno, true>): ClienteIa =>
+        armarClienteIa({
+          claveGemini: config.get('GEMINI_API_KEY', { infer: true }),
+          modeloGemini: config.get('GEMINI_MODELO', { infer: true }),
+          modeloRespaldo: config.get('GEMINI_MODELO_RESPALDO', { infer: true }),
+          claveGroq: config.get('GROQ_API_KEY', { infer: true }),
+          modeloGroq: config.get('GROQ_MODELO', { infer: true }),
+        }),
     },
     CacheCatalogo,
     FirmaSugerencia,
