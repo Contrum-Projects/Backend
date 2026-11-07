@@ -69,6 +69,7 @@ const crearPrisma = () => {
     }),
     categoria: { findMany: vi.fn().mockResolvedValue([]) },
     campana: { update: vi.fn().mockResolvedValue({}) },
+    cupon: { findFirst: vi.fn().mockResolvedValue(null) },
     notificacion: {
       createManyAndReturn: vi.fn(
         ({ data }: { data: { usuarioId?: number; leadId?: number }[] }) =>

@@ -32,6 +32,7 @@ describe('ContenidoCorreosService', () => {
       carrito: {
         findUnique: vi.fn().mockResolvedValue({ usuario: { rol: 'cliente' } }),
       },
+      cupon: { findFirst: vi.fn().mockResolvedValue(null) },
       usuario: {
         findUnique: vi
           .fn()

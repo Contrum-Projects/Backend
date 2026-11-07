@@ -27,7 +27,10 @@ import { PrismaService } from '../../prisma/prisma.service.js';
 import { CarritoService } from '../carrito/carrito.service.js';
 import { FirmaBaja } from '../marketing/firma-baja.js';
 import { FirmaSeguimiento } from '../marketing/firma-seguimiento.js';
-import { aplicarMarcadores } from '../marketing/marcadores-campana.js';
+import {
+  aplicarMarcadores,
+  codigoCuponDeCampana,
+} from '../marketing/marcadores-campana.js';
 import {
   leerOferta,
   ofertaDelCorreo,
@@ -270,7 +273,7 @@ export class ContenidoCorreosService {
     { notificacionId, destinatario }: TrabajoCampana,
     { asunto, campanaId, usuarioId }: NotificacionACorreo,
   ): Promise<CorreoRenderizado> {
-    const [campana, cuenta] = await Promise.all([
+    const [campana, cuenta, codigoCupon] = await Promise.all([
       this.prisma.campana.findUnique({
         where: { id: campanaId ?? -1 },
         select: { cuerpo: true },
@@ -282,6 +285,8 @@ export class ContenidoCorreosService {
             select: { nombre: true, apellido: true },
           })
         : null,
+      // SCRUM-150 · El cupón activo de hoy: si lo desactivaron, el correo sale sin código
+      codigoCuponDeCampana(this.prisma, campanaId ?? -1),
     ]);
     if (!campana) throw new Error('El correo no tiene su campaña');
     // SCRUM-150 · Los marcadores se completan con los datos de hoy de quien lo recibe
@@ -289,6 +294,7 @@ export class ContenidoCorreosService {
       nombre: cuenta?.nombre ?? null,
       apellido: cuenta?.apellido ?? null,
       urlTienda: this.config.get('URL_TIENDA', { infer: true }),
+      codigoCupon,
     };
     const asuntoFinal = aplicarMarcadores(asunto, datos);
     return {

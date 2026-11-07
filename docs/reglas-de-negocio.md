@@ -1158,7 +1158,7 @@ carrito). Un mínimo mayor que su máximo: 400 junto al máximo. Los suscriptore
 estos datos: pedirlos con cualquiera de estos filtros responde 400, como con las compras. En
 `campana.segmento` solo se escriben los filtros indicados (un segmento anterior se guarda igual).
 **Marcadores** (decisión del 7 nov, SCRUM-150; `marcadores-campana.ts`): el asunto y el cuerpo
-aceptan `{nombre}`, `{apellido}`, `{nombre_completo}` y `{enlace_tienda}` (`URL_TIENDA`). Cada
+aceptan `{nombre}`, `{apellido}`, `{nombre_completo}`, `{enlace_tienda}` (`URL_TIENDA`) y `{cupon}` (el código del cupón activo más reciente ligado a la campaña; con `{cupon}` y sin cupón activo, la vista previa que confirma y el envío responden 409, y en la vista previa en vivo, que acepta `campanaId`, queda a la vista; si lo desactivan mientras se envía, los correos que faltan salen sin código). Cada
 correo los completa **al enviarse** con los datos de la cuenta que lo recibe (el asunto guardado en
 NOTIFICACION queda con los marcadores). Un marcador que no existe (`{palabra}` en minúsculas) se
 rechaza al crear o editar (400, «El marcador {x} no existe…»). PROPUESTA por confirmar: a un

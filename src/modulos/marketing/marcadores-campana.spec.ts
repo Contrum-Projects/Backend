@@ -50,4 +50,20 @@ describe('marcadores de campaña (SCRUM-150)', () => {
     ).toEqual(['correo', 'oferta']);
     expect(marcadoresDesconocidos('Hola, {nombre}')).toEqual([]);
   });
+
+  it('SCRUM-150 · {cupon}: el código del cupón de la campaña; sin cupón se quita y sin campaña queda a la vista', () => {
+    expect(
+      aplicarMarcadores('Usa {cupon} al pagar', {
+        ...CUENTA,
+        codigoCupon: 'LOREAL20',
+      }),
+    ).toBe('Usa LOREAL20 al pagar');
+    expect(
+      aplicarMarcadores('Código: {cupon}', { ...CUENTA, codigoCupon: null }),
+    ).toBe('Código: ');
+    expect(aplicarMarcadores('Código: {cupon}', CUENTA)).toBe(
+      'Código: {cupon}',
+    );
+    expect(marcadoresDesconocidos('{cupon}')).toEqual([]);
+  });
 });

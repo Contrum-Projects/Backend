@@ -158,7 +158,7 @@ export class CampanasController {
     @Body() dto: RenderizarCampanaDto,
     @UsuarioActual() usuario: UsuarioAutenticado,
   ): Promise<CorreoCampana> {
-    return this.campanas.renderizar(dto, usuario.codigoPublico);
+    return this.campanas.renderizar(dto, usuario.codigoPublico, dto.campanaId);
   }
 
   @Post(':id/vista-previa')

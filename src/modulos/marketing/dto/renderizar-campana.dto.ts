@@ -1,4 +1,5 @@
-import { ApiProperty, PickType } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, PickType } from '@nestjs/swagger';
+import { IdEntero } from '../../../common/validacion/id-entero.js';
 import { CrearCampanaDto } from './crear-campana.dto.js';
 
 /**
@@ -8,7 +9,19 @@ import { CrearCampanaDto } from './crear-campana.dto.js';
 export class RenderizarCampanaDto extends PickType(CrearCampanaDto, [
   'asunto',
   'cuerpo',
-] as const) {}
+] as const) {
+  @ApiPropertyOptional({
+    example: 12,
+    description:
+      'El borrador que se está editando: con él, `{cupon}` muestra el código de su cupón activo (SCRUM-150).',
+  })
+  @IdEntero({
+    faltante: 'La campaña indicada no es válida.',
+    invalido: 'La campaña indicada no es válida.',
+    opcional: true,
+  })
+  campanaId?: number;
+}
 
 /**
  * El correo tal como saldría, sin `confirmacion`: con esta vista previa no se puede enviar. La que

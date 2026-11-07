@@ -490,6 +490,43 @@ describe('Cupones (e2e)', () => {
     );
   });
 
+  it('SCRUM-150 · {cupon} en una campaña: sin cupón activo ligado no deja confirmar; con él, la vista previa muestra su código', async () => {
+    const borrador = await servidor()
+      .post('/api/marketing/campanas')
+      .auth(tokenAdministrador, { type: 'bearer' })
+      .send({
+        asunto: `${PREFIJO} Tu cupón`,
+        cuerpo: 'Hola, {nombre}:\n\nUsa {cupon} en tu próxima compra.',
+        segmento: { tipos: ['cliente'] },
+      })
+      .expect(201);
+    const campanaId = (borrador.body as { id: number }).id;
+    const vistaPrevia = () =>
+      servidor()
+        .post(`/api/marketing/campanas/${campanaId}/vista-previa`)
+        .auth(tokenAdministrador, { type: 'bearer' });
+
+    expect(mensaje((await vistaPrevia().expect(409)).body)).toContain(
+      'no tiene un cupón activo',
+    );
+    // En vivo, sin cupón, el marcador queda a la vista
+    const enVivo = await servidor()
+      .post('/api/marketing/campanas/vista-previa')
+      .auth(tokenAdministrador, { type: 'bearer' })
+      .send({ asunto: 'Hola', cuerpo: 'Usa {cupon}', campanaId })
+      .expect(200);
+    expect((enVivo.body as { texto: string }).texto).toContain('{cupon}');
+
+    const cupon = (await crearCupon({ campanaId }).expect(201)).body as Cupon;
+    const vista = await vistaPrevia().expect(200);
+    expect((vista.body as { texto: string }).texto).toContain(
+      `Usa ${cupon.codigo} en tu próxima compra.`,
+    );
+    await prisma.campana
+      .delete({ where: { id: campanaId } })
+      .catch(() => undefined);
+  });
+
   it('SCRUM-150 · usos máximos: dos pedidos simultáneos con el último uso, solo uno lo obtiene', async () => {
     const formato = await nuevoFormato(1500);
     const cupon = (await crearCupon({ usosMaximos: 1 }).expect(201))

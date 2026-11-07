@@ -32,7 +32,11 @@ import { buscarDestinatarios } from './destinatarios-campana.js';
 import type { ActualizarCampanaDto } from './dto/actualizar-campana.dto.js';
 import type { CrearCampanaDto } from './dto/crear-campana.dto.js';
 import type { SegmentoCampanaDto } from './dto/segmento-campana.dto.js';
-import { aplicarMarcadores } from './marcadores-campana.js';
+import {
+  aplicarMarcadores,
+  codigoCuponDeCampana,
+  usaMarcador,
+} from './marcadores-campana.js';
 import { HuellaCampana } from './huella-campana.js';
 import {
   conSubcategorias,
@@ -87,6 +91,9 @@ const RANGOS_SEGMENTO = [
 ][];
 
 /** Crear las NOTIFICACION de una campaña grande puede pasar del plazo por omisión de Prisma (5 s). */
+export const SIN_CUPON =
+  'El mensaje usa {cupon}, pero la campaña no tiene un cupón activo. Crea uno en Cupones y elige esta campaña.';
+
 const PLAZO_TRANSACCION_MS = 30_000;
 
 const SELECCION = {
@@ -382,10 +389,11 @@ export class CampanasService {
   ): Promise<VistaPreviaCampana> {
     const fila = await this.buscar(id);
     if (fila.fechaEncolado) throw new ConflictException(YA_ENVIADA);
+    await this.exigirCupon(this.prisma, id, fila);
     const segmento = leerSegmento(fila.segmento);
     const destinatarios = await this.destinatarios(this.prisma, segmento);
     return {
-      ...(await this.renderizar(fila, codigoUsuario)),
+      ...(await this.renderizar(fila, codigoUsuario, id)),
       destinatarios: totalDestinatarios(destinatarios),
       confirmacion: this.huella.calcular({
         id,
@@ -412,6 +420,8 @@ export class CampanasService {
       cuerpo: string;
     },
     codigoUsuario: string,
+    /** Con la campaña, `{cupon}` muestra el código de su cupón activo (SCRUM-150). */
+    campanaId?: number,
   ): Promise<CorreoCampana> {
     const urlTienda = this.config
       .get('URL_TIENDA', { infer: true })
@@ -420,10 +430,16 @@ export class CampanasService {
       where: { codigoPublico: codigoUsuario },
       select: { nombre: true, apellido: true },
     });
+    // Sin cupón ligado, `{cupon}` queda a la vista: así se nota que falta crearlo
+    const codigoCupon =
+      campanaId === undefined
+        ? null
+        : await codigoCuponDeCampana(this.prisma, campanaId);
     const datos = {
       nombre: cuenta?.nombre ?? null,
       apellido: cuenta?.apellido ?? null,
       urlTienda,
+      ...(codigoCupon !== null && { codigoCupon }),
     };
     const asuntoFinal = aplicarMarcadores(asunto, datos);
     const { html, texto } = correoCampana({
@@ -474,6 +490,7 @@ export class CampanasService {
           throw new ConflictException(VISTA_PREVIA_VIEJA);
         }
 
+        await this.exigirCupon(tx, id, fila);
         const destinatarios = await this.destinatarios(tx, segmento);
         if (totalDestinatarios(destinatarios) === 0) {
           throw new ConflictException(SIN_DESTINATARIOS);
@@ -509,6 +526,27 @@ export class CampanasService {
       fechaEnvio: resultado.fechaEnvio,
       destinatarios: resultado.correos.length,
     };
+  }
+
+  /**
+   * SCRUM-150 · Un mensaje con `{cupon}` necesita un cupón activo ligado a la campaña: sin él cada
+   * correo saldría sin código. Se revisa en la vista previa que confirma y otra vez al enviar.
+   */
+  private async exigirCupon(
+    cliente: Prisma.TransactionClient,
+    id: number,
+    { asunto, cuerpo }: { asunto: string; cuerpo: string },
+  ): Promise<void> {
+    if (
+      !usaMarcador(
+        `${asunto}
+${cuerpo}`,
+        'cupon',
+      )
+    )
+      return;
+    if ((await codigoCuponDeCampana(cliente, id)) !== null) return;
+    throw new ConflictException(SIN_CUPON);
   }
 
   /** Una NOTIFICACION `campana` por dirección, con la cuenta o el suscriptor al que va. */
