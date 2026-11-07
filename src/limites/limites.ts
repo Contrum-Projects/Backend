@@ -3,6 +3,11 @@
  * `@Throttle({ default: LIMITES.X })` junto a `@UseGuards(ThrottlerGuard)`.
  */
 export const LIMITES = {
+  /**
+   * Probar un cupón sobre el carrito (SCRUM-150, decisión del 7 nov 2026): 10/min por cuenta, con
+   * `LimitePorCuentaGuard`. Alcanza para escribirlo mal un par de veces y frena adivinar códigos.
+   */
+  VALIDAR_CUPON: { limit: 10, ttl: 60_000 },
   /** Registro y confirmación del correo (E1-H1, decisión del 14 oct 2026): 5/min. */
   REGISTRO: { limit: 5, ttl: 60_000 },
   /**

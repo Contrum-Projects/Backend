@@ -328,6 +328,26 @@ export const ESTADOS_OCR = {
   NO_APLICA: 'no_aplica',
 } as const;
 
+/**
+ * CUPON.tipo_descuento (decisión del 7 de noviembre de 2026, SCRUM-150): un porcentaje (1 a 100,
+ * con tope opcional en pesos) o un monto fijo en pesos con IVA.
+ */
+export const TIPOS_DESCUENTO_CUPON = {
+  PORCENTAJE: 'porcentaje',
+  MONTO_FIJO: 'monto_fijo',
+} as const;
+
+/**
+ * CUPON.alcance (decisión del 7 de noviembre de 2026, SCRUM-150): todo el pedido (sin el despacho),
+ * ciertos formatos o packs, o los productos de ciertas categorías o marcas (un pack, solo si todos
+ * sus componentes calzan).
+ */
+export const ALCANCES_CUPON = {
+  PEDIDO: 'pedido',
+  ARTICULOS: 'articulos',
+  CATEGORIAS_MARCAS: 'categorias_marcas',
+} as const;
+
 /** CAMPANA.tipo: campaña de envío único o saludo de cumpleaños. */
 export const TIPOS_CAMPANA = {
   ENVIO_UNICO: 'envio_unico',

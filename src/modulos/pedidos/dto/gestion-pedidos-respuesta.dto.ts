@@ -90,6 +90,13 @@ class MontosDto {
 
   @ApiProperty({ example: 25990 })
   total: number;
+
+  @ApiProperty({
+    example: 0,
+    description:
+      'Lo que descontó el cupón, con IVA (SCRUM-150); ya va restado del neto, el IVA y el total.',
+  })
+  descuento: number;
 }
 
 class LineaPedidoDto {
@@ -256,6 +263,14 @@ export class DetallePedidoGestionDto {
 
   @ApiProperty({ type: MontosDto })
   montos: MontosDto;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    example: 'LOREAL20',
+    description: 'Código del cupón aplicado (SCRUM-150).',
+  })
+  cupon: string | null;
 
   @ApiProperty({ type: [LineaPedidoDto] })
   items: LineaPedidoDto[];

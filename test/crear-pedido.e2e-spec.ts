@@ -37,7 +37,7 @@ interface Pedido {
   tipoEntrega: string;
   tipoDocumento: string;
   porcentajeIva: number;
-  montos: { neto: number; iva: number; total: number };
+  montos: { neto: number; iva: number; total: number; descuento: number };
   items: { articuloId: number; cantidad: number; subtotal: number }[];
   envio: { servicio: string; costo: number; estado: string } | null;
   historial: { estado: string }[];
@@ -300,7 +300,12 @@ describe('Pedidos · crear el pedido desde el carrito (e2e)', () => {
     const pedido = respuesta.body as Pedido;
     expect(pedido.codigoPublico).toMatch(/^[A-Z2-9]{12}$/);
     expect(pedido.estado).toBe('pendiente_pago');
-    expect(pedido.montos).toEqual({ neto: 3009, iva: 573, total: 3582 });
+    expect(pedido.montos).toEqual({
+      neto: 3009,
+      iva: 573,
+      total: 3582,
+      descuento: 0,
+    });
     expect(pedido.montos.total).toBe((carrito.body as { total: number }).total);
     expect(pedido.items).toMatchObject([
       { articuloId: formato.id, cantidad: 3, subtotal: 3582 },
@@ -407,7 +412,12 @@ describe('Pedidos · crear el pedido desde el carrito (e2e)', () => {
     const pedido = respuesta.body as Pedido;
     expect(pedido.tipoEntrega).toBe('retiro');
     expect(pedido.envio).toBeNull();
-    expect(pedido.montos).toEqual({ neto: 1003, iva: 191, total: 1194 });
+    expect(pedido.montos).toEqual({
+      neto: 1003,
+      iva: 191,
+      total: 1194,
+      descuento: 0,
+    });
     const guardado = await prisma.pedido.findUniqueOrThrow({
       where: { codigoPublico: pedido.codigoPublico },
       select: { tipoEntrega: true, montoTotal: true, envio: true },
@@ -732,6 +742,7 @@ describe('Pedidos · crear el pedido desde el carrito (e2e)', () => {
       neto: 3000,
       iva: 570,
       total: 3570,
+      descuento: 0,
     });
     expect(await stockDe(shampoo.id)).toBe(1);
     expect(await stockDe(balsamo.id)).toBe(3);
@@ -748,7 +759,12 @@ describe('Pedidos · crear el pedido desde el carrito (e2e)', () => {
 
     // 3 × 802 neto mayorista: 3 × 954 con IVA
     const pedido = respuesta.body as Pedido;
-    expect(pedido.montos).toEqual({ neto: 2406, iva: 456, total: 2862 });
+    expect(pedido.montos).toEqual({
+      neto: 2406,
+      iva: 456,
+      total: 2862,
+      descuento: 0,
+    });
     const [detalle] = await prisma.detallePedido.findMany({
       where: { pedido: { codigoPublico: pedido.codigoPublico } },
     });

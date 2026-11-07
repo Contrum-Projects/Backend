@@ -86,7 +86,13 @@ export interface DetallePedidoCuenta {
   tipoEntrega: Valor<typeof TIPOS_ENTREGA>;
   tipoDocumento: Valor<typeof TIPOS_DOCUMENTO>;
   porcentajeIva: number;
-  montos: { neto: number; iva: number; total: number };
+  /**
+   * `descuento`: lo que descontó el cupón, con IVA (SCRUM-150), ya restado del neto, el IVA y el
+   * total; las líneas muestran su precio sin descuento.
+   */
+  montos: { neto: number; iva: number; total: number; descuento: number };
+  /** El código del cupón aplicado; `null` sin cupón. */
+  cupon: string | null;
   items: LineaPedido[];
   /** `null` si el pedido es para retiro en tienda. */
   envio: EnvioPedido | null;
@@ -186,6 +192,8 @@ export class MisPedidosService {
         montoNeto: true,
         montoIva: true,
         montoTotal: true,
+        montoDescuento: true,
+        cupon: { select: { codigo: true } },
         detalles: {
           select: {
             articuloId: true,
@@ -262,7 +270,9 @@ export class MisPedidosService {
         neto: pedido.montoNeto,
         iva: pedido.montoIva,
         total: pedido.montoTotal,
+        descuento: pedido.montoDescuento,
       },
+      cupon: pedido.cupon?.codigo ?? null,
       items: pedido.detalles.map((detalle) => {
         const { articulo } = detalle;
         const clave = articulo.imagenes[0]?.ubicacionArchivo;

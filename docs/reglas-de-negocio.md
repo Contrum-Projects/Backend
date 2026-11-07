@@ -1209,6 +1209,34 @@ no sea futura), así que puede poner la de hoy para recibir la oferta, una vez a
 que decidir si se acepta (la oferta se canjea a mano) o si se limita (fecha no editable una vez
 fijada, o no saludar si cambió hace poco, que cambiaría el MER).
 
+**Cupones** (decisiones del 7 nov 2026, SCRUM-150; módulo `cupones`). **Cambio al MER:** tablas
+CUPON, CUPON_ARTICULO, CUPON_CATEGORIA y CUPON_MARCA, y en PEDIDO `id_cupon` y `monto_descuento`
+(migración `agregar_cupones`, con CHECK de valores). **Cupón:** código único (letras, números y
+guiones, en mayúsculas), descripción opcional, `tipo_descuento` de `TIPOS_DESCUENTO_CUPON`
+(`porcentaje` 1 a 100 con tope opcional en pesos, o `monto_fijo` en pesos con IVA), `alcance` de
+`ALCANCES_CUPON` (`pedido`: todos los productos, sin el despacho; `articulos`: ciertos formatos o
+packs; `categorias_marcas`: productos de esas categorías, con sus subcategorías, o de esas marcas,
+y un pack solo si **todos** sus componentes calzan), compra mínima (subtotal de productos con IVA),
+vigencia (inicio y fin opcionales), usos máximos y usos por cuenta (opcionales), si aplica al
+precio profesional (por omisión no) y activo. **Uno por pedido.** Con `id_campana` (de envío único)
+solo lo usan las cuentas con una NOTIFICACION `enviada` de esa campaña; a las demás se les responde
+como si no existiera. Sin campaña, cualquier comprador que tenga el código. **Panel:**
+`/api/marketing/cupones` (`GET`, `GET /:id`, `POST`, `PATCH /:id`) con `campanas.gestionar`; no se
+borran, se desactivan; editar no cambia lo descontado en pedidos ya creados. El listado trae `usos`
+y `descontado` (pedidos no cancelados). **Comprador:** `POST /api/carrito/cupon { codigo }`
+devuelve `{ codigo, descripcion, descuento }` sobre el carrito actual, sin reservar (10/min por
+cuenta, `LIMITES.VALIDAR_CUPON`); `POST /api/pedidos` acepta `codigoCupon` y lo revisa otra vez en
+su transacción con la fila del cupón bloqueada (`FOR UPDATE`): dos pedidos simultáneos no pasan
+del máximo. Un uso cuenta **desde que se crea el pedido** y se libera si se cancela (por el plazo
+de pago o a mano). Cada rechazo responde 400 junto a `codigoCupon` (no existe o inactivo, aún no
+vigente, vencido, no es para la cuenta, profesional sin permiso, usos agotados, compra mínima, no
+cubre el carrito) y el pedido no se crea. **Montos:** el descuento (con IVA, redondeado al peso; el
+porcentaje con su tope; el monto fijo sin pasar de lo que cubre) se resta del total, su parte neta
+del neto, y el IVA queda como la diferencia; las líneas guardan su precio sin descuento. El detalle
+del pedido trae `montos.descuento` y `cupon` (código). PROPUESTA por confirmar: el pedido siempre
+cobra al menos $1 de productos (Mercado Pago no cobra $0), y el reparto neto/IVA del descuento con
+quien lleve la contabilidad.
+
 **E14 Reportes.** Solo administrador. OE1 30 %, OE2 70 % en 48 h, OE3 80 %; ventas por período y
 tipo de cliente; carritos abandonados y recuperados; resultado de campañas; stock bajo el mínimo.
 Decisiones del 30 oct (E14-H4): `GET /api/reportes/stock-bajo-minimo` con `reportes.ver` (solo

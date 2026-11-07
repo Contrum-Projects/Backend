@@ -58,6 +58,7 @@ model Usuario {
   cambiosEstadoPedido    HistorialEstadoPedido[]
   notificaciones         Notificacion[]
   campanas               Campana[]
+  cupones                Cupon[]
   entradasRecibidas      EntradaInventario[]
   movimientos            MovimientoInventario[]
   cambiosRol             HistorialRol[]          @relation("RolCambiado")
@@ -219,6 +220,7 @@ model Marca {
   activa Boolean @default(true)
 
   productos Producto[]
+  cupones   CuponMarca[]
 
   @@map("marca")
 }
@@ -229,9 +231,10 @@ model Categoria {
   nombre      String  @db.VarChar(100)
   descripcion String? @db.VarChar(255)
 
-  padre         Categoria?  @relation("Subcategorias", fields: [padreId], references: [id])
-  subcategorias Categoria[] @relation("Subcategorias")
+  padre         Categoria?       @relation("Subcategorias", fields: [padreId], references: [id])
+  subcategorias Categoria[]      @relation("Subcategorias")
   productos     Producto[]
+  cupones       CuponCategoria[]
 
   @@index([padreId])
   @@map("categoria")
@@ -276,6 +279,7 @@ model ArticuloVenta {
   historialPrecio HistorialPrecio[]
   itemsCarrito    ItemCarrito[]
   detallesPedido  DetallePedido[]
+  cupones         CuponArticulo[]
 
   @@map("articulo_venta")
 }
@@ -406,10 +410,14 @@ model Pedido {
   montoNeto               Int      @map("monto_neto")
   montoIva                Int      @map("monto_iva")
   montoTotal              Int      @map("monto_total")
+  /// Cupón aplicado (SCRUM-150) y lo que descontó, con IVA, en pesos. Ya va restado de los montos.
+  cuponId                 Int?     @map("id_cupon")
+  montoDescuento          Int      @default(0) @map("monto_descuento")
   /// Clave que manda el navegador al confirmar: un doble clic crea un solo pedido (E5-H3).
   claveIdempotencia       String?  @map("clave_idempotencia") @db.VarChar(36)
 
   usuario          Usuario                 @relation(fields: [usuarioId], references: [id])
+  cupon            Cupon?                  @relation(fields: [cuponId], references: [id])
   datosFacturacion DatosFacturacion?       @relation(fields: [datosFacturacionId], references: [id])
   detalles         DetallePedido[]
   pagos            Pago[]
@@ -422,6 +430,7 @@ model Pedido {
   @@unique([usuarioId, claveIdempotencia])
   @@index([usuarioId])
   @@index([estadoActual])
+  @@index([cuponId])
   @@map("pedido")
 }
 
@@ -608,8 +617,79 @@ model Campana {
 
   usuario        Usuario        @relation(fields: [usuarioId], references: [id])
   notificaciones Notificacion[]
+  cupones        Cupon[]
 
   @@map("campana")
+}
+
+/// Cupón de descuento (SCRUM-150). Con `campana`, solo lo usan las cuentas a las que se envió.
+model Cupon {
+  id                   Int       @id @default(autoincrement()) @map("id_cupon")
+  /// En mayúsculas, sin espacios: el que escribe el comprador.
+  codigo               String    @unique @db.VarChar(30)
+  descripcion          String?   @db.VarChar(200)
+  /// TIPOS_DESCUENTO_CUPON: porcentaje (1 a 100) o monto_fijo (pesos con IVA).
+  tipoDescuento        String    @map("tipo_descuento") @db.VarChar(30)
+  valor                Int
+  /// Tope en pesos del descuento por porcentaje.
+  topeDescuento        Int?      @map("tope_descuento")
+  /// ALCANCES_CUPON: pedido, articulos o categorias_marcas.
+  alcance              String    @db.VarChar(30)
+  /// Subtotal de productos con IVA mínimo para usarlo.
+  compraMinima         Int?      @map("compra_minima")
+  fechaInicio          DateTime? @map("fecha_inicio") @db.Timestamptz(6)
+  fechaFin             DateTime? @map("fecha_fin") @db.Timestamptz(6)
+  usosMaximos          Int?      @map("usos_maximos")
+  usosPorCuenta        Int?      @map("usos_por_cuenta")
+  /// También sobre el precio profesional (mayorista).
+  incluyeProfesionales Boolean   @default(false) @map("incluye_profesionales")
+  activo               Boolean   @default(true)
+  campanaId            Int?      @map("id_campana")
+  usuarioId            Int       @map("id_usuario")
+  fechaCreacion        DateTime  @default(now()) @map("fecha_creacion") @db.Timestamptz(6)
+
+  campana    Campana?         @relation(fields: [campanaId], references: [id])
+  usuario    Usuario          @relation(fields: [usuarioId], references: [id])
+  articulos  CuponArticulo[]
+  categorias CuponCategoria[]
+  marcas     CuponMarca[]
+  pedidos    Pedido[]
+
+  @@index([campanaId])
+  @@map("cupon")
+}
+
+model CuponArticulo {
+  cuponId    Int @map("id_cupon")
+  articuloId Int @map("id_articulo")
+
+  cupon    Cupon         @relation(fields: [cuponId], references: [id], onDelete: Cascade)
+  articulo ArticuloVenta @relation(fields: [articuloId], references: [id])
+
+  @@id([cuponId, articuloId])
+  @@map("cupon_articulo")
+}
+
+model CuponCategoria {
+  cuponId     Int @map("id_cupon")
+  categoriaId Int @map("id_categoria")
+
+  cupon     Cupon     @relation(fields: [cuponId], references: [id], onDelete: Cascade)
+  categoria Categoria @relation(fields: [categoriaId], references: [id])
+
+  @@id([cuponId, categoriaId])
+  @@map("cupon_categoria")
+}
+
+model CuponMarca {
+  cuponId Int @map("id_cupon")
+  marcaId Int @map("id_marca")
+
+  cupon Cupon @relation(fields: [cuponId], references: [id], onDelete: Cascade)
+  marca Marca @relation(fields: [marcaId], references: [id])
+
+  @@id([cuponId, marcaId])
+  @@map("cupon_marca")
 }
 
 // ────────────────────────────── Inventario ──────────────────────────────

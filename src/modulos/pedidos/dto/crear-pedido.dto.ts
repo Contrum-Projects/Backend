@@ -10,6 +10,7 @@ import {
   TIPOS_ENTREGA,
 } from '../../../common/dominio/valores.js';
 import { MAXIMO_INT4 } from '../../../common/validacion/enteros.js';
+import { TextoOpcional } from '../../../common/validacion/texto-opcional.js';
 
 const ENTREGAS = Object.values(TIPOS_ENTREGA);
 const DOCUMENTOS = Object.values(TIPOS_DOCUMENTO);
@@ -106,4 +107,13 @@ export class CrearPedidoDto {
     sobra: 'Los datos de facturación solo se indican con factura.',
   })
   datosFacturacionId?: number;
+
+  @ApiPropertyOptional({
+    example: 'LOREAL20',
+    maxLength: 30,
+    description:
+      'Código de un cupón (SCRUM-150): se valida y se aplica al crear el pedido. Sin mayúsculas ni espacios también vale.',
+  })
+  @TextoOpcional({ etiqueta: 'El código del cupón', maximo: 40 })
+  codigoCupon?: string | null;
 }

@@ -280,11 +280,16 @@ describe('Despacho · cotizar el envío con Chilexpress (e2e)', () => {
 
     const pedido = respuesta.body as {
       codigoPublico: string;
-      montos: { neto: number; iva: number; total: number };
+      montos: { neto: number; iva: number; total: number; descuento: number };
       envio: { servicio: string; costo: number };
     };
     expect(pedido.montos.total).toBe((cotizacion as { total: number }).total);
-    expect(pedido.montos).toEqual({ neto: 7146, iva: 1358, total: 8504 });
+    expect(pedido.montos).toEqual({
+      neto: 7146,
+      iva: 1358,
+      total: 8504,
+      descuento: 0,
+    });
     expect(pedido.envio).toMatchObject({ servicio: 'EXPRESS', costo: 7310 });
     const envio = await prisma.envio.findFirstOrThrow({
       where: { pedido: { codigoPublico: pedido.codigoPublico } },
