@@ -93,6 +93,7 @@ export class CrearCuponDto {
   codigo: string;
 
   @ApiPropertyOptional({
+    type: String,
     example: "20 % en productos L'Oréal",
     maxLength: 200,
     nullable: true,
@@ -122,6 +123,7 @@ export class CrearCuponDto {
   valor: number;
 
   @ApiPropertyOptional({
+    type: Number,
     example: 10000,
     nullable: true,
     description: 'Tope en pesos del descuento; solo con porcentaje.',
@@ -158,6 +160,7 @@ export class CrearCuponDto {
   marcas?: number[];
 
   @ApiPropertyOptional({
+    type: Number,
     example: 30000,
     nullable: true,
     description: 'Subtotal de productos con IVA mínimo para usarlo.',
@@ -165,15 +168,24 @@ export class CrearCuponDto {
   @PositivoOpcional('La compra mínima')
   compraMinima?: number | null;
 
-  @ApiPropertyOptional({ format: 'date-time', nullable: true })
+  @ApiPropertyOptional({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+  })
   @FechaHoraOpcional('El inicio de la vigencia')
   fechaInicio?: string | null;
 
-  @ApiPropertyOptional({ format: 'date-time', nullable: true })
+  @ApiPropertyOptional({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+  })
   @FechaHoraOpcional('El fin de la vigencia')
   fechaFin?: string | null;
 
   @ApiPropertyOptional({
+    type: Number,
     example: 100,
     nullable: true,
     description: 'Usos en total (pedidos no cancelados).',
@@ -182,6 +194,7 @@ export class CrearCuponDto {
   usosMaximos?: number | null;
 
   @ApiPropertyOptional({
+    type: Number,
     example: 1,
     nullable: true,
     description: 'Usos por cuenta.',
@@ -200,6 +213,7 @@ export class CrearCuponDto {
   activo?: boolean;
 
   @ApiPropertyOptional({
+    type: Number,
     example: 12,
     nullable: true,
     description:
