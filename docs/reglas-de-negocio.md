@@ -1149,8 +1149,8 @@ todos a la vez y dentro de una lista basta una opción): **compras** `compraEnUl
 pedido pagado en los últimos N días), `sinComprarHaceDias` (compró alguna vez y el último pedido
 pagado es de hace más de N días), `pedidosMinimo`/`pedidosMaximo` (0 a 10.000; máximo 0 = nunca
 compró) y `gastoMinimo`/`gastoMaximo` (total con IVA de sus pedidos pagados, en pesos); pagado =
-todo estado salvo `ESTADOS_SIN_VENTA`. **Ubicación** `regiones` y `comunas` (hasta 50 ids que
-existan; alguna dirección guardada en una de ellas). **Perfil** `mesesCumpleanos` (1 a 12),
+todo estado salvo `ESTADOS_SIN_VENTA`. **Ubicación** `regiones` y `comunas` (hasta 50 códigos CUT
+que existan, como en `/api/territorio`; alguna dirección guardada en una de ellas). **Perfil** `mesesCumpleanos` (1 a 12),
 `edadMinima`/`edadMaxima` (años cumplidos con la fecha de hoy en Chile; sin fecha de nacimiento
 no entra) y `generos` (el texto que escribió la cuenta, hasta 10). **Antigüedad**
 `registroUltimosDias` y `registroHaceMasDias` (1 a 3650) y `conCarrito` (productos en el

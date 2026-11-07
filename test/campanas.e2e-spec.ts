@@ -349,8 +349,14 @@ describe('Marketing · campañas de correo (e2e)', () => {
 
   it('SCRUM-150 · filtros de cuenta: compras recientes o antiguas, pedidos, gasto, ubicación, perfil, antigüedad y carrito', async () => {
     const [comuna, otraComuna] = await Promise.all([
-      prisma.comuna.findFirstOrThrow({ orderBy: { id: 'asc' } }),
-      prisma.comuna.findFirstOrThrow({ orderBy: { id: 'desc' } }),
+      prisma.comuna.findFirstOrThrow({
+        orderBy: { id: 'asc' },
+        include: { region: true },
+      }),
+      prisma.comuna.findFirstOrThrow({
+        orderBy: { id: 'desc' },
+        include: { region: true },
+      }),
     ]);
     const hace = (dias: number) => new Date(Date.now() - dias * 86_400_000);
     // Las dos compraron en la categoría: ese filtro las aísla de las cuentas de otras pruebas
@@ -405,8 +411,8 @@ describe('Marketing · campañas de correo (e2e)', () => {
     expect(await cuantos({ sinComprarHaceDias: 90 })).toBe(1);
     expect(await cuantos({ pedidosMinimo: 2 })).toBe(1);
     expect(await cuantos({ gastoMaximo: 11900 })).toBe(1);
-    expect(await cuantos({ comunas: [comuna.id] })).toBe(1);
-    expect(await cuantos({ regiones: [otraComuna.regionId] })).toBe(
+    expect(await cuantos({ comunas: [comuna.codigoCut] })).toBe(1);
+    expect(await cuantos({ regiones: [otraComuna.region.codigoCut] })).toBe(
       comuna.regionId === otraComuna.regionId ? 2 : 1,
     );
     expect(await cuantos({ mesesCumpleanos: [3] })).toBe(1);
@@ -419,7 +425,7 @@ describe('Marketing · campañas de correo (e2e)', () => {
     expect(
       await cuantos({
         compraEnUltimosDias: 30,
-        comunas: [comuna.id],
+        comunas: [comuna.codigoCut],
         generos: ['Femenino'],
         conCarrito: true,
       }),
@@ -454,7 +460,8 @@ describe('Marketing · campañas de correo (e2e)', () => {
     expect(JSON.stringify(rango.body)).toContain('La edad máxima');
 
     await pedir({ tipos: ['cliente'], mesesCumpleanos: [13] }).expect(400);
-    await pedir({ tipos: ['cliente'], regiones: [999_999] }).expect(400);
+    await pedir({ tipos: ['cliente'], regiones: ['99'] }).expect(400);
+    await pedir({ tipos: ['cliente'], comunas: ['santiago'] }).expect(400);
   });
 
   it('E12-H3 · CA1 campaña enviada · CA3 destinatarios sin consentimiento: tras la vista previa, encola solo a quienes compraron, aceptan publicidad y verificaron su correo, y guarda el segmento', async () => {

@@ -592,12 +592,12 @@ export class CampanasService {
       segmento.regiones.length === 0
         ? 0
         : this.prisma.region.count({
-            where: { id: { in: segmento.regiones } },
+            where: { codigoCut: { in: segmento.regiones } },
           }),
       segmento.comunas.length === 0
         ? 0
         : this.prisma.comuna.count({
-            where: { id: { in: segmento.comunas } },
+            where: { codigoCut: { in: segmento.comunas } },
           }),
     ]);
     if (regiones !== segmento.regiones.length) {

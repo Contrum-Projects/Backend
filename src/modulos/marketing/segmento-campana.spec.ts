@@ -45,7 +45,7 @@ describe('Segmento de campaña', () => {
     const segmento = normalizarSegmento({
       tipos: ['cliente'],
       compraEnUltimosDias: 30,
-      regiones: [13, 5, 13],
+      regiones: ['13', '05', '13'],
       mesesCumpleanos: [12, 1],
       generos: [' Femenino ', 'Femenino'],
       conCarrito: true,
@@ -57,7 +57,7 @@ describe('Segmento de campaña', () => {
       categorias: [],
       marcas: [],
       compraEnUltimosDias: 30,
-      regiones: [5, 13],
+      regiones: ['05', '13'],
       mesesCumpleanos: [1, 12],
       generos: ['Femenino'],
       conCarrito: true,
@@ -77,9 +77,9 @@ describe('Segmento de campaña', () => {
     expect(
       filtraPorCuenta(normalizarSegmento({ ...base, sinComprarHaceDias: 90 })),
     ).toBe(true);
-    expect(filtraPorCuenta(normalizarSegmento({ ...base, comunas: [3] }))).toBe(
-      true,
-    );
+    expect(
+      filtraPorCuenta(normalizarSegmento({ ...base, comunas: ['13101'] })),
+    ).toBe(true);
     expect(
       filtraPorCuenta(normalizarSegmento({ ...base, generos: ['Otro'] })),
     ).toBe(true);

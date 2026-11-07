@@ -80,14 +80,15 @@ export const buscarDestinatarios = async (
             AND (${s.gastoMaximo}::int IS NULL OR compras.gasto <= ${s.gastoMaximo}::int)
             -- Ubicación: alguna dirección guardada en una de las regiones o comunas
             AND (
-              (cardinality(${s.regiones}::int[]) = 0 AND cardinality(${s.comunas}::int[]) = 0)
+              (cardinality(${s.regiones}::text[]) = 0 AND cardinality(${s.comunas}::text[]) = 0)
               OR EXISTS (
                 SELECT 1
                 FROM direccion di
                 JOIN comuna co ON co.id_comuna = di.id_comuna
+                JOIN region re ON re.id_region = co.id_region
                 WHERE di.id_usuario = u.id_usuario
-                  AND (co.id_region = ANY(${s.regiones}::int[])
-                    OR di.id_comuna = ANY(${s.comunas}::int[]))
+                  AND (re.codigo_cut = ANY(${s.regiones}::text[])
+                    OR co.codigo_cut = ANY(${s.comunas}::text[]))
               )
             )
             -- Perfil

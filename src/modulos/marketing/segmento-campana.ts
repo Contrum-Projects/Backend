@@ -27,9 +27,9 @@ export interface SegmentoCampana {
   /** Total con IVA de sus pedidos pagados, en pesos. */
   gastoMinimo: number | null;
   gastoMaximo: number | null;
-  /** Con alguna dirección guardada en una de estas regiones o comunas. */
-  regiones: number[];
-  comunas: number[];
+  /** Código CUT de regiones y comunas: alguna dirección guardada en una de ellas. */
+  regiones: string[];
+  comunas: string[];
   /** Mes de su fecha de nacimiento (1 a 12). */
   mesesCumpleanos: number[];
   /** Años cumplidos hoy (hora de Chile); sin fecha de nacimiento no entra. */
@@ -59,12 +59,10 @@ export const FILTROS_NUMERO = [
   'registroHaceMasDias',
 ] as const satisfies readonly (keyof SegmentoCampana)[];
 
-/** Las listas de ids o números: sin repetidos y en orden. */
+/** Las listas de ids o números: sin repetidos y en orden. Regiones, comunas y géneros son textos. */
 const FILTROS_LISTA = [
   'categorias',
   'marcas',
-  'regiones',
-  'comunas',
   'mesesCumpleanos',
 ] as const satisfies readonly (keyof SegmentoCampana)[];
 
@@ -109,6 +107,8 @@ export const normalizarSegmento = (
   ...(Object.fromEntries(
     FILTROS_NUMERO.map((clave) => [clave, numeroONulo(segmento[clave])]),
   ) as Pick<SegmentoCampana, (typeof FILTROS_NUMERO)[number]>),
+  regiones: unicosOrdenados(textos(segmento.regiones)),
+  comunas: unicosOrdenados(textos(segmento.comunas)),
   generos: unicosOrdenados(textos(segmento.generos)),
   conCarrito: segmento.conCarrito === true,
 });

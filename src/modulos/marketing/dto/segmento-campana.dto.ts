@@ -19,6 +19,30 @@ export const MAXIMO_FILTROS_SEGMENTO = 50;
 
 const TIPOS: readonly string[] = Object.values(TIPOS_DESTINATARIO_CAMPANA);
 
+/** Lista opcional de códigos CUT de `digitos` dígitos, sin pasar del máximo. */
+const ListaDeCodigos = (etiqueta: string, digitos: number, invalido: string) =>
+  applyDecorators(
+    ValidateIf((_objeto, valor) => valor !== undefined),
+    IsArray({ message: `${etiqueta} deben ser una lista.` }),
+    ArrayMaxSize(MAXIMO_FILTROS_SEGMENTO, {
+      message: `Indica hasta ${MAXIMO_FILTROS_SEGMENTO} ${etiqueta.toLowerCase()}.`,
+    }),
+    ValidateBy({
+      name: 'codigosCut',
+      validator: {
+        validate: (valor: unknown) =>
+          Array.isArray(valor) &&
+          valor.every(
+            (codigo) =>
+              typeof codigo === 'string' &&
+              codigo.length === digitos &&
+              /^\d+$/.test(codigo),
+          ),
+        defaultMessage: () => invalido,
+      },
+    }),
+  );
+
 /** Hasta diez años atrás: acota los filtros de días. */
 export const MAXIMO_DIAS_SEGMENTO = 3650;
 /** Géneros que puede nombrar un segmento (la cuenta lo escribe hasta en 30 caracteres). */
@@ -156,22 +180,24 @@ export class SegmentoCampanaDto {
   gastoMaximo?: number | null;
 
   @ApiPropertyOptional({
-    type: [Number],
+    type: [String],
+    example: ['13'],
     maxItems: MAXIMO_FILTROS_SEGMENTO,
     description:
-      'Cuentas con alguna dirección guardada en una de estas regiones o de las comunas indicadas.',
+      'Código CUT de regiones: cuentas con alguna dirección guardada en una de ellas o en las comunas indicadas.',
   })
-  @ListaDeIds('Las regiones', 'Alguna región indicada no es válida.')
-  regiones?: number[];
+  @ListaDeCodigos('Las regiones', 2, 'Alguna región indicada no es válida.')
+  regiones?: string[];
 
   @ApiPropertyOptional({
-    type: [Number],
+    type: [String],
+    example: ['13101'],
     maxItems: MAXIMO_FILTROS_SEGMENTO,
     description:
-      'Cuentas con alguna dirección guardada en una de estas comunas o de las regiones indicadas.',
+      'Código CUT de comunas: cuentas con alguna dirección guardada en una de ellas o en las regiones indicadas.',
   })
-  @ListaDeIds('Las comunas', 'Alguna comuna indicada no es válida.')
-  comunas?: number[];
+  @ListaDeCodigos('Las comunas', 5, 'Alguna comuna indicada no es válida.')
+  comunas?: string[];
 
   @ApiPropertyOptional({
     type: [Number],

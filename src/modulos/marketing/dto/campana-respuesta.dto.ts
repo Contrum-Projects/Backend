@@ -102,16 +102,16 @@ export class SegmentoGuardadoDto {
   registroHaceMasDias: number | null;
 
   @ApiProperty({
-    type: [Number],
-    description: 'Ids de las regiones de sus direcciones.',
+    type: [String],
+    description: 'Código CUT de las regiones de sus direcciones.',
   })
-  regiones: number[];
+  regiones: string[];
 
   @ApiProperty({
-    type: [Number],
-    description: 'Ids de las comunas de sus direcciones.',
+    type: [String],
+    description: 'Código CUT de las comunas de sus direcciones.',
   })
-  comunas: number[];
+  comunas: string[];
 
   @ApiProperty({ type: [Number], description: 'Meses de cumpleaños (1 a 12).' })
   mesesCumpleanos: number[];
