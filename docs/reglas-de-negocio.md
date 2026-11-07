@@ -869,7 +869,11 @@ sin cambios; en el PATCH, `sugerencia` sin `descripcion`: 400. PATCH de la descr
 `manual` no cambian). La sugerencia sola nunca escribe nada: solo se guarda lo que el personal
 envía al crear o editar. **Cambio al MER:** `producto.ingredientes` (texto opcional, hasta 3000;
 en el PATCH `null` lo borra). Solo sale en las respuestas del panel; mostrarlo en la tienda no
-está en la historia.
+está en la historia. Decisiones del 7 nov (SCRUM-150): la ficha pública (`GET
+/api/tienda/productos/:id`) trae `ingredientes` (texto o `null`) para todos, y la IA entrega la
+lista **en español**: si el envase la trae en INCI u otro idioma, el nombre común en español de
+cada ingrediente (los que no lo tienen quedan como en el envase), sin agregar ni quitar. El
+personal la revisa antes de guardar, como la descripción.
 
 **E10 Verificación.** Requiere RUT. Flujo (cambio del 2 nov 2026, SCRUM-62 a 67): primero se
 consulta el **inicio de actividades en el SII** y, si no aprueba, el cliente adjunta documentos
@@ -1139,6 +1143,13 @@ enlace de baja de la vista previa lleva a `/ofertas/baja` sin token (no da de ba
 (clave derivada de `JWT_ACCESS_SECRET` con su propio dominio, `HuellaCampana`; sin variable ni
 columna nueva). **Vence a la hora** (`VIGENCIA_VISTA_PREVIA_MS`): pasada, 409 «más de una hora»
 y hay que pedir otra vista previa. **Vista previa en vivo** (decisión del 6 nov, SCRUM-150): `POST /vista-previa` `{ asunto, cuerpo }` arma el correo con la misma plantilla mientras se redacta y responde `{ asunto, html, texto }`; no guarda nada, no cuenta destinatarios y **nunca** entrega la `confirmacion` (no sirve para enviar). **Cifras del listado** (decisión del 6 nov, SCRUM-150): `GET` trae `contactos` (`aceptanPublicidad`: direcciones que recibirían hoy una campaña a todos; `cuentasVerificadas` y `suscriptoresSinCuenta`, sus dos partes, con las mismas reglas que el envío; `conRebote`: direcciones con algún correo `rebotada`) y, en cada fila, `destinatarios` (borrador: los de hoy, como su vista previa; enviada: a cuántas direcciones salió) y `porcentajeApertura` (enviada: de los correos `enviada`, cuántos tienen apertura, 0 a 100 redondeado; `null` en un borrador o sin envíos). Las respuestas de campañas se declaran en el Swagger.
+**Marcadores** (decisión del 7 nov, SCRUM-150; `marcadores-campana.ts`): el asunto y el cuerpo
+aceptan `{nombre}`, `{apellido}`, `{nombre_completo}` y `{enlace_tienda}` (`URL_TIENDA`). Cada
+correo los completa **al enviarse** con los datos de la cuenta que lo recibe (el asunto guardado en
+NOTIFICACION queda con los marcadores). Un marcador que no existe (`{palabra}` en minúsculas) se
+rechaza al crear o editar (400, «El marcador {x} no existe…»). PROPUESTA por confirmar: a un
+suscriptor sin cuenta, los de nombre quedan vacíos y se quitan con su coma («Hola, {nombre}:» →
+«Hola:»). Las vistas previas los completan con los datos de quien las pide.
 **Envío:** `POST /:id/envio` `{ confirmacion }` responde **202** `{ id, fechaEnvio,
 destinatarios }`. En una transacción con la campaña bloqueada (`FOR UPDATE`): ya enviada, 409
 (CA2); huella distinta (cambió después de la vista previa), 409 «Pide otra vista previa»; sin

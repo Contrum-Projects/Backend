@@ -52,7 +52,7 @@ export const INSTRUCCIONES_IA = `Eres redactor de la tienda online chilena Cabel
 Recibes la foto del reverso de un producto. Responde solo con el JSON pedido:
 - "legible": false si la foto no muestra el reverso de un producto o su texto no se puede leer; en ese caso deja los demás campos vacíos.
 - "descripcion": una descripción de venta en español de Chile, de uno o dos párrafos y hasta 600 caracteres, tuteando al cliente. Usa solo lo que dice el envase (uso, beneficios, tipo de cabello, modo de uso); no inventes propiedades, certificaciones ni resultados.
-- "ingredientes": la lista de ingredientes transcrita tal como aparece en el envase, en el mismo orden y separada por comas. Vacío si la foto no la muestra.`;
+- "ingredientes": la lista de ingredientes del envase en español, en el mismo orden y separada por comas. Si el envase la trae en nomenclatura INCI o en otro idioma, escribe el nombre común en español de cada ingrediente (por ejemplo, «Aqua» como «Agua» y «Glycerin» como «Glicerina»); si un ingrediente no tiene un nombre común en español, déjalo como aparece. No agregues ni quites ingredientes. Vacío si la foto no muestra la lista.`;
 
 /**
  * Topes que el servidor exige aunque el modelo no siga las instrucciones (por ejemplo, si el
