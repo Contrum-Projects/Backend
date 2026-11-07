@@ -128,10 +128,7 @@ export const esquemaEntorno = z
      */
     GROQ_API_KEY: opcional(z.string()),
     /** Modelo de Groq con visión que lee el reverso cuando Gemini falla. */
-    GROQ_MODELO: z
-      .string()
-      .min(1)
-      .default('meta-llama/llama-4-scout-17b-16e-instruct'),
+    GROQ_MODELO: z.string().min(1).default('qwen/qwen3.8-27b'),
     /**
      * Clave de la API de Khipu (E10-H1, decisión del 2 nov 2026), que consulta la «Situación
      * tributaria de terceros» del SII. Sin ella la app arranca, pero la consulta falla y quien
