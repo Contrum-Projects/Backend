@@ -711,6 +711,14 @@ PROPUESTAS por confirmar: (1) la historia solo pide guardar y consultar; editar 
 agregaron porque en el RF-09.02 dice administrar. (2) El mismo RUT puede repetirse en varios
 registros de la cuenta (una empresa con sucursales); no hay límite de registros. (3) El RUT de
 facturación puede ser distinto del RUT personal de la cuenta (E1-H5) y no se compara con él.
+Lista y detalle del panel (SCRUM-150, 6 nov): `GET /api/gestion/facturas?pagina&limite` y
+`GET /api/gestion/facturas/:codigoPedido`, con `facturacion.gestionar`. Entran los pedidos que
+pidieron factura y son venta (fuera `ESTADOS_SIN_VENTA`); `estado` es `ESTADOS_FACTURA_GESTION`:
+`emitida` con la factura vigente y su PDF (`FACTURA_CON_ARCHIVO`), si no `por_emitir`. Orden
+(decisión del 6 nov): primero las por emitir, del pedido más antiguo al más nuevo; después las
+emitidas, de la emisión más reciente a la más antigua. `porEmitir` es el conteo de la pestaña. El
+detalle da el receptor, los montos y la tasa: por emitir, de los datos de facturación del pedido;
+emitida, los que copió la factura. Una boleta o un pedido aún no pagado responde 404.
 Decisiones del 31 oct (E9-H3): `POST /api/pedidos/:codigoPedido/factura` con `facturacion.gestionar`
 (permiso nuevo, solo administrador y vendedor; bodeguero, cliente y profesional reciben 403 y sin
 sesión 401). El equipo lo confirmó el 31 oct, junto con el PDF de hasta 4 MB, la fecha de emisión
@@ -793,6 +801,17 @@ pago y cancelación no se pisen. PROPUESTA por confirmar: esta historia no enví
 el aviso por cambio de estado (RF-08.03) lo define E8-H2 (SCRUM-58), y la cancelación automática
 por impago (E6-H3) reutilizará este mismo reingreso. Sin cambios al MER.
 
+Lista y detalle del panel (SCRUM-150, 6 nov): `GET /api/gestion/pedidos?grupo&q&pagina&limite` y
+`GET /api/gestion/pedidos/:codigoPedido`, con `pedidos.gestionar`. Grupos (`GRUPOS_PEDIDOS_GESTION`,
+decisión del 6 nov): **por preparar** (pagado y en preparación; por defecto), **listos para
+retiro**, **despachados**, **pendientes de pago** y **todos** (entregados, retirados y cancelados
+solo ahí); solo por preparar y listos para retiro muestran su conteo, con la misma búsqueda. `q`
+busca en el código, el nombre, apellido o correo del cliente, la razón social de su factura y los
+productos o packs del pedido. El cliente de la lista es la razón social si pidió factura. El detalle
+es el de la cuenta (E8-H1) más el cliente, el historial con comentario y `realizadoPor` («Sistema»
+sin cuenta, «Cliente» si fue su dueño, o el nombre del personal), `cambiosPermitidos` (de
+`cambiosPermitidos()`, la misma secuencia que valida el cambio) y `sePuedeCancelar` (pendiente
+de pago, E8-H3).
 Decisiones del 29 oct (E8-H2): `POST /api/pedidos/:codigoPedido/estado` con `pedidos.gestionar`
 (administrador, bodeguero y vendedor); cliente y profesional reciben 403 y sin sesión 401. Cuerpo
 `{ estado, comentario? }` (el comentario, hasta 500 caracteres, se recorta). En **una transacción**:

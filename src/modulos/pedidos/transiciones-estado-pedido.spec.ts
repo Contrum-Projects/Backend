@@ -1,5 +1,6 @@
 import { ESTADOS_PEDIDO } from '../../common/dominio/valores.js';
 import {
+  cambiosPermitidos,
   ESTADOS_CON_AVISO,
   ETIQUETAS_ESTADO,
   sentidoDelCambio,
@@ -78,5 +79,47 @@ describe('transiciones de estado del pedido', () => {
     expect(Object.keys(ETIQUETAS_ESTADO).sort()).toEqual(
       Object.values(ESTADOS_PEDIDO).sort(),
     );
+  });
+});
+
+describe('cambiosPermitidos (SCRUM-150)', () => {
+  it('E8-H2 · ofrece la misma secuencia que valida el cambio, con lo que pide cada uno', () => {
+    expect(cambiosPermitidos('en_preparacion', 'despacho')).toEqual([
+      {
+        estado: 'despachado',
+        sentido: 'avance',
+        pideCodigoSeguimiento: true,
+        avisaAlCliente: true,
+      },
+      {
+        estado: 'pagado',
+        sentido: 'retroceso',
+        pideCodigoSeguimiento: false,
+        avisaAlCliente: false,
+      },
+    ]);
+    // Pagado solo avanza, y en preparación no avisa
+    expect(cambiosPermitidos('pagado', 'retiro')).toEqual([
+      {
+        estado: 'en_preparacion',
+        sentido: 'avance',
+        pideCodigoSeguimiento: false,
+        avisaAlCliente: false,
+      },
+    ]);
+  });
+
+  it('E8-H2 · cada cambio ofrecido es uno que sentidoDelCambio acepta; sin cambios en pendiente de pago ni cancelado', () => {
+    for (const actual of Object.values(ESTADOS_PEDIDO)) {
+      for (const entrega of ['despacho', 'retiro']) {
+        for (const cambio of cambiosPermitidos(actual, entrega)) {
+          expect(sentidoDelCambio(actual, cambio.estado, entrega)).toBe(
+            cambio.sentido,
+          );
+        }
+      }
+    }
+    expect(cambiosPermitidos('pendiente_pago', 'retiro')).toEqual([]);
+    expect(cambiosPermitidos('cancelado', 'despacho')).toEqual([]);
   });
 });

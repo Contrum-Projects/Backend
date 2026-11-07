@@ -23,6 +23,47 @@ export const ESTADOS_PEDIDO = {
 } as const;
 
 /**
+ * Grupos del filtro de pedidos del panel (E8-H2, decisión del 6 nov 2026, SCRUM-150), en el
+ * orden de los chips. `estados` vacío es «todos». Solo los grupos que piden una acción muestran
+ * su conteo. Entregados, retirados y cancelados se ven solo en «todos».
+ */
+export const GRUPOS_PEDIDOS_GESTION = [
+  {
+    clave: 'por_preparar',
+    nombre: 'Por preparar',
+    estados: [ESTADOS_PEDIDO.PAGADO, ESTADOS_PEDIDO.EN_PREPARACION],
+    conConteo: true,
+  },
+  {
+    clave: 'listos_para_retiro',
+    nombre: 'Listos para retiro',
+    estados: [ESTADOS_PEDIDO.LISTO_PARA_RETIRO],
+    conConteo: true,
+  },
+  {
+    clave: 'despachados',
+    nombre: 'Despachados',
+    estados: [ESTADOS_PEDIDO.DESPACHADO],
+    conConteo: false,
+  },
+  {
+    clave: 'pendientes_pago',
+    nombre: 'Pendientes de pago',
+    estados: [ESTADOS_PEDIDO.PENDIENTE_PAGO],
+    conConteo: false,
+  },
+  { clave: 'todos', nombre: 'Todos', estados: [], conConteo: false },
+] as const satisfies readonly {
+  clave: string;
+  nombre: string;
+  estados: readonly string[];
+  conConteo: boolean;
+}[];
+
+/** El grupo que se aplica si la consulta no trae uno. */
+export const GRUPO_PEDIDOS_POR_DEFECTO = 'por_preparar';
+
+/**
  * Estado de un objetivo del proyecto frente a su meta (E14-H1, SCRUM-150): lo decide el backend,
  * así la pantalla no compara porcentajes (RNF-03).
  */

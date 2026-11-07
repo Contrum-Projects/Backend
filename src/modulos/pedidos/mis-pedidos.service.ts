@@ -17,6 +17,7 @@ import {
   type Paginacion,
 } from '../../common/validacion/paginacion.js';
 import type { Entorno } from '../../config/entorno.js';
+import type { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { IMAGEN_PRINCIPAL } from '../catalogo/tienda.service.js';
 import {
@@ -157,12 +158,23 @@ export class MisPedidosService {
    * cambios de estado. De los cambios solo se muestran estado y fecha: el comentario y quién lo
    * hizo son del personal.
    */
-  async obtener(
+  obtener(
     codigoPublico: string,
     codigoPedido: string,
   ): Promise<DetallePedidoCuenta> {
+    return this.detalle({
+      codigoPublico: codigoPedido,
+      usuario: { codigoPublico },
+    });
+  }
+
+  /**
+   * El detalle del pedido que cumple `where`, o 404. Lo usan la cuenta (siempre con su dueño en el
+   * filtro) y el panel (E8-H2, SCRUM-150), que agrega lo que solo ve el personal.
+   */
+  async detalle(where: Prisma.PedidoWhereInput): Promise<DetallePedidoCuenta> {
     const pedido = await this.prisma.pedido.findFirst({
-      where: { codigoPublico: codigoPedido, usuario: { codigoPublico } },
+      where,
       select: {
         codigoPublico: true,
         fechaPedido: true,
