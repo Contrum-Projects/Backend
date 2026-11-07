@@ -841,7 +841,7 @@ envío: el código de seguimiento y el paso automático a entregado con Chilexpr
 **E4 IA.** Descripción sugerida e ingredientes desde la foto del reverso; nunca se publica sin
 revisión; se guarda el origen: manual, IA o IA editada.
 Decisiones del 2 nov (E4-H1): proveedor **Gemini Flash** (`@google/genai`, modelo en
-`GEMINI_MODELO`, por defecto `gemini-3.8-flash`; `gemini-2.5-flash` dejó de habilitarse para cuentas nuevas el 7 nov 2026). Ruta `POST /api/catalogo/descripciones/sugerencia`
+`GEMINI_MODELO`, por defecto `gemini-3.8-flash`; `gemini-2.5-flash` dejó de habilitarse para cuentas nuevas el 7 nov 2026; con los modelos Gemini 3 el razonamiento va en `thinkingLevel: LOW`, porque ignoran `thinkingBudget: 0` y pasan el plazo). Ruta `POST /api/catalogo/descripciones/sugerencia`
 con `catalogo.gestionar`: recibe la foto (JPEG, PNG o WebP hasta 4 MB, campo `imagen`) y devuelve
 `{ descripcion, ingredientes }` (`ingredientes` es `null` si la foto no los muestra). No guarda la
 foto ni la sugerencia: aceptarla, editarla y registrar el origen es de E4-H2. Foto ilegible: 422;

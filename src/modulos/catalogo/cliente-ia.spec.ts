@@ -6,6 +6,7 @@ import {
   interpretarRespuestaIa,
   LARGO_MAXIMO_DESCRIPCION_IA,
   LARGO_MAXIMO_INGREDIENTES_IA,
+  razonamientoPara,
 } from './cliente-ia.js';
 import type { TipoImagen } from './tipo-imagen.js';
 
@@ -199,5 +200,19 @@ describe('ClienteIaNoConfigurado', () => {
     await expect(
       new ClienteIaNoConfigurado().leerReverso(),
     ).rejects.toBeInstanceOf(ErrorServicioIa);
+  });
+
+  describe('razonamiento según el modelo (SCRUM-150)', () => {
+    it('E4-H1 · los Gemini 3 usan thinkingLevel LOW; los 2.x lo apagan con thinkingBudget 0', () => {
+      expect(razonamientoPara('gemini-3.8-flash')).toEqual({
+        thinkingLevel: 'LOW',
+      });
+      expect(razonamientoPara('gemini-flash-latest')).toEqual({
+        thinkingLevel: 'LOW',
+      });
+      expect(razonamientoPara('gemini-2.5-flash')).toEqual({
+        thinkingBudget: 0,
+      });
+    });
   });
 });

@@ -1,4 +1,10 @@
-import { ApiError, GoogleGenAI, Type } from '@google/genai';
+import {
+  ApiError,
+  GoogleGenAI,
+  ThinkingLevel,
+  type ThinkingConfig,
+  Type,
+} from '@google/genai';
 import { conPlazo } from '../../colas/encolar-correo.js';
 import type { TipoImagen } from './tipo-imagen.js';
 
@@ -9,6 +15,17 @@ export const CLIENTE_IA = Symbol('CLIENTE_IA');
  * 2 nov 2026: 30 s, a revisar con el uso). La persona espera con la pantalla abierta.
  */
 export const ESPERA_MAXIMA_IA_MS = 30_000;
+
+/**
+ * Razonamiento mínimo para transcribir y redactar, que no lo necesitan y así responde antes. Los
+ * modelos Gemini 2.x lo apagan con `thinkingBudget: 0`; los Gemini 3 lo ignoran (y razonan hasta
+ * pasar el plazo, 504) y usan `thinkingLevel`, donde el más bajo que aceptan es `LOW` (`MINIMAL`
+ * responde 400). Medido el 7 nov 2026: gemini-3.8-flash con LOW responde en unos 4 s.
+ */
+export const razonamientoPara = (modelo: string): ThinkingConfig =>
+  /^gemini-2\./.test(modelo)
+    ? { thinkingBudget: 0 }
+    : { thinkingLevel: ThinkingLevel.LOW };
 
 /** Lo que la IA lee en la foto del reverso (E4-H1, RF-04.01 y RF-04.02). */
 export type LecturaReverso =
@@ -135,8 +152,7 @@ export class ClienteGemini implements ClienteIa {
             responseSchema: ESQUEMA_RESPUESTA,
             temperature: 0.4,
             maxOutputTokens: 2048,
-            // Sin razonamiento: transcribir y redactar no lo necesita, y responde antes
-            thinkingConfig: { thinkingBudget: 0 },
+            thinkingConfig: razonamientoPara(this.modelo),
             abortSignal: cancelar.signal,
             // Un solo intento: los reintentos del SDK pasarían del plazo y cobrarían de más
             httpOptions: {
