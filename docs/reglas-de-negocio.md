@@ -308,6 +308,16 @@ mayorista no va, porque bodega también la ve (RNF-04).
 vendible (solo bodegas con `abasteceVentaOnline`); la de un pack es la de su componente más escaso.
 Búsqueda por nombre, marca, categoría o subcategoría; filtros combinables. Caché permitida solo
 para el árbol de categorías y marcas (RNF-30).
+Decisiones del 6 nov (SCRUM-150): `categoriaId` y `marcaId` de `GET /api/tienda/productos` se
+repiten para marcar varias (hasta 30 de cada una): dentro de un grupo basta una (cada categoría
+con sus subcategorías) y entre grupos se exigen los dos; un id inexistente o una marca inactiva,
+404. `GET /api/tienda/facetas` (mismos filtros y visibilidad, sin paginar) cuenta los productos
+por categoría (con sus subcategorías) y por marca; cada grupo cuenta con la búsqueda y los
+filtros del **otro** grupo, y solo vienen las opciones con productos. `orden` (`ORDENES_TIENDA`):
+sin él, por nombre; `mas-vendidos`, por unidades vendidas de sus formatos en los últimos
+`DIAS_MAS_VENDIDOS` (30) días en pedidos que son venta (`ESTADOS_SIN_VENTA` fuera; los packs
+vendidos no suman a sus componentes); `novedades`, por `producto.fecha_creacion` descendente.
+Los empates, por nombre.
 Decisiones del 24 oct (E2-H2): la búsqueda es el parámetro `buscar` de `GET /api/tienda/productos`
 (no un endpoint aparte) y se combina con `categoriaId`, `marcaId` y la paginación. Se separa en
 palabras y **cada** palabra debe estar en el nombre del producto, en el de su marca o en el de su

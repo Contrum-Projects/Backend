@@ -3,7 +3,12 @@ import { ConfigService } from '@nestjs/config';
 import { urlPublicaArchivo } from '../../almacen/almacen-archivos.js';
 import { precioConIva } from '../../common/dominio/montos.js';
 import { ROLES, type Rol } from '../../common/dominio/roles.js';
-import { CANALES_VENTA } from '../../common/dominio/valores.js';
+import {
+  CANALES_VENTA,
+  DIAS_MAS_VENDIDOS,
+  ESTADOS_SIN_VENTA,
+  ORDENES_TIENDA,
+} from '../../common/dominio/valores.js';
 import { POR_PAGINA } from '../../common/validacion/paginacion.js';
 import { escaparComodines } from '../../common/validacion/texto-busqueda.js';
 import type { Entorno } from '../../config/entorno.js';
@@ -11,7 +16,10 @@ import type { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { CacheCatalogo, CLAVES_CACHE } from './cache-catalogo.js';
 import { CategoriasService, type NodoCategoria } from './categorias.service.js';
-import type { ListarTiendaDto } from './dto/listar-tienda.dto.js';
+import type {
+  FiltrosTiendaDto,
+  ListarTiendaDto,
+} from './dto/listar-tienda.dto.js';
 import { MarcasService } from './marcas.service.js';
 /**
  * Un formato se puede vender en la tienda si su artículo está activo, tiene sus dos precios e
@@ -111,6 +119,12 @@ const ORDEN = [
   { id: 'asc' },
 ] satisfies Prisma.ProductoOrderByWithRelationInput[];
 
+/** «Novedades»: el producto creado más recientemente primero; el mismo instante, por nombre. */
+const ORDEN_NOVEDADES = [
+  { fechaCreacion: 'desc' },
+  ...ORDEN,
+] satisfies Prisma.ProductoOrderByWithRelationInput[];
+
 type FilaProducto = Prisma.ProductoGetPayload<{ select: typeof SELECCION }>;
 type FilaProductoProfesional = Prisma.ProductoGetPayload<{
   select: typeof SELECCION_PROFESIONAL;
@@ -178,44 +192,32 @@ export class TiendaService {
     const verMayorista = rol === ROLES.PROFESIONAL;
     const pagina = filtros.pagina ?? 1;
     const limite = filtros.limite ?? POR_PAGINA;
-    // Una palabra repetida no cambia el resultado: se busca una vez
-    const palabras = [
-      ...new Set(
-        filtros.buscar?.toLocaleLowerCase('es').split(/\s+/).filter(Boolean) ??
-          [],
-      ),
-    ];
-    const filasCategorias =
-      filtros.categoriaId !== undefined || palabras.length > 0
-        ? await this.leerCategorias()
-        : [];
-    let categorias: number[] | undefined;
-    if (filtros.categoriaId !== undefined) {
-      if (!filasCategorias.some((fila) => fila.id === filtros.categoriaId)) {
-        throw new NotFoundException('La categoría no existe.');
-      }
-      categorias = conDescendientes(filasCategorias, [filtros.categoriaId]);
-    }
-    if (filtros.marcaId !== undefined) {
-      await this.exigirMarcaActiva(filtros.marcaId);
-    }
-    const where: Prisma.ProductoWhereInput = {
-      ...productoALaVenta(verMayorista),
-      categoriaId: categorias ? { in: categorias } : undefined,
-      marcaId: filtros.marcaId,
-      AND:
-        palabras.length > 0
-          ? palabras.map((palabra) =>
-              condicionPalabra(palabra, filasCategorias),
-            )
-          : undefined,
-    };
-    const consulta = {
-      where,
-      orderBy: ORDEN,
-      skip: (pagina - 1) * limite,
-      take: limite,
-    };
+    const where = this.donde(await this.resolver(filtros, verMayorista));
+    // «Más vendidos» se ordena por un dato de los pedidos: primero se eligen los ids de la página
+    const idsPagina =
+      filtros.orden === ORDENES_TIENDA.MAS_VENDIDOS
+        ? await this.paginaMasVendidos(where, pagina, limite)
+        : undefined;
+    const consulta: {
+      where: Prisma.ProductoWhereInput;
+      orderBy: Prisma.ProductoOrderByWithRelationInput[];
+      skip?: number;
+      take?: number;
+    } = idsPagina
+      ? { where: { id: { in: idsPagina } }, orderBy: ORDEN }
+      : {
+          where,
+          orderBy:
+            filtros.orden === ORDENES_TIENDA.NOVEDADES
+              ? ORDEN_NOVEDADES
+              : ORDEN,
+          skip: (pagina - 1) * limite,
+          take: limite,
+        };
+    const enOrden = <T extends { id: number }>(filas: T[]) =>
+      idsPagina
+        ? idsPagina.flatMap((id) => filas.filter((fila) => fila.id === id))
+        : filas;
     const precios: Precios = {
       porcentajeIva: this.config.get('IVA_PORCENTAJE', { infer: true }),
       urlBaseImagenes: this.config.get('R2_URL_PUBLICA', { infer: true }),
@@ -228,7 +230,7 @@ export class TiendaService {
         }),
         this.prisma.producto.count({ where }),
       ]);
-      const items = filas
+      const items = enOrden(filas)
         .map((fila) => aProductoProfesional(fila, precios))
         .filter((item) => item !== null);
       return { items, total, pagina, limite };
@@ -237,10 +239,166 @@ export class TiendaService {
       this.prisma.producto.findMany({ ...consulta, select: SELECCION }),
       this.prisma.producto.count({ where }),
     ]);
-    const items = filas
+    const items = enOrden(filas)
       .map((fila) => aProductoTienda(fila, precios))
       .filter((item) => item !== null);
     return { items, total, pagina, limite };
+  }
+
+  /**
+   * Cuántos productos hay en cada categoría y en cada marca con la búsqueda y los filtros
+   * (E2-H2, SCRUM-150), para los conteos de los filtros. Las mismas reglas de visibilidad que el
+   * listado. Cada grupo cuenta con la búsqueda y los filtros del **otro** grupo: marcar una
+   * categoría no deja en 0 a las demás. El total de una categoría incluye sus subcategorías.
+   * Solo vienen las opciones con productos.
+   */
+  async facetas(filtros: FiltrosTiendaDto, rol?: Rol): Promise<FacetasTienda> {
+    const resueltos = await this.resolver(filtros, rol === ROLES.PROFESIONAL);
+    const filasCategorias =
+      resueltos.filasCategorias.length > 0
+        ? resueltos.filasCategorias
+        : await this.leerCategorias();
+    const [porCategoria, porMarca] = await Promise.all([
+      this.prisma.producto.groupBy({
+        by: ['categoriaId'],
+        where: this.donde(resueltos, { sinCategorias: true }),
+        _count: { _all: true },
+      }),
+      this.prisma.producto.groupBy({
+        by: ['marcaId'],
+        where: {
+          ...this.donde(resueltos, { sinMarcas: true }),
+          marcaId: { not: null },
+        },
+        _count: { _all: true },
+      }),
+    ]);
+    const enCategoria = new Map(
+      porCategoria.map((fila) => [fila.categoriaId, fila._count._all]),
+    );
+    const categorias = filasCategorias
+      .map((categoria) => ({
+        id: categoria.id,
+        total: conDescendientes(filasCategorias, [categoria.id]).reduce(
+          (suma, id) => suma + (enCategoria.get(id) ?? 0),
+          0,
+        ),
+      }))
+      .filter((faceta) => faceta.total > 0)
+      .sort((a, b) => a.id - b.id);
+    const marcas = porMarca
+      .filter((fila) => fila.marcaId !== null && fila._count._all > 0)
+      .map((fila) => ({ id: fila.marcaId as number, total: fila._count._all }))
+      .sort((a, b) => a.id - b.id);
+    return { categorias, marcas };
+  }
+
+  /**
+   * Los ids de una página de «más vendidos»: unidades de sus formatos vendidas en los últimos
+   * `DIAS_MAS_VENDIDOS` días en pedidos que son venta; los empates (y los sin ventas), por
+   * nombre. Ordena en memoria los productos que cumplen los filtros: el catálogo de la tienda es
+   * chico (cientos de productos).
+   */
+  private async paginaMasVendidos(
+    where: Prisma.ProductoWhereInput,
+    pagina: number,
+    limite: number,
+  ): Promise<number[]> {
+    const [productos, ventas] = await Promise.all([
+      this.prisma.producto.findMany({
+        where,
+        select: { id: true, nombre: true },
+        orderBy: ORDEN,
+      }),
+      this.prisma.$queryRaw<{ productoId: number; unidades: bigint }[]>`
+        SELECT f.id_producto AS "productoId", SUM(dp.cantidad)::bigint AS unidades
+        FROM detalle_pedido dp
+        JOIN pedido p ON p.id_pedido = dp.id_pedido
+        JOIN formato_producto f ON f.id_formato = dp.id_articulo
+        WHERE p.fecha_pedido >= now() - make_interval(days => ${DIAS_MAS_VENDIDOS}::int)
+          AND p.estado_actual <> ALL(${ESTADOS_SIN_VENTA}::text[])
+        GROUP BY f.id_producto`,
+    ]);
+    const unidades = new Map(
+      ventas.map((fila) => [fila.productoId, Number(fila.unidades)]),
+    );
+    // `productos` ya viene por nombre: el orden estable deja los empates así
+    return productos
+      .map((producto, indice) => ({
+        id: producto.id,
+        indice,
+        vendidas: unidades.get(producto.id) ?? 0,
+      }))
+      .sort((a, b) => b.vendidas - a.vendidas || a.indice - b.indice)
+      .slice((pagina - 1) * limite, pagina * limite)
+      .map((producto) => producto.id);
+  }
+
+  /**
+   * Comprueba los filtros y los deja listos para consultar: las palabras de la búsqueda, las
+   * categorías con sus subcategorías y las marcas. Una categoría inexistente, o una marca que no
+   * existe o no está activa, responde 404 como hasta ahora.
+   */
+  private async resolver(
+    filtros: FiltrosTiendaDto,
+    verMayorista: boolean,
+  ): Promise<FiltrosResueltos> {
+    // Una palabra repetida no cambia el resultado: se busca una vez
+    const palabras = [
+      ...new Set(
+        filtros.buscar?.toLocaleLowerCase('es').split(/\s+/).filter(Boolean) ??
+          [],
+      ),
+    ];
+    const categoriaIds = [...new Set(filtros.categoriaId ?? [])];
+    const marcaIds = [...new Set(filtros.marcaId ?? [])];
+    const filasCategorias =
+      categoriaIds.length > 0 || palabras.length > 0
+        ? await this.leerCategorias()
+        : [];
+    let categorias: number[] | undefined;
+    if (categoriaIds.length > 0) {
+      const existentes = new Set(filasCategorias.map((fila) => fila.id));
+      if (categoriaIds.some((id) => !existentes.has(id))) {
+        throw new NotFoundException('La categoría no existe.');
+      }
+      categorias = conDescendientes(filasCategorias, categoriaIds);
+    }
+    if (marcaIds.length > 0) {
+      await this.exigirMarcasActivas(marcaIds);
+    }
+    return {
+      verMayorista,
+      palabras,
+      filasCategorias,
+      categorias,
+      marcas: marcaIds.length > 0 ? marcaIds : undefined,
+    };
+  }
+
+  /** El `where` de los productos; las facetas dejan fuera el filtro de su propio grupo. */
+  private donde(
+    {
+      verMayorista,
+      palabras,
+      filasCategorias,
+      categorias,
+      marcas,
+    }: FiltrosResueltos,
+    { sinCategorias = false, sinMarcas = false } = {},
+  ): Prisma.ProductoWhereInput {
+    return {
+      ...productoALaVenta(verMayorista),
+      categoriaId:
+        categorias && !sinCategorias ? { in: categorias } : undefined,
+      marcaId: marcas && !sinMarcas ? { in: marcas } : undefined,
+      AND:
+        palabras.length > 0
+          ? palabras.map((palabra) =>
+              condicionPalabra(palabra, filasCategorias),
+            )
+          : undefined,
+    };
   }
 
   /** Árbol de categorías para navegar la tienda, desde la caché si está (RNF-30). */
@@ -268,15 +426,35 @@ export class TiendaService {
     });
   }
 
-  private async exigirMarcaActiva(marcaId: number) {
-    const marca = await this.prisma.marca.findUnique({
-      where: { id: marcaId },
-      select: { activa: true },
+  /** Todas las marcas indicadas existen y están activas; si no, 404. */
+  private async exigirMarcasActivas(marcaIds: number[]) {
+    const activas = await this.prisma.marca.count({
+      where: { id: { in: marcaIds }, activa: true },
     });
-    if (!marca?.activa) {
+    if (activas !== marcaIds.length) {
       throw new NotFoundException('La marca no existe.');
     }
   }
+}
+
+/** Los filtros comprobados, listos para armar el `where`. */
+interface FiltrosResueltos {
+  verMayorista: boolean;
+  palabras: string[];
+  filasCategorias: FilaCategoria[];
+  categorias?: number[];
+  marcas?: number[];
+}
+
+/** Cuántos productos hay en una categoría (con sus subcategorías) o en una marca. */
+export interface FacetaTienda {
+  id: number;
+  total: number;
+}
+
+export interface FacetasTienda {
+  categorias: FacetaTienda[];
+  marcas: FacetaTienda[];
 }
 
 interface FilaCategoria {

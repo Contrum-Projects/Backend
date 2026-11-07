@@ -11,8 +11,12 @@ import { calcularMontos } from '../src/common/dominio/montos.js';
 import { ROLES } from '../src/common/dominio/roles.js';
 import {
   CANALES_VENTA,
+  ESTADOS_PEDIDO,
   ORIGENES_DESCRIPCION,
   TIPOS_ARTICULO,
+  TIPOS_DOCUMENTO,
+  TIPOS_ENTREGA,
+  TIPOS_PRECIO,
 } from '../src/common/dominio/valores.js';
 import { configurarApp } from '../src/configurar-app.js';
 import { CLAVES_CACHE } from '../src/modulos/catalogo/cache-catalogo.js';
@@ -192,6 +196,12 @@ describe('Tienda · explorar el catálogo (e2e)', () => {
   const conIva = (neto: number) => calcularMontos(neto, porcentajeIva).total;
 
   const limpiar = async () => {
+    // Los pedidos de «más vendidos» apuntan a los artículos: primero ellos (el detalle, en cascada)
+    await prisma.pedido.deleteMany({
+      where: {
+        detalles: { some: { articulo: { sku: { startsWith: PREFIJO } } } },
+      },
+    });
     // El formato y las imágenes se borran en cascada con su artículo
     await prisma.articuloVenta.deleteMany({
       where: { sku: { startsWith: PREFIJO } },
@@ -814,6 +824,248 @@ describe('Tienda · explorar el catálogo (e2e)', () => {
       expect(despues.map((m) => m.id)).toContain(
         (nueva.body as { id: number }).id,
       );
+    });
+  });
+
+  describe('varias categorías y marcas, y facetas (SCRUM-150)', () => {
+    /** Los parámetros repetidos como los manda el navegador: `categoriaId=1&categoriaId=2`. */
+    const repetidos = (pares: [string, string | number][]) =>
+      new URLSearchParams(
+        pares.map(([clave, valor]) => [clave, String(valor)]),
+      ).toString();
+
+    const listarCon = (pares: [string, string | number][]) =>
+      request(app.getHttpServer())
+        .get(`${RUTA}/productos?${repetidos(pares)}`)
+        .expect(200);
+
+    const facetas = (pares: [string, string | number][], token?: string) => {
+      const peticion = request(app.getHttpServer()).get(
+        `${RUTA}/facetas?${repetidos(pares)}`,
+      );
+      return token ? peticion.auth(token, { type: 'bearer' }) : peticion;
+    };
+
+    it('E2-H2 · varias categorías y marcas: basta una dentro de cada grupo y se exigen los dos grupos', async () => {
+      const shampoo = await nuevaCategoria();
+      const sinSulfato = await nuevaCategoria(shampoo);
+      const tintes = await nuevaCategoria();
+      const otraMarca = await nuevaMarca();
+      const enSub = await nuevoProducto({ categoriaId: sinSulfato });
+      const enTintes = await nuevoProducto({
+        categoriaId: tintes,
+        marcaId: otraMarca,
+      });
+      // Cumple la categoría pero no la marca
+      await nuevoProducto({ categoriaId: tintes, marcaId: await nuevaMarca() });
+
+      const { items } = (
+        await listarCon([
+          ['categoriaId', shampoo],
+          ['categoriaId', tintes],
+          ['marcaId', marcaId],
+          ['marcaId', otraMarca],
+        ])
+      ).body as ListadoRespuesta;
+
+      expect(items.map((p) => p.id).sort((a, b) => a - b)).toEqual(
+        [enSub.id, enTintes.id].sort((a, b) => a - b),
+      );
+    });
+
+    it('E2-H2 · facetas: cada categoría con sus subcategorías y cada marca, contando con el filtro del otro grupo', async () => {
+      const palabra = palabraUnica();
+      const cuidado = await nuevaCategoria();
+      const shampoo = await nuevaCategoria(cuidado);
+      const tintes = await nuevaCategoria();
+      const otraMarca = await nuevaMarca();
+      await nuevoProducto({ categoriaId: shampoo, nombre: palabra });
+      await nuevoProducto({ categoriaId: shampoo, nombre: palabra });
+      await nuevoProducto({
+        categoriaId: tintes,
+        nombre: palabra,
+        marcaId: otraMarca,
+      });
+      // No cuentan: exclusivo para profesionales e inactivo
+      await nuevoProducto({
+        categoriaId: tintes,
+        nombre: palabra,
+        canalVenta: CANALES_VENTA.PROFESIONAL,
+      });
+      await nuevoProducto({
+        categoriaId: tintes,
+        nombre: palabra,
+        activo: false,
+      });
+
+      const todas = (await facetas([['buscar', palabra]]).expect(200)).body;
+      expect(todas).toEqual({
+        categorias: [
+          { id: cuidado, total: 2 },
+          { id: shampoo, total: 2 },
+          { id: tintes, total: 1 },
+        ].sort((a, b) => a.id - b.id),
+        marcas: [
+          { id: marcaId, total: 2 },
+          { id: otraMarca, total: 1 },
+        ].sort((a, b) => a.id - b.id),
+      });
+
+      // Con «Tintes» marcado, las categorías siguen contando todas; las marcas, solo en Tintes
+      const conTintes = (
+        await facetas([
+          ['buscar', palabra],
+          ['categoriaId', tintes],
+        ]).expect(200)
+      ).body as { categorias: unknown[]; marcas: unknown[] };
+      expect(conTintes.categorias).toEqual(todas.categorias);
+      expect(conTintes.marcas).toEqual([{ id: otraMarca, total: 1 }]);
+    });
+
+    it('E2-H4 · facetas: con sesión profesional también cuentan los exclusivos', async () => {
+      const palabra = palabraUnica();
+      const categoria = await nuevaCategoria();
+      await nuevoProducto({
+        categoriaId: categoria,
+        nombre: palabra,
+        canalVenta: CANALES_VENTA.PROFESIONAL,
+      });
+      const token = await tokenDe(ROLES.PROFESIONAL);
+
+      expect((await facetas([['buscar', palabra]]).expect(200)).body).toEqual({
+        categorias: [],
+        marcas: [],
+      });
+      expect(
+        (await facetas([['buscar', palabra]], token).expect(200)).body,
+      ).toMatchObject({ categorias: [{ id: categoria, total: 1 }] });
+    });
+
+    it('E2-H2 · facetas y listado: un id inexistente responde 404 y uno inválido 400', async () => {
+      await facetas([['categoriaId', 2_000_000_000]]).expect(404);
+      await facetas([
+        ['marcaId', marcaId],
+        ['marcaId', 2_000_000_000],
+      ]).expect(404);
+      await facetas([['categoriaId', 'abc']]).expect(400);
+      await request(app.getHttpServer())
+        .get(
+          `${RUTA}/productos?${repetidos(
+            Array.from({ length: 31 }, (_, i): [string, number] => [
+              'categoriaId',
+              i + 1,
+            ]),
+          )}`,
+        )
+        .expect(400);
+    });
+  });
+
+  describe('orden del listado (SCRUM-150)', () => {
+    /** Un pedido con `unidades` del primer formato del producto, hace `diasAtras` días. */
+    const venta = async (
+      productoId: number,
+      unidades: number,
+      {
+        diasAtras = 1,
+        estado = ESTADOS_PEDIDO.PAGADO as string,
+      }: { diasAtras?: number; estado?: string } = {},
+    ) => {
+      const { id: articuloId } = await prisma.formatoProducto.findFirstOrThrow({
+        where: { productoId },
+      });
+      const { id: usuarioId } = await prisma.usuario.findFirstOrThrow({
+        where: { email: { in: correosCreados } },
+      });
+      const fecha = new Date(Date.now() - diasAtras * 86_400_000);
+      await prisma.pedido.create({
+        data: {
+          codigoPublico: randomUUID().replace(/-/g, '').slice(0, 12),
+          usuarioId,
+          fechaPedido: fecha,
+          fechaExpiracionPago: new Date(fecha.getTime() + 15 * 60_000),
+          estadoActual: estado,
+          tipoEntrega: TIPOS_ENTREGA.RETIRO,
+          tipoDocumentoSolicitado: TIPOS_DOCUMENTO.BOLETA,
+          porcentajeIva: 19,
+          montoNeto: 10000 * unidades,
+          montoIva: 1900 * unidades,
+          montoTotal: 11900 * unidades,
+          detalles: {
+            create: [
+              {
+                articuloId,
+                cantidad: unidades,
+                precioUnitarioNetoAplicado: 10000,
+                tipoPrecio: TIPOS_PRECIO.MINORISTA,
+              },
+            ],
+          },
+        },
+      });
+    };
+
+    const ids = async (orden: string, categoriaId: number) =>
+      (
+        (await listar({ orden, categoriaId }).expect(200))
+          .body as ListadoRespuesta
+      ).items.map((p) => p.id);
+
+    it('E2-H1 · más vendidos: por unidades de los últimos 30 días en pedidos que son venta; el resto, por nombre', async () => {
+      // Una cuenta para los pedidos de prueba
+      await tokenDe(ROLES.CLIENTE);
+      const categoria = await nuevaCategoria();
+      const a = await nuevoProducto({ categoriaId: categoria, nombre: 'A' });
+      const b = await nuevoProducto({ categoriaId: categoria, nombre: 'B' });
+      const c = await nuevoProducto({ categoriaId: categoria, nombre: 'C' });
+      const d = await nuevoProducto({ categoriaId: categoria, nombre: 'D' });
+      await venta(c.id, 5);
+      await venta(b.id, 2);
+      await venta(b.id, 1);
+      // No cuentan: hace más de 30 días, cancelado y pendiente de pago
+      await venta(d.id, 50, { diasAtras: 31 });
+      await venta(a.id, 50, { estado: ESTADOS_PEDIDO.CANCELADO });
+      await venta(d.id, 50, { estado: ESTADOS_PEDIDO.PENDIENTE_PAGO });
+
+      expect(await ids('mas-vendidos', categoria)).toEqual([
+        c.id,
+        b.id,
+        a.id,
+        d.id,
+      ]);
+      // La página sigue el mismo orden
+      const segunda = (
+        await listar({
+          orden: 'mas-vendidos',
+          categoriaId: categoria,
+          limite: 2,
+          pagina: 2,
+        }).expect(200)
+      ).body as ListadoRespuesta;
+      expect(segunda.items.map((p) => p.id)).toEqual([a.id, d.id]);
+      expect(segunda.total).toBe(4);
+    });
+
+    it('E2-H1 · novedades: el producto creado más recientemente primero', async () => {
+      const categoria = await nuevaCategoria();
+      const viejo = await nuevoProducto({
+        categoriaId: categoria,
+        nombre: 'A',
+      });
+      const nuevo = await nuevoProducto({
+        categoriaId: categoria,
+        nombre: 'B',
+      });
+      await prisma.producto.update({
+        where: { id: viejo.id },
+        data: { fechaCreacion: new Date('2026-01-01T12:00:00Z') },
+      });
+
+      expect(await ids('novedades', categoria)).toEqual([nuevo.id, viejo.id]);
+    });
+
+    it('E2-H1 · un orden desconocido responde 400', async () => {
+      await listar({ orden: 'precio' }).expect(400);
     });
   });
 });

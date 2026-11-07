@@ -40,7 +40,7 @@ const crearPrisma = () => ({
     count: vi.fn().mockResolvedValue(1),
   },
   categoria: { findMany: vi.fn().mockResolvedValue(CATEGORIAS) },
-  marca: { findUnique: vi.fn().mockResolvedValue({ activa: true }) },
+  marca: { count: vi.fn().mockResolvedValue(1) },
   $transaction: vi.fn((consultas: Promise<unknown>[]) =>
     Promise.all(consultas),
   ),
@@ -88,7 +88,7 @@ describe('TiendaService', () => {
 
   describe('listarProductos', () => {
     it('E2-H1 · categoría con productos: busca en ella y en todas sus subcategorías', async () => {
-      await servicio.listarProductos({ categoriaId: 1 });
+      await servicio.listarProductos({ categoriaId: [1] });
 
       expect(whereDe(prisma)).toMatchObject({
         categoriaId: { in: [1, 2, 3] },
@@ -96,7 +96,7 @@ describe('TiendaService', () => {
     });
 
     it('E2-H1 · categoría con productos: devuelve imagen, nombre y precio minorista con IVA', async () => {
-      const resultado = await servicio.listarProductos({ categoriaId: 3 });
+      const resultado = await servicio.listarProductos({ categoriaId: [3] });
 
       expect(resultado).toEqual({
         items: [
@@ -129,7 +129,7 @@ describe('TiendaService', () => {
     it('E3-H3 · la imagen sale con la URL pública del almacén', async () => {
       variables.R2_URL_PUBLICA = 'https://imagenes.cabelloperfecto.cl';
       try {
-        const { items } = await servicio.listarProductos({ categoriaId: 3 });
+        const { items } = await servicio.listarProductos({ categoriaId: [3] });
 
         expect(items[0].imagen).toBe(
           'https://imagenes.cabelloperfecto.cl/img/a.jpg',
@@ -140,7 +140,7 @@ describe('TiendaService', () => {
     });
 
     it('E2-H1 · solo productos activos, de venta general, con marca activa y un formato vendible', async () => {
-      await servicio.listarProductos({ categoriaId: 3 });
+      await servicio.listarProductos({ categoriaId: [3] });
 
       expect(whereDe(prisma)).toMatchObject({
         activo: true,
@@ -216,34 +216,33 @@ describe('TiendaService', () => {
       prisma.producto.findMany.mockResolvedValue([]);
       prisma.producto.count.mockResolvedValue(0);
 
-      const resultado = await servicio.listarProductos({ categoriaId: 4 });
+      const resultado = await servicio.listarProductos({ categoriaId: [4] });
 
       expect(resultado).toEqual({ items: [], total: 0, pagina: 1, limite: 20 });
     });
 
     it('E2-H1 · categoría inexistente: responde 404', async () => {
       await expect(
-        servicio.listarProductos({ categoriaId: 99 }),
+        servicio.listarProductos({ categoriaId: [99] }),
       ).rejects.toBeInstanceOf(NotFoundException);
       expect(prisma.producto.findMany).not.toHaveBeenCalled();
     });
 
     it('E2-H1 · navegación por marca: filtra solo los productos de esa marca', async () => {
-      await servicio.listarProductos({ marcaId: 2 });
+      await servicio.listarProductos({ marcaId: [2] });
 
-      expect(whereDe(prisma)).toMatchObject({ marcaId: 2 });
+      expect(whereDe(prisma)).toMatchObject({ marcaId: { in: [2] } });
     });
 
     it('E2-H1 · marca inexistente o desactivada: responde 404', async () => {
-      prisma.marca.findUnique.mockResolvedValueOnce(null);
+      // Sin marca activa con ese id (no existe o está desactivada)
+      prisma.marca.count.mockResolvedValueOnce(0);
       await expect(
-        servicio.listarProductos({ marcaId: 99 }),
+        servicio.listarProductos({ marcaId: [99] }),
       ).rejects.toBeInstanceOf(NotFoundException);
-
-      prisma.marca.findUnique.mockResolvedValueOnce({ activa: false });
-      await expect(
-        servicio.listarProductos({ marcaId: 2 }),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(prisma.marca.count).toHaveBeenCalledWith({
+        where: { id: { in: [99] }, activa: true },
+      });
       expect(prisma.producto.findMany).not.toHaveBeenCalled();
     });
 
@@ -330,13 +329,13 @@ describe('TiendaService', () => {
     it('E2-H2 · filtros combinados: búsqueda, categoría y marca se exigen a la vez', async () => {
       await servicio.listarProductos({
         buscar: 'reparador',
-        categoriaId: 2,
-        marcaId: 2,
+        categoriaId: [2],
+        marcaId: [2],
       });
 
       expect(whereDe(prisma)).toMatchObject({
         categoriaId: { in: [2, 3] },
-        marcaId: 2,
+        marcaId: { in: [2] },
         AND: [condicion('reparador')],
       });
       expect(prisma.categoria.findMany).toHaveBeenCalledTimes(1);
@@ -454,14 +453,14 @@ describe('TiendaService', () => {
 
     it('E2-H4 · productos exclusivos: también aparecen al buscar y filtrar', async () => {
       await servicio.listarProductos(
-        { buscar: 'shampoo', categoriaId: 1, marcaId: 2 },
+        { buscar: 'shampoo', categoriaId: [1], marcaId: [2] },
         ROLES.PROFESIONAL,
       );
 
       expect(whereDe(prisma)).toMatchObject({
         canalVenta: { in: ['general', 'profesional'] },
         categoriaId: { in: [1, 2, 3] },
-        marcaId: 2,
+        marcaId: { in: [2] },
         AND: [expect.any(Object)],
       });
     });
@@ -559,6 +558,161 @@ describe('TiendaService', () => {
         'cache:tienda:marcas',
         expect.any(Function),
       );
+    });
+  });
+
+  describe('varias categorías y marcas (SCRUM-150)', () => {
+    it('E2-H2 · dentro de un grupo basta una: categorías con sus subcategorías y marcas en lista', async () => {
+      prisma.marca.count.mockResolvedValueOnce(2);
+
+      await servicio.listarProductos({ categoriaId: [2, 4], marcaId: [2, 7] });
+
+      expect(whereDe(prisma)).toMatchObject({
+        categoriaId: { in: [2, 4, 3] },
+        marcaId: { in: [2, 7] },
+      });
+    });
+
+    it('E2-H2 · un id repetido cuenta una vez y uno inexistente responde 404', async () => {
+      await servicio.listarProductos({ marcaId: [2, 2] });
+      expect(prisma.marca.count).toHaveBeenCalledWith({
+        where: { id: { in: [2] }, activa: true },
+      });
+
+      await expect(
+        servicio.listarProductos({ categoriaId: [2, 99] }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  describe('facetas (SCRUM-150)', () => {
+    const conGrupos = (
+      porCategoria: { categoriaId: number; total: number }[],
+      porMarca: { marcaId: number | null; total: number }[],
+    ) => {
+      const groupBy = vi
+        .fn()
+        .mockResolvedValueOnce(
+          porCategoria.map(({ categoriaId, total }) => ({
+            categoriaId,
+            _count: { _all: total },
+          })),
+        )
+        .mockResolvedValueOnce(
+          porMarca.map(({ marcaId, total }) => ({
+            marcaId,
+            _count: { _all: total },
+          })),
+        );
+      (prisma.producto as unknown as { groupBy: typeof groupBy }).groupBy =
+        groupBy;
+      return groupBy;
+    };
+
+    it('E2-H2 · conteos: la categoría suma sus subcategorías y solo vienen las que tienen productos', async () => {
+      conGrupos(
+        [
+          { categoriaId: 2, total: 3 },
+          { categoriaId: 3, total: 2 },
+        ],
+        [{ marcaId: 2, total: 5 }],
+      );
+
+      await expect(servicio.facetas({})).resolves.toEqual({
+        // Cuidado (1) > Shampoo (2) > Sin sulfato (3); Coloración (4) no tiene
+        categorias: [
+          { id: 1, total: 5 },
+          { id: 2, total: 5 },
+          { id: 3, total: 2 },
+        ],
+        marcas: [{ id: 2, total: 5 }],
+      });
+    });
+
+    it('E2-H2 · cada grupo cuenta con los filtros del otro, no con los suyos', async () => {
+      const groupBy = conGrupos([], []);
+      prisma.marca.count.mockResolvedValueOnce(1);
+
+      await servicio.facetas({ categoriaId: [4], marcaId: [2] });
+
+      const [porCategoria, porMarca] = groupBy.mock.calls.map(
+        ([argumentos]) => (argumentos as { where: object }).where,
+      );
+      // Las categorías: con la marca, sin la categoría marcada
+      expect(porCategoria).toMatchObject({
+        categoriaId: undefined,
+        marcaId: { in: [2] },
+      });
+      // Las marcas: con la categoría, sin la marca marcada (y sin productos sin marca)
+      expect(porMarca).toMatchObject({
+        categoriaId: { in: [4] },
+        marcaId: { not: null },
+      });
+    });
+
+    it('RNF-04 · el visitante solo cuenta productos de venta general; el profesional, también los exclusivos', async () => {
+      const groupBy = conGrupos([], []);
+      await servicio.facetas({});
+      expect(
+        (groupBy.mock.calls[0][0] as { where: object }).where,
+      ).toMatchObject({ canalVenta: 'general' });
+
+      const otro = conGrupos([], []);
+      await servicio.facetas({}, ROLES.PROFESIONAL);
+      expect((otro.mock.calls[0][0] as { where: object }).where).toMatchObject({
+        canalVenta: { in: ['general', 'profesional'] },
+      });
+    });
+  });
+
+  describe('orden (SCRUM-150)', () => {
+    it('E2-H1 · novedades: el creado más recientemente primero, y sin orden por nombre', async () => {
+      await servicio.listarProductos({ orden: 'novedades' });
+      await servicio.listarProductos({});
+
+      const ordenDe = (llamada: number) =>
+        (
+          prisma.producto.findMany.mock.calls[llamada][0] as {
+            orderBy: unknown;
+          }
+        ).orderBy;
+      expect(ordenDe(0)).toEqual([
+        { fechaCreacion: 'desc' },
+        { nombre: 'asc' },
+        { id: 'asc' },
+      ]);
+      expect(ordenDe(1)).toEqual([{ nombre: 'asc' }, { id: 'asc' }]);
+    });
+
+    it('E2-H1 · más vendidos: por unidades vendidas, los empates por nombre, y pagina sobre ese orden', async () => {
+      // Los que cumplen los filtros, por nombre; luego la página pedida
+      prisma.producto.findMany
+        .mockResolvedValueOnce([
+          { id: 1, nombre: 'A' },
+          { id: 2, nombre: 'B' },
+          { id: 3, nombre: 'C' },
+          { id: 4, nombre: 'D' },
+        ])
+        .mockResolvedValueOnce([fila({ id: 1 }), fila({ id: 4 })]);
+      const queryRaw = vi.fn().mockResolvedValue([
+        { productoId: 3, unidades: 5n },
+        { productoId: 2, unidades: 3n },
+      ]);
+      (prisma as unknown as { $queryRaw: typeof queryRaw }).$queryRaw =
+        queryRaw;
+
+      const { items } = await servicio.listarProductos({
+        orden: 'mas-vendidos',
+        pagina: 2,
+        limite: 2,
+      });
+
+      // Orden: C (5), B (3), A, D; la página 2 es A y D, en ese orden
+      expect(prisma.producto.findMany.mock.calls[1][0]).toMatchObject({
+        where: { id: { in: [1, 4] } },
+      });
+      expect(items.map((item) => item.id)).toEqual([1, 4]);
+      expect(queryRaw).toHaveBeenCalledTimes(1);
     });
   });
 });

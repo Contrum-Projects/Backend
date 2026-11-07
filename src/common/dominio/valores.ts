@@ -23,6 +23,20 @@ export const ESTADOS_PEDIDO = {
 } as const;
 
 /**
+ * Orden del listado de la tienda (E2-H1, decisión del 6 nov 2026, SCRUM-150). Sin orden, por
+ * nombre. «más vendidos»: unidades vendidas de sus formatos en los últimos
+ * `DIAS_MAS_VENDIDOS` días, en pedidos que son venta (`ESTADOS_SIN_VENTA`); «novedades»: el
+ * producto creado más recientemente primero. Los empates, por nombre.
+ */
+export const ORDENES_TIENDA = {
+  MAS_VENDIDOS: 'mas-vendidos',
+  NOVEDADES: 'novedades',
+} as const;
+
+/** Días hacia atrás que cuentan para «más vendidos» (decisión del 6 nov 2026). */
+export const DIAS_MAS_VENDIDOS = 30;
+
+/**
  * Un pedido es venta desde que se paga (decisión del 4 nov 2026): quedan fuera los que esperan el
  * pago y los cancelados. Un pedido pagado ya no se cancela (E8-H3). Lo usan los reportes (E14) y
  * el filtro de compras de las campañas (E12-H3).
