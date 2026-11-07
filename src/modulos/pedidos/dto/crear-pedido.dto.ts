@@ -109,6 +109,8 @@ export class CrearPedidoDto {
   datosFacturacionId?: number;
 
   @ApiPropertyOptional({
+    type: String,
+    nullable: true,
     example: 'LOREAL20',
     maxLength: 30,
     description:

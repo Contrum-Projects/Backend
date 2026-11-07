@@ -17,6 +17,8 @@ export class CotizarDespachoDto {
   direccionId: number;
 
   @ApiPropertyOptional({
+    type: String,
+    nullable: true,
     example: 'LOREAL20',
     description:
       'Cupón que se aplicará (SCRUM-150): el total ya trae su descuento. Si no aplica, 400 junto a `codigoCupon`.',
