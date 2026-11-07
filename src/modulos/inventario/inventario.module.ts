@@ -5,7 +5,10 @@ import { AjustesController } from './ajustes.controller.js';
 import { AjustesService } from './ajustes.service.js';
 import { EntradasController } from './entradas.controller.js';
 import { EntradasService } from './entradas.service.js';
+import { ListadoEntradasService } from './listado-entradas.service.js';
+import { ListadoMovimientosService } from './listado-movimientos.service.js';
 import { ListadoStockService } from './listado-stock.service.js';
+import { MovimientosController } from './movimientos.controller.js';
 import { ProveedoresController } from './proveedores.controller.js';
 import { ProveedoresService } from './proveedores.service.js';
 import { SalidasController } from './salidas.controller.js';
@@ -30,6 +33,7 @@ import { VentaStockService } from './venta-stock.service.js';
     TransferenciasController,
     StockController,
     UbicacionesController,
+    MovimientosController,
   ],
   providers: [
     ProveedoresService,
@@ -40,6 +44,8 @@ import { VentaStockService } from './venta-stock.service.js';
     StockService,
     StockBajoService,
     ListadoStockService,
+    ListadoMovimientosService,
+    ListadoEntradasService,
     UbicacionesService,
     VentaStockService,
   ],

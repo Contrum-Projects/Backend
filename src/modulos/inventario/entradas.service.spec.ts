@@ -147,10 +147,20 @@ describe('EntradasService', () => {
           formatoId: 11,
           cantidad: 24,
           costoUnitarioNeto: 3500,
+          subtotalNeto: 84000,
           movimientoId: 900,
         },
-        { formatoId: 12, cantidad: 6, costoUnitarioNeto: 0, movimientoId: 901 },
+        {
+          formatoId: 12,
+          cantidad: 6,
+          costoUnitarioNeto: 0,
+          subtotalNeto: 0,
+          movimientoId: 901,
+        },
       ],
+      // SCRUM-150: los totales los suma el backend
+      unidades: 30,
+      costoNetoTotal: 84000,
     });
   });
 

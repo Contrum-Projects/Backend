@@ -16,6 +16,7 @@ import { type UbicacionResumen, ubicacionDe } from './comprobaciones.js';
 import type { CrearEntradaDto } from './dto/crear-entrada.dto.js';
 import { sumarExistencia } from './existencias.js';
 import { errorDeCampo } from '../../common/errores/error-de-campo.js';
+import { subtotalNeto, totalesEntrada } from './totales-entrada.js';
 
 type Tx = Prisma.TransactionClient;
 type TipoDocumentoProveedor = Valor<typeof TIPOS_DOCUMENTO_PROVEEDOR>;
@@ -25,6 +26,8 @@ export interface DetalleEntradaRegistrado {
   formatoId: number;
   cantidad: number;
   costoUnitarioNeto: number;
+  /** Cantidad por costo unitario neto (SCRUM-150). */
+  subtotalNeto: number;
   movimientoId: number;
 }
 
@@ -38,6 +41,10 @@ export interface EntradaRegistrada {
   observacion: string | null;
   ubicacion: UbicacionResumen;
   detalles: DetalleEntradaRegistrado[];
+  /** Unidades recibidas en total (SCRUM-150). */
+  unidades: number;
+  /** Suma de los subtotales netos (SCRUM-150). */
+  costoNetoTotal: number;
 }
 
 /**
@@ -134,8 +141,13 @@ export class EntradasService {
           formatoId: detalle.formatoId,
           cantidad: detalle.cantidad,
           costoUnitarioNeto: detalle.costoUnitarioNeto,
+          subtotalNeto: subtotalNeto(
+            detalle.cantidad,
+            detalle.costoUnitarioNeto,
+          ).toNumber(),
           movimientoId: movimientoDe.get(detalle.formatoId)!,
         })),
+        ...totalesEntrada(detalles),
       };
     });
   }

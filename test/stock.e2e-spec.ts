@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { App } from 'supertest/types.js';
 import { AppModule } from '../src/app.module.js';
+import type { Prisma } from '../src/generated/prisma/client.js';
 import { ROLES, type Rol } from '../src/common/dominio/roles.js';
 import {
   CANALES_VENTA,
@@ -95,6 +96,9 @@ describe('Inventario · stock por formato (e2e)', () => {
     prisma.existencia.create({ data: { formatoId, ubicacionId, cantidad } });
 
   const limpiar = async () => {
+    await prisma.movimientoInventario.deleteMany({
+      where: { formato: { articulo: { sku: { startsWith: PREFIJO } } } },
+    });
     await prisma.entradaInventario.deleteMany({
       where: { proveedor: { rut: { in: [RUT_PROVEEDOR_A, RUT_PROVEEDOR_B] } } },
     });
@@ -525,6 +529,167 @@ describe('Inventario · stock por formato (e2e)', () => {
       await request(app.getHttpServer())
         .get('/api/inventario/stock')
         .query({ bodegaId: 'x' })
+        .auth(token, { type: 'bearer' })
+        .expect(400);
+    });
+  });
+
+  describe('movimientos', () => {
+    interface Movimiento {
+      id: number;
+      fechaHora: string;
+      tipo: string;
+      formato: { id: number; producto: string; nombreFormato: string };
+      cantidad: number;
+      ubicacion: { id: number; codigo: string; bodega: string };
+      destino: { id: number; codigo: string; bodega: string } | null;
+      referencia: string | null;
+      registradoPor: { nombre: string } | null;
+    }
+    interface Listado {
+      items: Movimiento[];
+      total: number;
+      pagina: number;
+      limite: number;
+    }
+
+    const listar = async (query: object, con = token) =>
+      (
+        await request(app.getHttpServer())
+          .get('/api/inventario/movimientos')
+          .query({ buscar: PREFIJO, ...query })
+          .auth(con, { type: 'bearer' })
+          .expect(200)
+      ).body as Listado;
+
+    const movimiento = (
+      data: Omit<Prisma.MovimientoInventarioUncheckedCreateInput, 'formatoId'>,
+    ) => prisma.movimientoInventario.create({ data: { formatoId, ...data } });
+
+    /** Una entrada a la central, una merma en ella, una transferencia a la tienda y una venta. */
+    const prepararMovimientos = async () => {
+      const entrada = await conEntrada(proveedorA, '2026-10-01', 3500);
+      const recibido = await movimiento({
+        tipo: 'entrada',
+        cantidad: 5,
+        ubicacionDestinoId: estanteId,
+        entradaId: entrada.id,
+        usuarioId,
+        fechaHora: new Date('2026-10-01T15:00:00Z'),
+      });
+      const merma = await movimiento({
+        tipo: 'merma_dano',
+        cantidad: 1,
+        ubicacionOrigenId: estanteId,
+        usuarioId,
+        observacion: 'Envase roto',
+        fechaHora: new Date('2026-10-02T15:00:00Z'),
+      });
+      const transferencia = await movimiento({
+        tipo: 'transferencia',
+        cantidad: 2,
+        ubicacionOrigenId: estanteId,
+        ubicacionDestinoId: gondolaId,
+        usuarioId,
+        fechaHora: new Date('2026-10-03T15:00:00Z'),
+      });
+      // La venta la registra el sistema; aunque tenga cuenta, no se muestra quién
+      const venta = await movimiento({
+        tipo: 'venta',
+        cantidad: 1,
+        ubicacionOrigenId: gondolaId,
+        usuarioId,
+        fechaHora: new Date('2026-10-04T15:00:00Z'),
+      });
+      return { entrada, recibido, merma, transferencia, venta };
+    };
+
+    it('E11-H5 · movimientos: del más reciente al más antiguo, con signo, referencia y quién los registró', async () => {
+      const { entrada, recibido, merma, transferencia, venta } =
+        await prepararMovimientos();
+
+      const listado = await listar({});
+
+      expect(listado.items.map((fila) => fila.id)).toEqual([
+        venta.id,
+        transferencia.id,
+        merma.id,
+        recibido.id,
+      ]);
+      expect(listado).toMatchObject({ total: 4, pagina: 1, limite: 20 });
+      const [vendido, transferido, mermado, recibidoFila] = listado.items;
+      expect(vendido).toMatchObject({
+        tipo: 'venta',
+        cantidad: -1,
+        ubicacion: {
+          id: gondolaId,
+          codigo: 'GONDOLA-1',
+          bodega: `${PREFIJO} Tienda`,
+        },
+        destino: null,
+        registradoPor: null,
+      });
+      expect(transferido).toMatchObject({
+        cantidad: 2,
+        ubicacion: { id: estanteId, codigo: 'A-01' },
+        destino: { id: gondolaId, codigo: 'GONDOLA-1' },
+        registradoPor: { nombre: 'Camila Rojas' },
+      });
+      expect(mermado).toMatchObject({
+        cantidad: -1,
+        referencia: 'Envase roto',
+      });
+      expect(recibidoFila).toMatchObject({
+        tipo: 'entrada',
+        cantidad: 5,
+        fechaHora: '2026-10-01T15:00:00.000Z',
+        formato: { id: formatoId, nombreFormato: '300 ml' },
+        ubicacion: { id: estanteId },
+        referencia: entrada.numeroDocumentoProveedor,
+      });
+    });
+
+    it('E11-H5 · movimientos: filtra por grupo, por bodega (origen o destino) y por período en hora de Chile', async () => {
+      const { recibido, merma, transferencia, venta } =
+        await prepararMovimientos();
+      const ids = (listado: Listado) => listado.items.map((fila) => fila.id);
+      const { bodegaId: tiendaId } = await prisma.ubicacion.findUniqueOrThrow({
+        where: { id: gondolaId },
+      });
+
+      expect(ids(await listar({ grupo: 'entradas' }))).toEqual([recibido.id]);
+      expect(ids(await listar({ grupo: 'salidas' }))).toEqual([merma.id]);
+      expect(ids(await listar({ grupo: 'ventas' }))).toEqual([venta.id]);
+      expect(ids(await listar({ bodegaId: tiendaId }))).toEqual([
+        venta.id,
+        transferencia.id,
+      ]);
+      // 2026-10-02T15:00Z es el 2 de octubre en Chile; el 3 entra completo
+      expect(
+        ids(await listar({ desde: '2026-10-02', hasta: '2026-10-03' })),
+      ).toEqual([transferencia.id, merma.id]);
+      expect(ids(await listar({ buscar: 'envase roto' }))).toEqual([merma.id]);
+    });
+
+    it('RNF-03 · los ve el personal con permiso de consulta; el cliente recibe 403 y un período al revés, 400', async () => {
+      const vendedor = await tokenDe(ROLES.VENDEDOR);
+      const cliente = await tokenDe(ROLES.CLIENTE);
+      await listar({}, vendedor);
+      await request(app.getHttpServer())
+        .get('/api/inventario/movimientos')
+        .auth(cliente, { type: 'bearer' })
+        .expect(403);
+      const respuesta = await request(app.getHttpServer())
+        .get('/api/inventario/movimientos')
+        .query({ desde: '2026-10-05', hasta: '2026-10-01' })
+        .auth(token, { type: 'bearer' })
+        .expect(400);
+      expect(respuesta.body).toMatchObject({
+        errores: [{ campo: 'hasta' }],
+      });
+      await request(app.getHttpServer())
+        .get('/api/inventario/movimientos')
+        .query({ grupo: 'otro' })
         .auth(token, { type: 'bearer' })
         .expect(400);
     });

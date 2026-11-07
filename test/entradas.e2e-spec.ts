@@ -411,4 +411,124 @@ describe('Inventario · entradas (e2e)', () => {
       await prisma.entradaInventario.count({ where: { proveedorId } }),
     ).toBe(1);
   });
+
+  describe('listado y totales', () => {
+    interface EntradaListada {
+      id: number;
+      fechaRecepcion: string;
+      tipoDocumento: string;
+      numeroDocumento: string;
+      proveedor: { id: number; razonSocial: string };
+      ubicacion: { id: number; codigo: string; bodega: string };
+      cantidadFormatos: number;
+      unidades: number;
+      costoNetoTotal: number;
+      registradoPor: { nombre: string };
+    }
+    interface Listado {
+      items: EntradaListada[];
+      total: number;
+      pagina: number;
+      limite: number;
+    }
+
+    const listar = async (query: object = {}, con = token) =>
+      (
+        await request(app.getHttpServer())
+          .get(RUTA)
+          .query({ buscar: PREFIJO, ...query })
+          .auth(con, { type: 'bearer' })
+          .expect(200)
+      ).body as Listado;
+
+    it('E11-H2 · entrada registrada: la respuesta trae el subtotal de cada formato, las unidades y el costo neto total', async () => {
+      const respuesta = await registrar(entradaValida()).expect(201);
+
+      expect(respuesta.body).toMatchObject({
+        detalles: [
+          { formatoId: formatos[0], subtotalNeto: 84000 },
+          { formatoId: formatos[1], subtotalNeto: 11943 },
+        ],
+        unidades: 30,
+        costoNetoTotal: 95943,
+      });
+    });
+
+    it('E11-H2 · lista de entradas: de la recepción más reciente a la más antigua, con sus totales y quién la registró', async () => {
+      const antigua = {
+        ...entradaValida('F-ANTIGUA'),
+        fechaRecepcion: '2026-01-15',
+        detalles: [
+          { formatoId: formatos[0], cantidad: 2, costoUnitarioNeto: 100.25 },
+        ],
+      };
+      const vieja = (await registrar(antigua).expect(201)).body as {
+        id: number;
+      };
+      const nueva = (await registrar(entradaValida('F-NUEVA')).expect(201))
+        .body as { id: number };
+
+      const listado = await listar();
+
+      expect(listado).toMatchObject({ total: 2, pagina: 1, limite: 20 });
+      expect(listado.items).toEqual([
+        {
+          id: nueva.id,
+          fechaRecepcion: expect.any(String) as string,
+          tipoDocumento: 'factura',
+          numeroDocumento: 'F-NUEVA',
+          proveedor: { id: proveedorId, razonSocial: `${PREFIJO} Proveedor` },
+          ubicacion: {
+            id: ubicacionId,
+            codigo: 'RECEPCION',
+            bodega: `${PREFIJO} Tienda`,
+          },
+          cantidadFormatos: 2,
+          unidades: 30,
+          costoNetoTotal: 95943,
+          registradoPor: { nombre: 'Camila Rojas' },
+        },
+        expect.objectContaining({
+          id: vieja.id,
+          fechaRecepcion: '2026-01-15',
+          cantidadFormatos: 1,
+          unidades: 2,
+          costoNetoTotal: 200.5,
+        }),
+      ]);
+      // Por número de documento y por período de recepción
+      expect(
+        (await listar({ buscar: 'f-antigua' })).items.map((fila) => fila.id),
+      ).toEqual([vieja.id]);
+      expect(
+        (await listar({ desde: '2026-01-01', hasta: '2026-01-31' })).items.map(
+          (fila) => fila.id,
+        ),
+      ).toEqual([vieja.id]);
+    });
+
+    it('E11-H2 · lista de entradas: el filtro de bodega deja las recibidas en ella', async () => {
+      await registrar(entradaValida()).expect(201);
+      const { bodegaId } = await prisma.ubicacion.findUniqueOrThrow({
+        where: { id: ubicacionId },
+      });
+
+      expect((await listar({ bodegaId })).total).toBe(1);
+      expect((await listar({ bodegaId: bodegaId + 100_000 })).total).toBe(0);
+    });
+
+    it('RNF-03 · la lista pide registrar inventario: el vendedor recibe 403 y un período al revés, 400', async () => {
+      const vendedor = await tokenDe(ROLES.VENDEDOR);
+      await request(app.getHttpServer())
+        .get(RUTA)
+        .auth(vendedor, { type: 'bearer' })
+        .expect(403);
+      const respuesta = await request(app.getHttpServer())
+        .get(RUTA)
+        .query({ desde: '2026-02-01', hasta: '2026-01-01' })
+        .auth(token, { type: 'bearer' })
+        .expect(400);
+      expect(respuesta.body).toMatchObject({ errores: [{ campo: 'hasta' }] });
+    });
+  });
 });

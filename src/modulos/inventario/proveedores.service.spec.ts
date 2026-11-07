@@ -48,7 +48,7 @@ describe('ProveedoresService', () => {
           email: 'ventas@distribuidora.cl',
         },
       });
-      expect(creado).toEqual({ id: 1, activo: true });
+      expect(creado).toEqual({ id: 1, activo: true, cantidadEntradas: 0 });
     });
 
     it('E11-H1 · RUT nuevo: los datos de contacto son opcionales', async () => {
@@ -93,7 +93,18 @@ describe('ProveedoresService', () => {
       expect(prisma.proveedor.findMany).toHaveBeenCalledWith({
         where: { activo: true },
         orderBy: { razonSocial: 'asc' },
+        include: { _count: { select: { entradas: true } } },
       });
+    });
+
+    it('E11-H1 · cada proveedor trae cuántas entradas tiene (SCRUM-150)', async () => {
+      prisma.proveedor.findMany.mockResolvedValueOnce([
+        { id: 3, razonSocial: 'Distribuidora', _count: { entradas: 4 } },
+      ]);
+
+      await expect(servicio.listar()).resolves.toEqual([
+        { id: 3, razonSocial: 'Distribuidora', cantidadEntradas: 4 },
+      ]);
     });
 
     it('con incluirInactivos lista también los desactivados', async () => {
@@ -102,6 +113,7 @@ describe('ProveedoresService', () => {
       expect(prisma.proveedor.findMany).toHaveBeenCalledWith({
         where: undefined,
         orderBy: { razonSocial: 'asc' },
+        include: { _count: { select: { entradas: true } } },
       });
     });
   });

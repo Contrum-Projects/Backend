@@ -376,6 +376,17 @@ Ubicaciones (SCRUM-150, 6 nov): `GET /api/inventario/ubicaciones` con `inventari
 lista las ubicaciones activas de bodegas activas (`[{ id, codigo, bodega: { id, nombre } }]`,
 por bodega y código): el destino de entradas, ajustes y transferencias y el filtro por bodega.
 PENDIENTE: ninguna historia crea bodegas ni ubicaciones (ni las comunas que la bodega exige).
+Mientras tanto, `pnpm db:seed` fuera de producción crea dos bodegas de prueba («Bodega de
+desarrollo» con A-01, A-02 y B-01, y «Sala de ventas de desarrollo» con S-01; SCRUM-150), y
+`bodega.tipo` sigue sin lista en `valores.ts` (las pruebas usan `bodega` y `tienda`).
+Totales y lista de entradas (SCRUM-150, 6 nov): la respuesta del `POST` trae `subtotalNeto` por
+formato (cantidad × costo, con Decimal), `unidades` y `costoNetoTotal`.
+`GET /api/inventario/entradas?bodegaId&buscar&desde&hasta&pagina&limite` (`inventario.registrar`)
+las lista de la fecha de recepción más reciente a la más antigua (el mismo día, la registrada
+después) con proveedor, documento, ubicación de destino (la de sus movimientos), cantidad de
+formatos, unidades, costo neto total y quién la registró; `buscar` en razón social o número de
+documento, `desde`/`hasta` sobre la fecha de recepción (al revés: 400). El listado de proveedores
+y el `POST` traen `cantidadEntradas` (E11-H1 criterio 1).
 Decisiones del 25 oct (E11-H3): `POST /api/inventario/salidas` con `inventario.registrar`. Una
 salida es de **un formato en una ubicación**, con tipo (`TIPOS_SALIDA`: `merma_vencimiento`,
 `merma_dano` o `consumo_peluqueria`), cantidad entera > 0 y observación opcional (hasta 500). Se
@@ -414,6 +425,16 @@ con unidades en esa bodega, y `ubicaciones` (con stock > 0, por código) y `stoc
 la regla de E11-H6 (stock total en todas las ubicaciones bajo un mínimo > 0), sin importar la
 bodega elegida; `totalBajoMinimo` cuenta esos formatos con la misma bodega y búsqueda. La última
 entrada (costo y proveedor) sigue la regla de arriba; el vendedor también la ve.
+Movimientos (SCRUM-150, 6 nov): `GET /api/inventario/movimientos?bodegaId&grupo&desde&hasta&buscar&pagina&limite`
+con `inventario.consultar`, del más reciente al más antiguo. `grupo` usa `GRUPOS_MOVIMIENTO` de
+`valores.ts` (decisión del 6 nov): **entradas** = entrada, ajuste positivo y reingreso; **ventas**
+= venta; **salidas** = mermas, consumo y ajuste negativo; **transferencias** = transferencia.
+`bodegaId` toma el origen o el destino; `desde`/`hasta` son días en hora de Chile, ambos
+incluidos (`hasta` antes de `desde`: 400). `cantidad` va con signo (negativa si solo tiene
+origen; la transferencia, positiva); `ubicacion` es el origen o, si no hay, el destino, y
+`destino` solo en la transferencia. `referencia`: n.º de documento de la entrada, código del
+pedido o la observación. `registradoPor` es la cuenta del personal, `null` en ventas y
+reingresos (los registra el sistema, aunque la cancelación tenga cuenta).
 Decisiones del 28 oct (E11-H6): se compara el **stock total** del formato (todas sus ubicaciones,
 también las desactivadas) con `stock_minimo`. El correo sale solo cuando un movimiento lo hace
 **cruzar** (antes ≥ mínimo, después < mínimo); los movimientos siguientes, ya bajo el mínimo, no lo

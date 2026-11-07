@@ -98,11 +98,13 @@ describe('Inventario · proveedores (e2e)', () => {
       .get(RUTA)
       .auth(token, { type: 'bearer' })
       .expect(200);
+    // E11-H1 criterio 1 (SCRUM-150): con su cantidad de entradas, 0 si es nuevo
     expect(
-      (lista.body as { rut: string }[]).some(
+      (lista.body as { rut: string; cantidadEntradas: number }[]).find(
         (proveedor) => proveedor.rut === RUT,
       ),
-    ).toBe(true);
+    ).toMatchObject({ cantidadEntradas: 0 });
+    expect(respuesta.body).toMatchObject({ cantidadEntradas: 0 });
   });
 
   it('E11-H1 · RUT repetido: rechaza el registro aunque el RUT venga escrito distinto', async () => {

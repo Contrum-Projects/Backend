@@ -169,6 +169,40 @@ export const TIPOS_MOVIMIENTO = {
   REINGRESO: 'reingreso',
 } as const;
 
+/**
+ * Grupos del filtro de movimientos del panel (E11-H5 criterio 2, decisión del 6 nov 2026,
+ * SCRUM-150): «entradas» suma stock (entrada, ajuste positivo y reingreso de un pedido
+ * cancelado), «salidas» lo resta sin ser venta (mermas, consumo y ajuste negativo).
+ */
+export const GRUPOS_MOVIMIENTO = {
+  ENTRADAS: 'entradas',
+  VENTAS: 'ventas',
+  SALIDAS: 'salidas',
+  TRANSFERENCIAS: 'transferencias',
+} as const;
+
+/** Los tipos de movimiento de cada grupo; cada tipo está en uno solo. */
+export const TIPOS_POR_GRUPO_MOVIMIENTO: Readonly<
+  Record<
+    (typeof GRUPOS_MOVIMIENTO)[keyof typeof GRUPOS_MOVIMIENTO],
+    readonly (typeof TIPOS_MOVIMIENTO)[keyof typeof TIPOS_MOVIMIENTO][]
+  >
+> = Object.freeze({
+  [GRUPOS_MOVIMIENTO.ENTRADAS]: [
+    TIPOS_MOVIMIENTO.ENTRADA,
+    TIPOS_MOVIMIENTO.AJUSTE_POSITIVO,
+    TIPOS_MOVIMIENTO.REINGRESO,
+  ],
+  [GRUPOS_MOVIMIENTO.VENTAS]: [TIPOS_MOVIMIENTO.VENTA],
+  [GRUPOS_MOVIMIENTO.SALIDAS]: [
+    TIPOS_MOVIMIENTO.MERMA_VENCIMIENTO,
+    TIPOS_MOVIMIENTO.MERMA_DANO,
+    TIPOS_MOVIMIENTO.CONSUMO_PELUQUERIA,
+    TIPOS_MOVIMIENTO.AJUSTE_NEGATIVO,
+  ],
+  [GRUPOS_MOVIMIENTO.TRANSFERENCIAS]: [TIPOS_MOVIMIENTO.TRANSFERENCIA],
+});
+
 /** Tipos de movimiento que se registran como salida que no es venta (E11-H3, RF-11.06). */
 export const TIPOS_SALIDA = [
   TIPOS_MOVIMIENTO.MERMA_VENCIMIENTO,
