@@ -7,6 +7,7 @@ import {
   LARGO_MAXIMO_DESCRIPCION_IA,
   LARGO_MAXIMO_INGREDIENTES_IA,
   razonamientoPara,
+  ESQUEMA_RESPUESTA_IA,
 } from './cliente-ia.js';
 import type { TipoImagen } from './tipo-imagen.js';
 
@@ -214,5 +215,16 @@ describe('ClienteIaNoConfigurado', () => {
         thinkingBudget: 0,
       });
     });
+  });
+
+  it('E4-H1 · el esquema que va a Gemini no lleva maxLength ni propertyOrdering (los «lite» lo rechazan)', () => {
+    const texto = JSON.stringify(ESQUEMA_RESPUESTA_IA);
+    expect(texto).not.toContain('maxLength');
+    expect(texto).not.toContain('propertyOrdering');
+    expect(ESQUEMA_RESPUESTA_IA.required).toEqual([
+      'legible',
+      'descripcion',
+      'ingredientes',
+    ]);
   });
 });

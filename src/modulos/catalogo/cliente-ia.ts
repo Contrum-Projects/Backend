@@ -62,18 +62,19 @@ Recibes la foto del reverso de un producto. Responde solo con el JSON pedido:
 export const LARGO_MAXIMO_DESCRIPCION_IA = 1000;
 export const LARGO_MAXIMO_INGREDIENTES_IA = 3000;
 
-const ESQUEMA_RESPUESTA = {
+/**
+ * Solo los tipos y los campos obligatorios. Sin `maxLength` ni `propertyOrdering`: los modelos
+ * «lite» de Gemini 3 rechazan el esquema con ellos (400, medido el 7 nov 2026). Los largos se
+ * piden en las instrucciones y se exigen aquí, en `interpretarRespuestaIa`.
+ */
+export const ESQUEMA_RESPUESTA_IA = {
   type: Type.OBJECT,
   properties: {
     legible: { type: Type.BOOLEAN },
-    descripcion: { type: Type.STRING, maxLength: '600' },
-    ingredientes: {
-      type: Type.STRING,
-      maxLength: String(LARGO_MAXIMO_INGREDIENTES_IA),
-    },
+    descripcion: { type: Type.STRING },
+    ingredientes: { type: Type.STRING },
   },
   required: ['legible', 'descripcion', 'ingredientes'],
-  propertyOrdering: ['legible', 'descripcion', 'ingredientes'],
 };
 
 const textoDe = (valor: unknown) =>
@@ -161,7 +162,7 @@ export class ClienteGemini implements ClienteIa {
           config: {
             systemInstruction: INSTRUCCIONES_IA,
             responseMimeType: 'application/json',
-            responseSchema: ESQUEMA_RESPUESTA,
+            responseSchema: ESQUEMA_RESPUESTA_IA,
             temperature: 0.4,
             maxOutputTokens: 2048,
             thinkingConfig: razonamientoPara(this.modelo),
