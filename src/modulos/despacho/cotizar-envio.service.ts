@@ -14,6 +14,7 @@ import type { Entorno } from '../../config/entorno.js';
 import type { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { REDIS } from '../../redis/redis.module.js';
+import { CuponCarritoService } from '../cupones/cupon-carrito.service.js';
 import { CarritoService } from '../carrito/carrito.service.js';
 import { armarBulto, type UnidadesBulto } from './bulto.js';
 import { COTIZACION_NO_DISPONIBLE } from './cotizador-chilexpress.js';
@@ -66,7 +67,9 @@ export interface CotizacionDespacho {
   costo: number;
   /** Total del carrito con IVA, sin el despacho. */
   totalCarrito: number;
-  /** Lo que pagaría: carrito más despacho. */
+  /** Lo que descuenta el cupón indicado, con IVA (SCRUM-150); 0 sin cupón. */
+  descuento: number;
+  /** Lo que pagaría: carrito menos el descuento, más el despacho. */
   total: number;
 }
 
@@ -80,13 +83,14 @@ export class CotizarEnvioService {
     @Inject(REDIS) private readonly redis: Redis,
     private readonly cotizador: CotizadorEnvio,
     private readonly carrito: CarritoService,
+    private readonly cupones: CuponCarritoService,
   ) {}
 
   /** E7-H2 · Costo del despacho del carrito a una dirección de la cuenta, antes de pedir. */
   async cotizarCarrito(
     codigoPublico: string,
     rol: Rol,
-    { direccionId }: CotizarDespachoDto,
+    { direccionId, codigoCupon }: CotizarDespachoDto,
   ): Promise<CotizacionDespacho> {
     const { id: usuarioId } = await this.prisma.usuario.findUniqueOrThrow({
       where: { codigoPublico },
@@ -113,7 +117,16 @@ export class CotizarEnvioService {
     const envio = await this.cotizar(direccion.comuna.codigoCut, bulto);
     const porcentajeIva = this.config.get('IVA_PORCENTAJE', { infer: true });
     const costo = precioConIva(envio.costoNeto, porcentajeIva);
-    return { costo, totalCarrito, total: totalCarrito + costo };
+    // SCRUM-150 · Con las mismas reglas que el pedido, que lo vuelve a revisar al crearse
+    const descuento = codigoCupon
+      ? (await this.cupones.validar(codigoPublico, rol, codigoCupon)).descuento
+      : 0;
+    return {
+      costo,
+      totalCarrito,
+      descuento,
+      total: totalCarrito - descuento + costo,
+    };
   }
 
   /** El bulto de lo que hay en el carrito de la cuenta; `null` si está vacío. Un pack va por sus formatos. */

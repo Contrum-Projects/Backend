@@ -1224,8 +1224,8 @@ como si no existiera. Sin campaña, cualquier comprador que tenga el código. **
 `/api/marketing/cupones` (`GET`, `GET /:id`, `POST`, `PATCH /:id`) con `campanas.gestionar`; no se
 borran, se desactivan; editar no cambia lo descontado en pedidos ya creados. El listado trae `usos`
 y `descontado` (pedidos no cancelados). **Comprador:** `POST /api/carrito/cupon { codigo }`
-devuelve `{ codigo, descripcion, descuento }` sobre el carrito actual, sin reservar (10/min por
-cuenta, `LIMITES.VALIDAR_CUPON`); `POST /api/pedidos` acepta `codigoCupon` y lo revisa otra vez en
+devuelve `{ codigo, descripcion, descuento, totalProductos }` sobre el carrito actual, sin reservar (10/min por
+cuenta, `LIMITES.VALIDAR_CUPON`); `GET /api/despacho/cotizacion` acepta `codigoCupon` y devuelve `descuento` y el `total` ya descontado (así el checkout no resta nada); `POST /api/pedidos` acepta `codigoCupon` y lo revisa otra vez en
 su transacción con la fila del cupón bloqueada (`FOR UPDATE`): dos pedidos simultáneos no pasan
 del máximo. Un uso cuenta **desde que se crea el pedido** y se libera si se cancela (por el plazo
 de pago o a mano). Cada rechazo responde 400 junto a `codigoCupon` (no existe o inactivo, aún no

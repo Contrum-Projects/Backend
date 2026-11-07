@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { COLAS } from '../../colas/colas.js';
 import type { Entorno } from '../../config/entorno.js';
 import { CarritoModule } from '../carrito/carrito.module.js';
+import { CuponesModule } from '../cupones/cupones.module.js';
 import { CambiarEstadoPedidoModule } from '../pedidos/cambiar-estado-pedido.module.js';
 import { ActualizarEnviosService } from './actualizar-envios.service.js';
 import {
@@ -29,6 +30,7 @@ const URL_SANDBOX = 'https://testservices.wschilexpress.com';
     BullModule.registerQueue({ name: COLAS.SEGUIMIENTO_ENVIOS }),
     CambiarEstadoPedidoModule,
     CarritoModule,
+    CuponesModule,
   ],
   controllers: [DespachoController],
   providers: [

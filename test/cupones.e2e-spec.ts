@@ -348,6 +348,7 @@ describe('Cupones (e2e)', () => {
       codigo: cupon.codigo,
       descripcion: '20 % en la marca',
       descuento,
+      totalProductos: subtotal - descuento,
     });
 
     const respuesta = await confirmar(comprador.token, cupon.codigo).expect(

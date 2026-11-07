@@ -108,4 +108,11 @@ export class CuponCarritoDto {
 
   @ApiProperty({ example: 4000, description: 'En pesos con IVA.' })
   descuento: number;
+
+  @ApiProperty({
+    example: 16000,
+    description:
+      'Total de los productos del carrito con el descuento, con IVA y sin el despacho.',
+  })
+  totalProductos: number;
 }

@@ -11,6 +11,6 @@ import { CuponesService } from './cupones.service.js';
   imports: [CarritoModule],
   controllers: [CuponesController, CuponCarritoController],
   providers: [AplicarCuponService, CuponCarritoService, CuponesService],
-  exports: [AplicarCuponService],
+  exports: [AplicarCuponService, CuponCarritoService],
 })
 export class CuponesModule {}

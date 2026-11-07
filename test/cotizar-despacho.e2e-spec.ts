@@ -258,6 +258,7 @@ describe('Despacho · cotizar el envío con Chilexpress (e2e)', () => {
     expect(respuesta.body).toEqual({
       costo: 7310,
       totalCarrito: 1194,
+      descuento: 0,
       total: 8504,
     });
     expect(cotizar.mock.calls[0]![0]).toMatchObject({
@@ -410,11 +411,13 @@ describe('Despacho · cotizar el envío con Chilexpress (e2e)', () => {
     expect(mayorista.body).toEqual({
       costo: 7310,
       totalCarrito: 2862,
+      descuento: 0,
       total: 10172,
     });
     expect(minorista.body).toEqual({
       costo: 7310,
       totalCarrito: 3582,
+      descuento: 0,
       total: 10892,
     });
     expect(cotizar.mock.calls[0]![0].bulto).toEqual({

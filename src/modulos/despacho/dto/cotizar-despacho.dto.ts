@@ -1,6 +1,7 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IdEntero } from '../../../common/validacion/id-entero.js';
+import { TextoOpcional } from '../../../common/validacion/texto-opcional.js';
 
 /** A qué dirección de la cuenta se cotiza el despacho del carrito (E7-H2). */
 export class CotizarDespachoDto {
@@ -14,4 +15,12 @@ export class CotizarDespachoDto {
     invalido: 'La dirección indicada no es válida.',
   })
   direccionId: number;
+
+  @ApiPropertyOptional({
+    example: 'LOREAL20',
+    description:
+      'Cupón que se aplicará (SCRUM-150): el total ya trae su descuento. Si no aplica, 400 junto a `codigoCupon`.',
+  })
+  @TextoOpcional({ etiqueta: 'El código del cupón', maximo: 40 })
+  codigoCupon?: string | null;
 }

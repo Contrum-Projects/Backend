@@ -64,6 +64,12 @@ export class CuponCarritoService {
       rol,
       lineas,
     });
-    return { codigo: guardado, descripcion, descuento };
+    const { total } = await this.carrito.obtener(codigoPublico, rol);
+    return {
+      codigo: guardado,
+      descripcion,
+      descuento,
+      totalProductos: total - descuento,
+    };
   }
 }
