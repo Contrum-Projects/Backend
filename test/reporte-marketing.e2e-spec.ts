@@ -32,8 +32,17 @@ const PREFIJO_CORREO = 'e2e-reporte-marketing-';
 interface ReporteCarritos {
   desde: string;
   hasta: string;
-  meses: { mes: string; abandonados: number; recuperados: number }[];
-  total: { abandonados: number; recuperados: number };
+  meses: {
+    mes: string;
+    abandonados: number;
+    recuperados: number;
+    porcentajeRecuperados: number | null;
+  }[];
+  total: {
+    abandonados: number;
+    recuperados: number;
+    porcentajeRecuperados: number | null;
+  };
 }
 
 interface ResultadoCampana {
@@ -216,18 +225,39 @@ describe('Reportes · carritos abandonados y resultado de campañas (e2e)', () =
       desde: '2031-06',
       hasta: '2031-08',
       meses: [
-        { mes: '2031-06', abandonados: 3, recuperados: 1 },
-        { mes: '2031-07', abandonados: 1, recuperados: 1 },
-        { mes: '2031-08', abandonados: 0, recuperados: 0 },
+        // SCRUM-150: el porcentaje recuperado lo calcula el backend; sin abandonos, null
+        {
+          mes: '2031-06',
+          abandonados: 3,
+          recuperados: 1,
+          porcentajeRecuperados: 33,
+        },
+        {
+          mes: '2031-07',
+          abandonados: 1,
+          recuperados: 1,
+          porcentajeRecuperados: 100,
+        },
+        {
+          mes: '2031-08',
+          abandonados: 0,
+          recuperados: 0,
+          porcentajeRecuperados: null,
+        },
       ],
-      total: { abandonados: 4, recuperados: 2 },
+      total: { abandonados: 4, recuperados: 2, porcentajeRecuperados: 50 },
     });
 
     // Solo julio: lo de junio no cuenta
     const julio = (await consultarCarritos('2031-07', '2031-07').expect(200))
       .body as ReporteCarritos;
     expect(julio.meses).toEqual([
-      { mes: '2031-07', abandonados: 1, recuperados: 1 },
+      {
+        mes: '2031-07',
+        abandonados: 1,
+        recuperados: 1,
+        porcentajeRecuperados: 100,
+      },
     ]);
   });
 
