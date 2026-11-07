@@ -104,14 +104,14 @@ describe('validarEntorno · IA', () => {
     });
 
     expect(entorno.GEMINI_API_KEY).toBeUndefined();
-    expect(entorno.GEMINI_MODELO).toBe('gemini-2.5-flash');
+    expect(entorno.GEMINI_MODELO).toBe('gemini-3.8-flash');
   });
 
   it('E4-H1 · el modelo de Gemini se puede cambiar por entorno', () => {
     expect(
-      validarEntorno({ ...BASE, GEMINI_MODELO: 'gemini-2.5-flash-lite' })
+      validarEntorno({ ...BASE, GEMINI_MODELO: 'gemini-3.8-flash-lite' })
         .GEMINI_MODELO,
-    ).toBe('gemini-2.5-flash-lite');
+    ).toBe('gemini-3.8-flash-lite');
   });
 });
 

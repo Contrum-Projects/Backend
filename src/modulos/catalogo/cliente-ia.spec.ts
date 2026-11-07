@@ -114,7 +114,7 @@ describe('interpretarRespuestaIa · topes', () => {
 });
 
 describe('ClienteGemini', () => {
-  const cliente = new ClienteGemini('clave-gemini', 'gemini-2.5-flash');
+  const cliente = new ClienteGemini('clave-gemini', 'gemini-3.8-flash');
 
   beforeEach(() => {
     generarContenido.mockReset();
@@ -141,7 +141,7 @@ describe('ClienteGemini', () => {
       ingredientes: 'Aqua',
     });
     const [peticion] = generarContenido.mock.calls[0];
-    expect(peticion.model).toBe('gemini-2.5-flash');
+    expect(peticion.model).toBe('gemini-3.8-flash');
     expect(peticion.contents[0].parts[0].inlineData).toEqual({
       mimeType: 'image/jpeg',
       data: IMAGEN.toString('base64'),

@@ -113,7 +113,7 @@ export const esquemaEntorno = z
      */
     GEMINI_API_KEY: opcional(z.string()),
     /** Modelo de Gemini con visión que lee el reverso del producto. */
-    GEMINI_MODELO: z.string().min(1).default('gemini-2.5-flash'),
+    GEMINI_MODELO: z.string().min(1).default('gemini-3.8-flash'),
     /**
      * Clave de la API de Khipu (E10-H1, decisión del 2 nov 2026), que consulta la «Situación
      * tributaria de terceros» del SII. Sin ella la app arranca, pero la consulta falla y quien
