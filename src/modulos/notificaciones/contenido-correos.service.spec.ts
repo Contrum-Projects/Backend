@@ -32,6 +32,11 @@ describe('ContenidoCorreosService', () => {
       carrito: {
         findUnique: vi.fn().mockResolvedValue({ usuario: { rol: 'cliente' } }),
       },
+      usuario: {
+        findUnique: vi
+          .fn()
+          .mockResolvedValue({ nombre: 'Camila', apellido: 'Rojas' }),
+      },
     };
     // Por defecto, todo lo del carrito sigue a la venta para la cuenta
     const carritoService = {
@@ -86,6 +91,47 @@ describe('ContenidoCorreosService', () => {
     expect(html).toContain('&lt;b&gt;Solo&lt;/b&gt;');
     expect(html).toContain('firma-camila@correo.cl');
     expect(texto).toContain('Dejar de recibir ofertas');
+  });
+
+  it('SCRUM-150 · los marcadores del asunto y el cuerpo se completan con los datos de la cuenta que lo recibe', async () => {
+    const { servicio, prisma } = crear();
+    prisma.campana.findUnique.mockResolvedValue({
+      cuerpo: 'Hola, {nombre}:\n\n{nombre_completo}, entra a {enlace_tienda}',
+    });
+
+    const correo = await servicio.construir(
+      TRABAJOS_CORREO.CAMPANA,
+      { notificacionId: 9, destinatario: 'camila@correo.cl' },
+      {
+        asunto: '{nombre}, llegó lo nuevo',
+        pedidoId: null,
+        campanaId: 4,
+        usuarioId: 7,
+      },
+    );
+
+    expect(prisma.usuario.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 7 } }),
+    );
+    expect(correo.asunto).toBe('Camila, llegó lo nuevo');
+    expect(correo.html).toContain('Hola, Camila:');
+    expect(correo.texto).toContain('Camila Rojas, entra a https://tienda.cl');
+    expect(correo.html).not.toContain('{nombre');
+  });
+
+  it('SCRUM-150 · a un suscriptor sin cuenta, el saludo sale sin nombre', async () => {
+    const { servicio, prisma } = crear();
+    prisma.campana.findUnique.mockResolvedValue({ cuerpo: 'Hola, {nombre}:' });
+
+    const correo = await servicio.construir(
+      TRABAJOS_CORREO.CAMPANA,
+      { notificacionId: 9, destinatario: 'visita@correo.cl' },
+      { asunto: 'Novedades', pedidoId: null, campanaId: 4, usuarioId: null },
+    );
+
+    expect(prisma.usuario.findUnique).not.toHaveBeenCalled();
+    expect(correo.asunto).toBe('Novedades');
+    expect(correo.texto).toContain('Hola:');
   });
 
   it('E12-H3 · un correo de campaña cuya campaña no existe falla y queda para los reintentos', async () => {

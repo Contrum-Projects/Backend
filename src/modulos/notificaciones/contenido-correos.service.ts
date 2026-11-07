@@ -27,6 +27,7 @@ import { PrismaService } from '../../prisma/prisma.service.js';
 import { CarritoService } from '../carrito/carrito.service.js';
 import { FirmaBaja } from '../marketing/firma-baja.js';
 import { FirmaSeguimiento } from '../marketing/firma-seguimiento.js';
+import { aplicarMarcadores } from '../marketing/marcadores-campana.js';
 import {
   leerOferta,
   ofertaDelCorreo,
@@ -267,20 +268,39 @@ export class ContenidoCorreosService {
    */
   private async campana(
     { notificacionId, destinatario }: TrabajoCampana,
-    { asunto, campanaId }: NotificacionACorreo,
+    { asunto, campanaId, usuarioId }: NotificacionACorreo,
   ): Promise<CorreoRenderizado> {
-    const campana = await this.prisma.campana.findUnique({
-      where: { id: campanaId ?? -1 },
-      select: { cuerpo: true },
-    });
+    const [campana, cuenta] = await Promise.all([
+      this.prisma.campana.findUnique({
+        where: { id: campanaId ?? -1 },
+        select: { cuerpo: true },
+      }),
+      // Un suscriptor sin cuenta no tiene nombre: sus marcadores de nombre quedan vacíos
+      usuarioId
+        ? this.prisma.usuario.findUnique({
+            where: { id: usuarioId },
+            select: { nombre: true, apellido: true },
+          })
+        : null,
+    ]);
     if (!campana) throw new Error('El correo no tiene su campaña');
-    return correoCampana({
-      asunto,
-      cuerpo: campana.cuerpo,
-      enlaceBaja: this.firmaBaja.enlace(destinatario),
-      enlacesPie: this.pieConSeguimiento(notificacionId),
-      seguimiento: this.seguimiento.enlaceApertura(notificacionId),
-    });
+    // SCRUM-150 · Los marcadores se completan con los datos de hoy de quien lo recibe
+    const datos = {
+      nombre: cuenta?.nombre ?? null,
+      apellido: cuenta?.apellido ?? null,
+      urlTienda: this.config.get('URL_TIENDA', { infer: true }),
+    };
+    const asuntoFinal = aplicarMarcadores(asunto, datos);
+    return {
+      ...correoCampana({
+        asunto: asuntoFinal,
+        cuerpo: aplicarMarcadores(campana.cuerpo, datos),
+        enlaceBaja: this.firmaBaja.enlace(destinatario),
+        enlacesPie: this.pieConSeguimiento(notificacionId),
+        seguimiento: this.seguimiento.enlaceApertura(notificacionId),
+      }),
+      asunto: asuntoFinal,
+    };
   }
 
   /**

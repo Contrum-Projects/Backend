@@ -150,12 +150,15 @@ export class CampanasController {
   @ApiOperation({
     summary: 'Vista previa en vivo de un correo de campaña (SCRUM-150)',
     description:
-      'Arma el correo con el asunto y el cuerpo que se están escribiendo, sin guardarlos. No cuenta destinatarios ni entrega la `confirmacion`: para enviar se guarda el borrador y se pide `POST /:id/vista-previa`.',
+      'Arma el correo con el asunto y el cuerpo que se están escribiendo, sin guardarlos. Los marcadores ({nombre}, {apellido}, {nombre_completo}, {enlace_tienda}) se completan con los datos de quien la pide. No cuenta destinatarios ni entrega la `confirmacion`: para enviar se guarda el borrador y se pide `POST /:id/vista-previa`.',
   })
   @ApiOkResponse({ description: 'Correo armado.', type: CorreoCampanaDto })
   @ApiBadRequestResponse({ description: 'Asunto o cuerpo inválidos.' })
-  vistaPreviaEnVivo(@Body() dto: RenderizarCampanaDto): CorreoCampana {
-    return this.campanas.renderizar(dto);
+  vistaPreviaEnVivo(
+    @Body() dto: RenderizarCampanaDto,
+    @UsuarioActual() usuario: UsuarioAutenticado,
+  ): Promise<CorreoCampana> {
+    return this.campanas.renderizar(dto, usuario.codigoPublico);
   }
 
   @Post(':id/vista-previa')
@@ -170,8 +173,9 @@ export class CampanasController {
   @ApiConflictResponse({ description: 'La campaña ya fue enviada.' })
   vistaPrevia(
     @Param('id', ID_CAMPANA) id: number,
+    @UsuarioActual() usuario: UsuarioAutenticado,
   ): Promise<VistaPreviaCampana> {
-    return this.campanas.vistaPrevia(id);
+    return this.campanas.vistaPrevia(id, usuario.codigoPublico);
   }
 
   @Post(':id/envio')

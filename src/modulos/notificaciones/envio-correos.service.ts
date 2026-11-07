@@ -198,7 +198,7 @@ export class EnvioCorreosService {
       data: { intentos: { increment: 1 } },
     });
     const asunto = asuntoDe(trabajo, datos, notificacion.asunto);
-    const { html, texto } = await this.contenido.construir(trabajo, datos, {
+    const correo = await this.contenido.construir(trabajo, datos, {
       asunto,
       pedidoId: notificacion.pedidoId,
       usuarioId: notificacion.usuarioId,
@@ -207,9 +207,9 @@ export class EnvioCorreosService {
     await this.cliente.enviar({
       notificacionId: id,
       para: destinatario,
-      asunto,
-      html,
-      texto,
+      asunto: correo.asunto ?? asunto,
+      html: correo.html,
+      texto: correo.texto,
       claveIdempotencia: claveIdempotencia(datos),
     });
     await this.prisma.notificacion.updateMany({

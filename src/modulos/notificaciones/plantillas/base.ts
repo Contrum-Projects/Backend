@@ -6,6 +6,8 @@
 export interface CorreoRenderizado {
   html: string;
   texto: string;
+  /** Asunto que reemplaza al guardado: el de campaña, con sus marcadores completados (SCRUM-150). */
+  asunto?: string;
 }
 
 export const ID_LOGO = 'logo-cabello-perfecto';

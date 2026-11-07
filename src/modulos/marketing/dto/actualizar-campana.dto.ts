@@ -4,6 +4,7 @@ import {
   AsuntoDeUnaLinea,
   MAXIMO_ASUNTO_CAMPANA,
   MAXIMO_CUERPO_CAMPANA,
+  SoloMarcadoresConocidos,
 } from './crear-campana.dto.js';
 import { Segmento, SegmentoCampanaDto } from './segmento-campana.dto.js';
 
@@ -16,6 +17,7 @@ export class ActualizarCampanaDto {
     puedeFaltar: true,
   })
   @AsuntoDeUnaLinea()
+  @SoloMarcadoresConocidos()
   asunto?: string;
 
   @ApiPropertyOptional({ maxLength: MAXIMO_CUERPO_CAMPANA })
@@ -24,6 +26,7 @@ export class ActualizarCampanaDto {
     maximo: MAXIMO_CUERPO_CAMPANA,
     puedeFaltar: true,
   })
+  @SoloMarcadoresConocidos()
   cuerpo?: string;
 
   @ApiPropertyOptional({

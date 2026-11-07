@@ -32,6 +32,7 @@ import { buscarDestinatarios } from './destinatarios-campana.js';
 import type { ActualizarCampanaDto } from './dto/actualizar-campana.dto.js';
 import type { CrearCampanaDto } from './dto/crear-campana.dto.js';
 import type { SegmentoCampanaDto } from './dto/segmento-campana.dto.js';
+import { aplicarMarcadores } from './marcadores-campana.js';
 import { HuellaCampana } from './huella-campana.js';
 import {
   conSubcategorias,
@@ -346,13 +347,16 @@ export class CampanasService {
    * que exige el envío. El enlace de baja de la vista previa lleva a la pantalla de baja sin token:
    * así no da de baja a nadie.
    */
-  async vistaPrevia(id: number): Promise<VistaPreviaCampana> {
+  async vistaPrevia(
+    id: number,
+    codigoUsuario: string,
+  ): Promise<VistaPreviaCampana> {
     const fila = await this.buscar(id);
     if (fila.fechaEncolado) throw new ConflictException(YA_ENVIADA);
     const segmento = leerSegmento(fila.segmento);
     const destinatarios = await this.destinatarios(this.prisma, segmento);
     return {
-      ...this.renderizar(fila),
+      ...(await this.renderizar(fila, codigoUsuario)),
       destinatarios: totalDestinatarios(destinatarios),
       confirmacion: this.huella.calcular({
         id,
@@ -366,25 +370,40 @@ export class CampanasService {
   /**
    * SCRUM-150 · Vista previa en vivo, mientras se redacta: solo arma el correo con la misma
    * plantilla. No lee ni guarda la campaña, no cuenta destinatarios y **nunca** devuelve la
-   * confirmación: para enviar hay que guardar el borrador y pedir `vistaPrevia(id)`.
+   * confirmación: para enviar hay que guardar el borrador y pedir `vistaPrevia(id)`. Los
+   * marcadores se completan con los datos de quien mira la vista previa: así se ve cómo le
+   * llegará a cada cuenta.
    */
-  renderizar({
-    asunto,
-    cuerpo,
-  }: {
-    asunto: string;
-    cuerpo: string;
-  }): CorreoCampana {
+  async renderizar(
+    {
+      asunto,
+      cuerpo,
+    }: {
+      asunto: string;
+      cuerpo: string;
+    },
+    codigoUsuario: string,
+  ): Promise<CorreoCampana> {
     const urlTienda = this.config
       .get('URL_TIENDA', { infer: true })
       .replace(/\/+$/, '');
+    const cuenta = await this.prisma.usuario.findUnique({
+      where: { codigoPublico: codigoUsuario },
+      select: { nombre: true, apellido: true },
+    });
+    const datos = {
+      nombre: cuenta?.nombre ?? null,
+      apellido: cuenta?.apellido ?? null,
+      urlTienda,
+    };
+    const asuntoFinal = aplicarMarcadores(asunto, datos);
     const { html, texto } = correoCampana({
-      asunto,
-      cuerpo,
+      asunto: asuntoFinal,
+      cuerpo: aplicarMarcadores(cuerpo, datos),
       enlaceBaja: `${urlTienda}/ofertas/baja`,
       enlacesPie: rutasTienda(urlTienda).pie,
     });
-    return { asunto, html, texto };
+    return { asunto: asuntoFinal, html, texto };
   }
 
   /**
