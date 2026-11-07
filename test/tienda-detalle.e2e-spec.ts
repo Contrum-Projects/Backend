@@ -38,6 +38,7 @@ interface FormatoDetalle {
 }
 
 interface ProductoDetalle {
+  ingredientes: string | null;
   id: number;
   exclusivo?: boolean;
   formatos: FormatoDetalle[];

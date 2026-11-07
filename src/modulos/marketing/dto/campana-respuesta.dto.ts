@@ -7,7 +7,7 @@ import type { TipoDestinatario } from '../segmento-campana.js';
  * genere sus tipos (SCRUM-150).
  */
 
-/** El segmento guardado de una campaña: siempre con las tres listas, aunque vengan vacías. */
+/** El segmento guardado de una campaña: siempre con todos sus campos, aunque vengan vacíos. */
 export class SegmentoGuardadoDto {
   @ApiProperty({
     enum: Object.values(TIPOS_DESTINATARIO_CAMPANA),
@@ -29,6 +29,101 @@ export class SegmentoGuardadoDto {
     description: 'Ids de las marcas.',
   })
   marcas: number[];
+  // Filtros de cuenta (SCRUM-150): `null` o lista vacía es «sin ese filtro»
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description: 'Con un pedido pagado en los últimos N días.',
+  })
+  compraEnUltimosDias: number | null;
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description: 'Último pedido pagado hace más de N días.',
+  })
+  sinComprarHaceDias: number | null;
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description: 'Mínimo de pedidos pagados.',
+  })
+  pedidosMinimo: number | null;
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description: 'Máximo de pedidos pagados.',
+  })
+  pedidosMaximo: number | null;
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description: 'Gasto mínimo con IVA, en pesos.',
+  })
+  gastoMinimo: number | null;
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description: 'Gasto máximo con IVA, en pesos.',
+  })
+  gastoMaximo: number | null;
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description: 'Edad mínima en años cumplidos.',
+  })
+  edadMinima: number | null;
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description: 'Edad máxima en años cumplidos.',
+  })
+  edadMaxima: number | null;
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description: 'Cuenta creada en los últimos N días.',
+  })
+  registroUltimosDias: number | null;
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description: 'Cuenta creada hace más de N días.',
+  })
+  registroHaceMasDias: number | null;
+
+  @ApiProperty({
+    type: [Number],
+    description: 'Ids de las regiones de sus direcciones.',
+  })
+  regiones: number[];
+
+  @ApiProperty({
+    type: [Number],
+    description: 'Ids de las comunas de sus direcciones.',
+  })
+  comunas: number[];
+
+  @ApiProperty({ type: [Number], description: 'Meses de cumpleaños (1 a 12).' })
+  mesesCumpleanos: number[];
+
+  @ApiProperty({
+    type: [String],
+    description: 'Géneros, tal como los escribió la cuenta.',
+  })
+  generos: string[];
+
+  @ApiProperty({ description: 'Solo cuentas con productos en el carrito.' })
+  conCarrito: boolean;
 }
 
 class AutorCampanaDto {

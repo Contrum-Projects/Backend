@@ -347,6 +347,116 @@ describe('Marketing · campañas de correo (e2e)', () => {
     marcas: [marca],
   });
 
+  it('SCRUM-150 · filtros de cuenta: compras recientes o antiguas, pedidos, gasto, ubicación, perfil, antigüedad y carrito', async () => {
+    const [comuna, otraComuna] = await Promise.all([
+      prisma.comuna.findFirstOrThrow({ orderBy: { id: 'asc' } }),
+      prisma.comuna.findFirstOrThrow({ orderBy: { id: 'desc' } }),
+    ]);
+    const hace = (dias: number) => new Date(Date.now() - dias * 86_400_000);
+    // Las dos compraron en la categoría: ese filtro las aísla de las cuentas de otras pruebas
+    const reciente = await nuevaCuenta(ROLES.CLIENTE);
+    await nuevoPedido(reciente.id, formatoCategoria);
+    const antigua = await nuevaCuenta(ROLES.CLIENTE);
+    await nuevoPedido(antigua.id, formatoCategoria);
+    await nuevoPedido(antigua.id, formatoCategoria);
+    await prisma.pedido.updateMany({
+      where: { usuarioId: antigua.id },
+      data: { fechaPedido: hace(200) },
+    });
+    await prisma.usuario.update({
+      where: { id: reciente.id },
+      data: {
+        fechaNacimiento: new Date('1990-03-15'),
+        genero: 'Femenino',
+        fechaRegistro: hace(10),
+        direcciones: {
+          create: { comunaId: comuna.id, calle: 'Calle', numero: '1' },
+        },
+        carrito: {
+          create: {
+            items: { create: { articuloId: formatoOtro, cantidad: 1 } },
+          },
+        },
+      },
+    });
+    await prisma.usuario.update({
+      where: { id: antigua.id },
+      data: {
+        fechaRegistro: hace(400),
+        direcciones: {
+          create: { comunaId: otraComuna.id, calle: 'Otra', numero: '2' },
+        },
+      },
+    });
+
+    const cuantos = async (filtros: Record<string, unknown>) =>
+      (
+        await vistaPrevia(
+          await crearCampana({
+            tipos: ['cliente'],
+            categorias: [categoriaPadre],
+            ...filtros,
+          }),
+        )
+      ).destinatarios;
+
+    expect(await cuantos({})).toBe(2);
+    expect(await cuantos({ compraEnUltimosDias: 30 })).toBe(1);
+    expect(await cuantos({ sinComprarHaceDias: 90 })).toBe(1);
+    expect(await cuantos({ pedidosMinimo: 2 })).toBe(1);
+    expect(await cuantos({ gastoMaximo: 11900 })).toBe(1);
+    expect(await cuantos({ comunas: [comuna.id] })).toBe(1);
+    expect(await cuantos({ regiones: [otraComuna.regionId] })).toBe(
+      comuna.regionId === otraComuna.regionId ? 2 : 1,
+    );
+    expect(await cuantos({ mesesCumpleanos: [3] })).toBe(1);
+    expect(await cuantos({ edadMinima: 18, edadMaxima: 60 })).toBe(1);
+    expect(await cuantos({ generos: ['Femenino'] })).toBe(1);
+    expect(await cuantos({ registroHaceMasDias: 365 })).toBe(1);
+    expect(await cuantos({ registroUltimosDias: 30 })).toBe(1);
+    expect(await cuantos({ conCarrito: true })).toBe(1);
+    // Todos a la vez se suman: la reciente los cumple; con uno de la antigua, nadie
+    expect(
+      await cuantos({
+        compraEnUltimosDias: 30,
+        comunas: [comuna.id],
+        generos: ['Femenino'],
+        conCarrito: true,
+      }),
+    ).toBe(1);
+    expect(await cuantos({ conCarrito: true, sinComprarHaceDias: 90 })).toBe(0);
+
+    // Que no cuenten en las demás pruebas, que también filtran por esta categoría
+    await prisma.usuario.updateMany({
+      where: { id: { in: [reciente.id, antigua.id] } },
+      data: { aceptaMarketingEmail: false },
+    });
+  });
+
+  it('SCRUM-150 · filtros de cuenta: con suscriptores o con un mínimo mayor que el máximo responde 400 junto al campo', async () => {
+    const pedir = (segmento: Record<string, unknown>) =>
+      servidor()
+        .post(RUTA)
+        .auth(tokenAdministrador, { type: 'bearer' })
+        .send({ asunto: `${PREFIJO} filtros`, cuerpo: 'Hola', segmento });
+
+    const conSuscriptores = await pedir({
+      tipos: ['cliente', 'suscriptor'],
+      conCarrito: true,
+    }).expect(400);
+    expect(JSON.stringify(conSuscriptores.body)).toContain('suscriptores');
+
+    const rango = await pedir({
+      tipos: ['cliente'],
+      edadMinima: 40,
+      edadMaxima: 30,
+    }).expect(400);
+    expect(JSON.stringify(rango.body)).toContain('La edad máxima');
+
+    await pedir({ tipos: ['cliente'], mesesCumpleanos: [13] }).expect(400);
+    await pedir({ tipos: ['cliente'], regiones: [999_999] }).expect(400);
+  });
+
   it('E12-H3 · CA1 campaña enviada · CA3 destinatarios sin consentimiento: tras la vista previa, encola solo a quienes compraron, aceptan publicidad y verificaron su correo, y guarda el segmento', async () => {
     const { incluidas, excluidas } = await prepararCompradores();
     const id = await crearCampana(SEGMENTO_COMPRAS());

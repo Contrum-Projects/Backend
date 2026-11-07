@@ -38,6 +38,7 @@ import {
   conSubcategorias,
   type Destinatarios,
   filtraPorCompras,
+  filtraPorCuenta,
   incluyeSuscriptores,
   leerSegmento,
   normalizarSegmento,
@@ -58,6 +59,33 @@ const SIN_DESTINATARIOS =
 
 /** Trabajos por operación al encolar: una campaña grande no arma una sola llamada enorme a Redis. */
 const LOTE_ENCOLAR = 500;
+/** Mínimo y máximo de un mismo filtro: el mínimo no puede pasar al máximo (SCRUM-150). */
+const RANGOS_SEGMENTO = [
+  [
+    'pedidosMinimo',
+    'pedidosMaximo',
+    'pedidosMaximo',
+    'El máximo de pedidos no puede ser menor que el mínimo.',
+  ],
+  [
+    'gastoMinimo',
+    'gastoMaximo',
+    'gastoMaximo',
+    'El gasto máximo no puede ser menor que el mínimo.',
+  ],
+  [
+    'edadMinima',
+    'edadMaxima',
+    'edadMaxima',
+    'La edad máxima no puede ser menor que la mínima.',
+  ],
+] as const satisfies readonly [
+  keyof SegmentoCampana,
+  keyof SegmentoCampana,
+  string,
+  string,
+][];
+
 /** Crear las NOTIFICACION de una campaña grande puede pasar del plazo por omisión de Prisma (5 s). */
 const PLAZO_TRANSACCION_MS = 30_000;
 
@@ -247,11 +275,12 @@ export class CampanasService {
   /** SCRUM-150 · Los contadores de «Campañas», con las reglas del envío. */
   private async contactos(): Promise<ContactosCampanas> {
     const [{ cuentas, suscriptores }, [rebotes]] = await Promise.all([
-      this.destinatarios(this.prisma, {
-        tipos: Object.values(TIPOS_DESTINATARIO_CAMPANA),
-        categorias: [],
-        marcas: [],
-      }),
+      this.destinatarios(
+        this.prisma,
+        normalizarSegmento({
+          tipos: Object.values(TIPOS_DESTINATARIO_CAMPANA),
+        }),
+      ),
       this.prisma.$queryRaw<{ total: bigint }[]>`
         SELECT COUNT(DISTINCT COALESCE('u' || id_usuario::text, 'l' || id_lead::text)) AS "total"
         FROM notificacion
@@ -541,12 +570,50 @@ export class CampanasService {
         'segmento.tipos',
       );
     }
-    const [categorias, marcas] = await Promise.all([
+    if (filtraPorCuenta(segmento) && incluyeSuscriptores(segmento)) {
+      throw errorDeCampo(
+        BadRequestException,
+        'Los suscriptores sin cuenta no tienen compras, dirección ni datos de perfil: quítalos del segmento o quita esos filtros.',
+        'segmento.tipos',
+      );
+    }
+    for (const [minimo, maximo, campo, texto] of RANGOS_SEGMENTO) {
+      const desde = segmento[minimo];
+      const hasta = segmento[maximo];
+      if (desde !== null && hasta !== null && desde > hasta) {
+        throw errorDeCampo(BadRequestException, texto, `segmento.${campo}`);
+      }
+    }
+    const [categorias, marcas, regiones, comunas] = await Promise.all([
       this.prisma.categoria.count({
         where: { id: { in: segmento.categorias } },
       }),
       this.prisma.marca.count({ where: { id: { in: segmento.marcas } } }),
+      segmento.regiones.length === 0
+        ? 0
+        : this.prisma.region.count({
+            where: { id: { in: segmento.regiones } },
+          }),
+      segmento.comunas.length === 0
+        ? 0
+        : this.prisma.comuna.count({
+            where: { id: { in: segmento.comunas } },
+          }),
     ]);
+    if (regiones !== segmento.regiones.length) {
+      throw errorDeCampo(
+        BadRequestException,
+        'Alguna región indicada no existe.',
+        'segmento.regiones',
+      );
+    }
+    if (comunas !== segmento.comunas.length) {
+      throw errorDeCampo(
+        BadRequestException,
+        'Alguna comuna indicada no existe.',
+        'segmento.comunas',
+      );
+    }
     if (categorias !== segmento.categorias.length) {
       throw errorDeCampo(
         BadRequestException,

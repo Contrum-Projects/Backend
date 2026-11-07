@@ -1143,6 +1143,20 @@ enlace de baja de la vista previa lleva a `/ofertas/baja` sin token (no da de ba
 (clave derivada de `JWT_ACCESS_SECRET` con su propio dominio, `HuellaCampana`; sin variable ni
 columna nueva). **Vence a la hora** (`VIGENCIA_VISTA_PREVIA_MS`): pasada, 409 «más de una hora»
 y hay que pedir otra vista previa. **Vista previa en vivo** (decisión del 6 nov, SCRUM-150): `POST /vista-previa` `{ asunto, cuerpo }` arma el correo con la misma plantilla mientras se redacta y responde `{ asunto, html, texto }`; no guarda nada, no cuenta destinatarios y **nunca** entrega la `confirmacion` (no sirve para enviar). **Cifras del listado** (decisión del 6 nov, SCRUM-150): `GET` trae `contactos` (`aceptanPublicidad`: direcciones que recibirían hoy una campaña a todos; `cuentasVerificadas` y `suscriptoresSinCuenta`, sus dos partes, con las mismas reglas que el envío; `conRebote`: direcciones con algún correo `rebotada`) y, en cada fila, `destinatarios` (borrador: los de hoy, como su vista previa; enviada: a cuántas direcciones salió) y `porcentajeApertura` (enviada: de los correos `enviada`, cuántos tienen apertura, 0 a 100 redondeado; `null` en un borrador o sin envíos). Las respuestas de campañas se declaran en el Swagger.
+**Filtros de cuenta** (decisión del 7 nov, SCRUM-150): además de tipos, categorías y marcas, el
+segmento acepta (todos opcionales; `null`, lista vacía o `false` = sin ese filtro; se cumplen
+todos a la vez y dentro de una lista basta una opción): **compras** `compraEnUltimosDias` (un
+pedido pagado en los últimos N días), `sinComprarHaceDias` (compró alguna vez y el último pedido
+pagado es de hace más de N días), `pedidosMinimo`/`pedidosMaximo` (0 a 10.000; máximo 0 = nunca
+compró) y `gastoMinimo`/`gastoMaximo` (total con IVA de sus pedidos pagados, en pesos); pagado =
+todo estado salvo `ESTADOS_SIN_VENTA`. **Ubicación** `regiones` y `comunas` (hasta 50 ids que
+existan; alguna dirección guardada en una de ellas). **Perfil** `mesesCumpleanos` (1 a 12),
+`edadMinima`/`edadMaxima` (años cumplidos con la fecha de hoy en Chile; sin fecha de nacimiento
+no entra) y `generos` (el texto que escribió la cuenta, hasta 10). **Antigüedad**
+`registroUltimosDias` y `registroHaceMasDias` (1 a 3650) y `conCarrito` (productos en el
+carrito). Un mínimo mayor que su máximo: 400 junto al máximo. Los suscriptores sin cuenta no tienen
+estos datos: pedirlos con cualquiera de estos filtros responde 400, como con las compras. En
+`campana.segmento` solo se escriben los filtros indicados (un segmento anterior se guarda igual).
 **Marcadores** (decisión del 7 nov, SCRUM-150; `marcadores-campana.ts`): el asunto y el cuerpo
 aceptan `{nombre}`, `{apellido}`, `{nombre_completo}` y `{enlace_tienda}` (`URL_TIENDA`). Cada
 correo los completa **al enviarse** con los datos de la cuenta que lo recibe (el asunto guardado en
