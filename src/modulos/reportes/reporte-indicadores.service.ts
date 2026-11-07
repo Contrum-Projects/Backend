@@ -1,8 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import {
+  ESTADOS_OBJETIVO,
   ESTADOS_SIN_VENTA,
   ESTADOS_SOLICITUD,
   ORIGENES_DESCRIPCION,
+  type Valor,
 } from '../../common/dominio/valores.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { validarPeriodo } from './periodo-reporte.js';
@@ -41,6 +43,8 @@ export interface Indicador {
   cumplidos: number;
   total: number;
   sinDatos: boolean;
+  /** Frente a la meta: alcanzarla cuenta como sobre la meta (SCRUM-150). */
+  estado: Valor<typeof ESTADOS_OBJETIVO>;
 }
 
 export interface ReporteIndicadores {
@@ -72,6 +76,13 @@ export const aIndicador = (
     cumplidos,
     total,
     sinDatos: total === 0,
+    // Con los conteos y no con el porcentaje redondeado: 29,96 % no alcanza una meta de 30
+    estado:
+      total === 0
+        ? ESTADOS_OBJETIVO.SIN_DATOS
+        : cumplidos * 100 >= meta * total
+          ? ESTADOS_OBJETIVO.SOBRE_LA_META
+          : ESTADOS_OBJETIVO.BAJO_LA_META,
   };
 };
 

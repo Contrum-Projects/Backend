@@ -23,6 +23,16 @@ export const ESTADOS_PEDIDO = {
 } as const;
 
 /**
+ * Estado de un objetivo del proyecto frente a su meta (E14-H1, SCRUM-150): lo decide el backend,
+ * así la pantalla no compara porcentajes (RNF-03).
+ */
+export const ESTADOS_OBJETIVO = {
+  SOBRE_LA_META: 'sobre-la-meta',
+  BAJO_LA_META: 'bajo-la-meta',
+  SIN_DATOS: 'sin-datos',
+} as const;
+
+/**
  * Orden del listado de la tienda (E2-H1, decisión del 6 nov 2026, SCRUM-150). Sin orden, por
  * nombre. «más vendidos»: unidades vendidas de sus formatos en los últimos
  * `DIAS_MAS_VENDIDOS` días, en pedidos que son venta (`ESTADOS_SIN_VENTA`); «novedades»: el

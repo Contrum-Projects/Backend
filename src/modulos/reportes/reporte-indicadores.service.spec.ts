@@ -40,6 +40,7 @@ describe('ReporteIndicadoresService', () => {
           cumplidos: 3,
           total: 7,
           sinDatos: false,
+          estado: 'sobre-la-meta',
         },
         {
           codigo: 'OE2',
@@ -49,6 +50,7 @@ describe('ReporteIndicadoresService', () => {
           cumplidos: 7,
           total: 10,
           sinDatos: false,
+          estado: 'sobre-la-meta',
         },
         {
           codigo: 'OE3',
@@ -58,6 +60,7 @@ describe('ReporteIndicadoresService', () => {
           cumplidos: 4,
           total: 4,
           sinDatos: false,
+          estado: 'sobre-la-meta',
         },
       ],
     });
@@ -139,5 +142,20 @@ describe('ReporteIndicadoresService', () => {
       servicio.indicadores('0000-01-01', '0000-01-02'),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.$queryRaw).not.toHaveBeenCalled();
+  });
+
+  describe('estado frente a la meta (SCRUM-150)', () => {
+    it('E14-H1 · alcanzar la meta cuenta como sobre la meta; sin total, sin datos', () => {
+      // OE1 tiene meta 30: 3 de 10 la alcanza; 2.996 de 10.000 (29,96 %) no
+      expect(aIndicador('OE1', { total: 10n, cumplidos: 3n }).estado).toBe(
+        'sobre-la-meta',
+      );
+      expect(
+        aIndicador('OE1', { total: 10_000n, cumplidos: 2_996n }).estado,
+      ).toBe('bajo-la-meta');
+      expect(aIndicador('OE1', { total: 0n, cumplidos: 0n }).estado).toBe(
+        'sin-datos',
+      );
+    });
   });
 });

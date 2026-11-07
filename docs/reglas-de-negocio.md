@@ -1199,6 +1199,11 @@ productos con `fecha_creacion` en el período, cuántos tienen `origen_descripci
 desactivaron** (decisión del 5 nov: OE3 mide cómo se hizo la descripción al crearlo, y eso no cambia
 al desactivarlo). Se calcula al consultar, una consulta
 agregada por indicador, sin caché. Sin cambios al MER.
+SCRUM-150 (6 nov): cada indicador trae `estado` (`ESTADOS_OBJETIVO`): `sobre-la-meta` si
+`cumplidos / total` alcanza o supera la meta (se compara con los conteos, no con el porcentaje
+redondeado), `bajo-la-meta` si no, y `sin-datos` sin total. El reporte de carritos trae
+`porcentajeRecuperados` (recuperados / abandonados, al entero; `null` sin abandonos) por mes y en
+el total. Las dos respuestas quedan tipadas en el Swagger.
 Decisiones del 6 nov (E14-H3, SCRUM-76): dos rutas con `reportes.ver` (401 sin sesión, 403 sin el
 permiso). **Carritos:** `GET /api/reportes/carritos-abandonados?desde=AAAA-MM&hasta=AAAA-MM`, ambos
 meses obligatorios e incluidos, en hora de Chile; **400** si un mes no es válido (AAAA-MM, años

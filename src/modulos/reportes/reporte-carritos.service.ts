@@ -6,6 +6,7 @@ import {
 } from '../../common/dominio/valores.js';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { porcentaje } from '../../common/dominio/porcentajes.js';
 import {
   DIAS_PARA_RECUPERAR,
   type EventoCuenta,
@@ -21,13 +22,19 @@ export interface CarritosDelMes {
   abandonados: number;
   /** De los abandonados ese mes, cuántos terminaron en una compra pagada. */
   recuperados: number;
+  /** Recuperados sobre abandonados, de 0 a 100 al entero; `null` sin abandonos (SCRUM-150). */
+  porcentajeRecuperados: number | null;
 }
 
 export interface ReporteCarritos {
   desde: string;
   hasta: string;
   meses: CarritosDelMes[];
-  total: { abandonados: number; recuperados: number };
+  total: {
+    abandonados: number;
+    recuperados: number;
+    porcentajeRecuperados: number | null;
+  };
 }
 
 /** AAAA-MM → número de mes contado desde el año 0, para comparar y recorrer meses. */
@@ -63,7 +70,12 @@ export class ReporteCarritosService {
     const meses = new Map<string, CarritosDelMes>();
     for (let indice = primero; indice <= ultimo; indice++) {
       const mes = deIndiceMes(indice);
-      meses.set(mes, { mes, abandonados: 0, recuperados: 0 });
+      meses.set(mes, {
+        mes,
+        abandonados: 0,
+        recuperados: 0,
+        porcentajeRecuperados: null,
+      });
     }
     for (const serie of seriesAbandono(recordatorios, compras)) {
       const fila = meses.get(mesEnLaTienda(serie.inicio));
@@ -72,14 +84,26 @@ export class ReporteCarritosService {
       if (serie.recuperada) fila.recuperados += 1;
     }
 
-    const lista = [...meses.values()];
+    const lista = [...meses.values()].map((fila) => ({
+      ...fila,
+      porcentajeRecuperados: porcentaje(fila.recuperados, fila.abandonados),
+    }));
+    const abandonados = lista.reduce(
+      (suma, fila) => suma + fila.abandonados,
+      0,
+    );
+    const recuperados = lista.reduce(
+      (suma, fila) => suma + fila.recuperados,
+      0,
+    );
     return {
       desde,
       hasta,
       meses: lista,
       total: {
-        abandonados: lista.reduce((suma, fila) => suma + fila.abandonados, 0),
-        recuperados: lista.reduce((suma, fila) => suma + fila.recuperados, 0),
+        abandonados,
+        recuperados,
+        porcentajeRecuperados: porcentaje(recuperados, abandonados),
       },
     };
   }

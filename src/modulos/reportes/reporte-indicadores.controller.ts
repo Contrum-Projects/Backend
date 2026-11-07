@@ -13,6 +13,7 @@ import {
   PermisosGuard,
   RequierePermiso,
 } from '../../autenticacion/permisos.guard.js';
+import { ReporteIndicadoresRespuestaDto } from './dto/indicadores-carritos-respuesta.dto.js';
 import { PERMISOS } from '../../common/dominio/permisos.js';
 import { PeriodoReporteDto } from './dto/periodo-reporte.dto.js';
 import {
@@ -41,7 +42,8 @@ export class ReporteIndicadoresController {
   })
   @ApiOkResponse({
     description:
-      '`desde`, `hasta` e `indicadores`: por cada objetivo `codigo`, `nombre`, `meta`, `porcentaje` (con un decimal, o `null`), `cumplidos`, `total` y `sinDatos`.',
+      '`desde`, `hasta` e `indicadores`: por cada objetivo `codigo`, `nombre`, `meta`, `porcentaje` (con un decimal, o `null`), `cumplidos`, `total`, `sinDatos` y `estado` frente a la meta.',
+    type: ReporteIndicadoresRespuestaDto,
   })
   @ApiBadRequestResponse({
     description:
