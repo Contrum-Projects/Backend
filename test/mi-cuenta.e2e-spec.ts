@@ -157,6 +157,33 @@ describe('Cuentas · datos personales y direcciones (e2e)', () => {
     expect(cuenta.body).not.toHaveProperty('contrasenaHash');
   });
 
+  it('SCRUM-152 · la fecha de nacimiento se indica una sola vez: después no se cambia ni se borra', async () => {
+    const token = await tokenDe(ROLES.CLIENTE);
+    const editar = (cuerpo: object) =>
+      request(app.getHttpServer())
+        .patch(RUTA_DATOS)
+        .auth(token, { type: 'bearer' })
+        .send(cuerpo);
+
+    await editar({ fechaNacimiento: '1990-05-21' }).expect(200);
+    const cambio = await editar({ fechaNacimiento: '2000-11-08' }).expect(409);
+    expect(JSON.stringify(cambio.body)).toContain('fechaNacimiento');
+    await editar({ fechaNacimiento: null }).expect(409);
+    // La misma fecha y los demás datos se siguen guardando
+    await editar({ fechaNacimiento: '1990-05-21', nombre: 'Camila' }).expect(
+      200,
+    );
+
+    const cuenta = await request(app.getHttpServer())
+      .get(RUTA_DATOS)
+      .auth(token, { type: 'bearer' })
+      .expect(200);
+    expect(cuenta.body).toMatchObject({
+      nombre: 'Camila',
+      fechaNacimiento: '1990-05-21',
+    });
+  });
+
   it('E1-H5 · RUT de otra cuenta: rechaza el cambio e informa que el RUT ya está en uso', async () => {
     await tokenDe(ROLES.CLIENTE, RUT_AJENO);
     const token = await tokenDe(ROLES.CLIENTE);

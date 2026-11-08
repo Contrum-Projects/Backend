@@ -1235,10 +1235,11 @@ pendientes la reencola (RNF-29). Al enviar se revisa otra vez el consentimiento 
 y la oferta se leen de la base: **la oferta va si está activa al enviarse** (CA2). El correo usa la
 base de los demás («Hola, {nombre}:», el saludo, la oferta en un recuadro y botón a `/catalogo`),
 con remitente y correo para pedir la baja (RNF-26); sin diseño en Figma. Sin cambios al MER.
-PENDIENTE (auditoría del 5 nov): la cuenta puede editar su fecha de nacimiento (solo se valida que
-no sea futura), así que puede poner la de hoy para recibir la oferta, una vez al año por cuenta. Hay
-que decidir si se acepta (la oferta se canjea a mano) o si se limita (fecha no editable una vez
-fijada, o no saludar si cambió hace poco, que cambiaría el MER).
+Decisión del 8 nov (SCRUM-152, resuelve la auditoría del 5 nov): la fecha de nacimiento **se indica
+una sola vez**. Si la cuenta se registró sin ella, puede agregarla después en `PATCH
+/cuentas/yo`; ya guardada, cambiarla o borrarla responde **409** junto a `fechaNacimiento` (enviar
+la misma fecha no es un error). Así nadie la mueve al día de hoy para recibir la oferta. Si hay un
+error, la corrige el personal (hoy, directamente en la base: no hay pantalla). Sin cambios al MER.
 
 **Cupones** (decisiones del 7 nov 2026, SCRUM-150; módulo `cupones`). **Cambio al MER:** tablas
 CUPON, CUPON_ARTICULO, CUPON_CATEGORIA y CUPON_MARCA, y en PEDIDO `id_cupon` y `monto_descuento`

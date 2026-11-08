@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { ROLES } from '../../common/dominio/roles.js';
 import { ESTADOS_SOLICITUD } from '../../common/dominio/valores.js';
+import { errorDeCampo } from '../../common/errores/error-de-campo.js';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { bloquearCuenta } from '../../prisma/bloqueos.js';
@@ -100,6 +101,9 @@ const verificarCambioRut = async (
   if (otra) throw new ConflictException(RUT_EN_USO);
 };
 
+export const FECHA_NACIMIENTO_FIJA =
+  'La fecha de nacimiento ya está registrada y no se puede cambiar. Si hay un error, escríbenos para corregirla.';
+
 @Injectable()
 export class MiCuentaService {
   constructor(private readonly prisma: PrismaService) {}
@@ -140,8 +144,21 @@ export class MiCuentaService {
         const usuarioId = await bloquearCuenta(tx, codigoPublico);
         const cuenta = await tx.usuario.findUniqueOrThrow({
           where: { id: usuarioId },
-          select: { rol: true, rut: true },
+          select: { rol: true, rut: true, fechaNacimiento: true },
         });
+        // SCRUM-152 · Se indica una sola vez: con la fecha guardada no se cambia ni se borra, así
+        // nadie la mueve al día de hoy para recibir la oferta de cumpleaños. La misma fecha no cambia nada
+        if (
+          fechaNacimiento !== undefined &&
+          cuenta.fechaNacimiento !== null &&
+          fechaNacimiento?.getTime() !== cuenta.fechaNacimiento.getTime()
+        ) {
+          throw errorDeCampo(
+            ConflictException,
+            FECHA_NACIMIENTO_FIJA,
+            'fechaNacimiento',
+          );
+        }
         if (dto.rut !== undefined && dto.rut !== cuenta.rut) {
           await verificarCambioRut(tx, usuarioId, cuenta.rol, dto.rut);
         }
