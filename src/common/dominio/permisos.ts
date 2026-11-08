@@ -13,6 +13,8 @@ export const PERMISOS = {
   PROVEEDORES_GESTIONAR: 'proveedores.gestionar',
   INVENTARIO_REGISTRAR: 'inventario.registrar',
   INVENTARIO_CONSULTAR: 'inventario.consultar',
+  /** Crear, editar y desactivar bodegas y ubicaciones (SCRUM-151): solo el administrador. */
+  BODEGAS_GESTIONAR: 'bodegas.gestionar',
   CATALOGO_GESTIONAR: 'catalogo.gestionar',
   PRECIOS_GESTIONAR: 'precios.gestionar',
   PEDIDOS_GESTIONAR: 'pedidos.gestionar',
