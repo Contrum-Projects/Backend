@@ -185,6 +185,7 @@ ninguno. El administrador tiene todos, también los que se agreguen.
 | `proveedores.gestionar` | Proveedores (E11-H1) | ✅ | | ✅ |
 | `inventario.registrar` | Entradas, salidas, ajustes y transferencias (E11-H2 a H4) | ✅ | | ✅ |
 | `inventario.consultar` | Stock por formato y ubicación (E11-H5) | ✅ | ✅ | ✅ |
+| `bodegas.gestionar` | Crear, editar y desactivar bodegas y ubicaciones (SCRUM-151) | ✅ | | |
 | `catalogo.gestionar` | Productos, formatos, imágenes, marcas, categorías y packs (E3, E4) | ✅ | ✅ | |
 | `precios.gestionar` | Precio minorista y mayorista (E3-H5) | ✅ | | |
 | `pedidos.gestionar` | Ver pedidos y cambiar su estado en el panel (E8-H2) | ✅ | ✅ | ✅ |
@@ -398,10 +399,17 @@ movimiento `TIPOS_MOVIMIENTO.ENTRADA` por formato con `id_entrada` y ubicación 
 Ubicaciones (SCRUM-150, 6 nov): `GET /api/inventario/ubicaciones` con `inventario.consultar`
 lista las ubicaciones activas de bodegas activas (`[{ id, codigo, bodega: { id, nombre } }]`,
 por bodega y código): el destino de entradas, ajustes y transferencias y el filtro por bodega.
-PENDIENTE: ninguna historia crea bodegas ni ubicaciones (ni las comunas que la bodega exige).
-Mientras tanto, `pnpm db:seed` fuera de producción crea dos bodegas de prueba («Bodega de
-desarrollo» con A-01, A-02 y B-01, y «Sala de ventas de desarrollo» con S-01; SCRUM-150), y
-`bodega.tipo` sigue sin lista en `valores.ts` (las pruebas usan `bodega` y `tienda`).
+Decisiones del 8 nov (SCRUM-151): el administrador (`bodegas.gestionar`) gestiona las bodegas y
+sus ubicaciones en `/api/inventario/bodegas` (`GET` todas, también las desactivadas, con sus
+ubicaciones y las unidades que guarda cada una; `POST`; `PATCH /:id`; `POST /:id/ubicaciones`;
+`PATCH /:id/ubicaciones/:ubicacionId`). Bodega: nombre (1-100), dirección (1-200), comuna por
+código CUT (400 si no existe), `tipo` de `TIPOS_BODEGA` (`bodega` o `tienda`) y si abastece la
+venta online (por omisión, sí); nace activa. Ubicación: código (1-30, en mayúsculas, **único en su
+bodega**: 409 junto a `codigo`) y, opcionales, zona, pasillo, estante y nivel (hasta 20). No se
+borran: se desactivan, y **con stock no se desactivan** (409; primero se transfiere o se ajusta a
+cero). Desactivada, no recibe stock nuevo y su stock no cuenta para la venta online. El bodeguero
+sigue viendo las activas en `GET /inventario/ubicaciones`. `pnpm db:seed` fuera de producción sigue
+creando las dos bodegas de prueba.
 Totales y lista de entradas (SCRUM-150, 6 nov): la respuesta del `POST` trae `subtotalNeto` por
 formato (cantidad × costo, con Decimal), `unidades` y `costoNetoTotal`.
 `GET /api/inventario/entradas?bodegaId&buscar&desde&hasta&pagina&limite` (`inventario.registrar`)
