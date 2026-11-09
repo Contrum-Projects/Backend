@@ -7,7 +7,8 @@
  * Lee del `.env` la clave de la API Envíos (`CHILEXPRESS_CLAVE_ENVIOS`, obligatoria) y, si están, la
  * TCC, el RUT de la empresa, el remitente y la URL. Sin ellos usa los valores de prueba que publica
  * Chilexpress (TCC 18578680, RUT 96756430) y su ambiente de prueba. Nunca imprime la clave.
- * Sin `CHILEXPRESS_URL_BASE` va al ambiente de prueba: no crea OT reales.
+ * Sin `CHILEXPRESS_URL_BASE` va al ambiente de prueba: no crea OT reales. Con otra URL se niega,
+ * salvo que se agregue `--produccion` (`pnpm chilexpress:probar-ot -- --produccion`).
  */
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -19,10 +20,25 @@ import { SeguimientoChilexpress } from '../dist/modulos/despacho/seguimiento-chi
 const env = process.env;
 const clave = env.CHILEXPRESS_CLAVE_ENVIOS;
 if (!clave) {
-  console.error('Falta CHILEXPRESS_CLAVE_ENVIOS en el .env (la clave de la API Envíos).');
+  console.error(
+    'Falta CHILEXPRESS_CLAVE_ENVIOS en el .env (la clave de la API Envíos).',
+  );
   process.exit(1);
 }
-const urlBase = (env.CHILEXPRESS_URL_BASE || URL_SANDBOX_CHILEXPRESS).replace(/\/+$/, '');
+const urlBase = (env.CHILEXPRESS_URL_BASE || URL_SANDBOX_CHILEXPRESS).replace(
+  /\/+$/,
+  '',
+);
+// Una prueba nunca crea una OT real sin pedirlo: fuera del ambiente de prueba exige --produccion
+if (
+  urlBase !== URL_SANDBOX_CHILEXPRESS &&
+  !process.argv.includes('--produccion')
+) {
+  console.error(
+    `CHILEXPRESS_URL_BASE apunta a ${urlBase}: esto crearía una OT real. Si es lo que quieres, agrega --produccion.`,
+  );
+  process.exit(1);
+}
 const tcc = env.CHILEXPRESS_TCC || '18578680';
 const rut = Number(env.CHILEXPRESS_RUT_EMPRESA || '96756430');
 const remitente = {
@@ -32,7 +48,9 @@ const remitente = {
 };
 const referencia = `PRUEBA${Date.now().toString().slice(-6)}`;
 
-console.log(`Ambiente: ${urlBase === URL_SANDBOX_CHILEXPRESS ? 'PRUEBA' : urlBase}`);
+console.log(
+  `Ambiente: ${urlBase === URL_SANDBOX_CHILEXPRESS ? 'PRUEBA' : urlBase}`,
+);
 console.log(`TCC: ${tcc} · RUT empresa: ${rut} · referencia: ${referencia}`);
 
 const creador = new CreadorOtChilexpress(clave, tcc, remitente, urlBase);
@@ -46,7 +64,12 @@ try {
       numero: '427',
       complemento: 'Depto. 301',
     },
-    devolucion: { cobertura: 'STGO', calle: 'Av. Matta 1234', numero: null, complemento: null },
+    devolucion: {
+      cobertura: 'STGO',
+      calle: 'Av. Matta 1234',
+      numero: null,
+      complemento: null,
+    },
     destinatario: {
       nombre: 'Destinatario de prueba',
       telefono: '+56912345678',
