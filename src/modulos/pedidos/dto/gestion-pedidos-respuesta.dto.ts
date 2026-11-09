@@ -225,6 +225,12 @@ class CambioPermitidoDto {
   })
   pideCodigoSeguimiento: boolean;
 
+  @ApiProperty({
+    description:
+      'Al despachar sin escribir el número, la OT se crea sola en Chilexpress; el número escrito queda como respaldo (SCRUM-153).',
+  })
+  creaOt: boolean;
+
   @ApiProperty({ description: 'Se avisa al cliente por correo.' })
   avisaAlCliente: boolean;
 
@@ -298,4 +304,10 @@ export class DetallePedidoGestionDto {
 
   @ApiProperty({ description: 'Solo un pedido pendiente de pago (E8-H3).' })
   sePuedeCancelar: boolean;
+
+  @ApiProperty({
+    description:
+      'La OT se creó por la API y su etiqueta se descarga en `GET /:codigoPedido/etiqueta` (SCRUM-153).',
+  })
+  tieneEtiqueta: boolean;
 }

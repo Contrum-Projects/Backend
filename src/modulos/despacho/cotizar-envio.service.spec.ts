@@ -118,17 +118,22 @@ describe('CotizarEnvioService', () => {
     await expect(servicio.cotizar('13101', BULTO)).resolves.toEqual({
       servicio: 'EXPRESS',
       costoNeto: 6143,
+      // La tarifa simulada no trae código: así quedan las cotizaciones anteriores en caché
+      codigoServicio: null,
     });
   });
 
-  it('E7-H2 · cotización obtenida: cotiza desde la primera bodega activa de la venta online', async () => {
+  it('E7-H2 · SCRUM-153 · cotiza desde la bodega de despacho o, sin ella, desde la primera activa de la venta online', async () => {
     const { servicio, db, cotizador } = crear();
 
     await servicio.cotizar('13101', BULTO);
 
     expect(db.bodega.findFirst.mock.calls[0]![0]).toMatchObject({
-      where: { activa: true, abasteceVentaOnline: true },
-      orderBy: { id: 'asc' },
+      where: {
+        activa: true,
+        OR: [{ esDespacho: true }, { abasteceVentaOnline: true }],
+      },
+      orderBy: [{ esDespacho: 'desc' }, { id: 'asc' }],
     });
     expect(cotizador.cotizar).toHaveBeenCalledWith({
       origenCut: '08101',

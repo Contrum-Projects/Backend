@@ -1,3 +1,4 @@
+import type { Prisma } from '../../generated/prisma/client.js';
 import type { Bulto } from './cotizador-envio.js';
 
 /** Un formato del carrito con sus medidas, las veces que va. */
@@ -34,3 +35,26 @@ export const armarBulto = (lineas: UnidadesBulto[]): Bulto | null => {
   const lado = Math.ceil(Math.cbrt(volumen));
   return { pesoGramos, altoCm: lado, anchoCm: lado, largoCm: lado };
 };
+
+/** Las medidas de un formato que hacen falta para armar el bulto. */
+export const MEDIDAS = {
+  pesoGramos: true,
+  altoCm: true,
+  anchoCm: true,
+  largoCm: true,
+} satisfies Prisma.FormatoProductoSelect;
+
+export type Medidas = Prisma.FormatoProductoGetPayload<{
+  select: typeof MEDIDAS;
+}>;
+
+export const unidades = (
+  medidas: Medidas,
+  cantidad: number,
+): UnidadesBulto => ({
+  pesoGramos: medidas.pesoGramos,
+  altoCm: Number(medidas.altoCm),
+  anchoCm: Number(medidas.anchoCm),
+  largoCm: Number(medidas.largoCm),
+  cantidad,
+});

@@ -716,6 +716,32 @@ pasada se corta solo ante una falla general (red, plazo, 5xx, 401, 403, 429). El
 repetirla responde 409 y volver el pedido a en preparación la libera. Sin ceros a la izquierda, porque `0123`
 y `123` serían la misma OT. **Referencia:** el personal crea la OT con `pedido.codigo_publico` como
 referencia, y ese valor se envía como `reference`. Cambia el MER: agrega la restricción de unicidad.
+Decisiones del 9 nov (SCRUM-153, reemplaza la creación de la OT fuera de la API): **la OT se crea
+sola al despachar**. Al pasar un pedido con despacho a `despachado` **sin** `codigoSeguimiento`, el
+backend crea la OT con la API Envíos (`POST /transport-orders/api/v1.0/transport-orders`) **antes**
+de abrir la transacción, y después guarda el número (`envio.codigo_seguimiento`) y la etiqueta
+(`envio.etiqueta`, base64 como la entrega Chilexpress, `labelType` 2) con el cambio de estado.
+**Origen y devolución:** la **bodega de despacho** (`bodega.es_despacho`, una sola por índice único
+parcial, debe estar activa; desactivarla le quita la marca), que también es el origen de la
+cotización (sin ella, la primera activa que abastece la venta online, como antes). **Destino y
+contacto:** los que guardó el pedido (calle, número, referencia, comuna; destinatario y su teléfono, o
+el de la cuenta) y el correo de la cuenta; **remitente** de la configuración. **Bulto:** el mismo de
+la cotización (peso en kg con dos decimales, mínimo 0,01). **Servicio:** el `serviceTypeCode` que se
+cotizó al comprar (`envio.codigo_servicio`, nuevo; los pedidos anteriores no lo tienen). Producto
+encomienda (3), contenido «otros» (5, PROPUESTA), valor declarado = total con IVA menos el despacho,
+referencia = código del pedido. **Falla:** sin bodega de despacho, sin cobertura, sin servicio
+cotizado o sin teléfono responde 409; si Chilexpress rechaza o no responde (15 s), 503; en todos los
+casos el pedido no cambia y el mensaje ofrece el **respaldo**: escribir el número de una OT creada en
+el portal, como antes (con número escrito no se llama a Chilexpress y no hay etiqueta). Si la OT se
+crea pero el cambio de estado falla después, queda una advertencia en el log con su número para
+anularla. Sin `CHILEXPRESS_CLAVE_ENVIOS`, `CHILEXPRESS_TCC` o el remitente
+(`CHILEXPRESS_REMITENTE_NOMBRE`, `_TELEFONO`, `_CORREO`), no se crea sola y el número sigue siendo
+obligatorio. El detalle del panel trae `cambiosPermitidos[].creaOt` y `tieneEtiqueta`, y la etiqueta se
+descarga en `GET /api/gestion/pedidos/:codigoPedido/etiqueta` (PDF o imagen según los primeros bytes;
+404 si no la tiene). **Prueba manual:** `pnpm chilexpress:probar-ot` crea una OT de ejemplo en el
+ambiente de prueba (TCC 18578680 y RUT 96756430 que publica Chilexpress, salvo que el `.env` traiga
+otros), guarda su etiqueta y consulta su seguimiento. Cambio al MER: `bodega.es_despacho`,
+`envio.codigo_servicio` y `envio.etiqueta` (migración `ot_automatica`).
 **PENDIENTE:** (1) `con_problema` no tiene código de Chilexpress conocido, así que hoy solo lo asigna la
 corrección del personal. (2) Falta probar contra el sandbox con una OT real.
 

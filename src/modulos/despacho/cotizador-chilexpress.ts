@@ -50,7 +50,11 @@ const masBarato = (opciones: OpcionServicio[]): TarifaEnvio | null => {
       continue;
     }
     if (!mejor || tarifa < mejor.tarifa) {
-      mejor = { servicio: opcion.serviceDescription, tarifa };
+      mejor = {
+        servicio: opcion.serviceDescription,
+        tarifa,
+        codigoServicio: opcion.serviceTypeCode,
+      };
     }
   }
   return mejor;

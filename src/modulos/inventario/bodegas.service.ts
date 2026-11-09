@@ -24,6 +24,8 @@ export const BODEGA_CON_STOCK =
 export const UBICACION_CON_STOCK =
   'La ubicación todavía tiene stock: transfiérelo o ajústalo a cero antes de desactivarla.';
 const CODIGO_REPETIDO = 'Esa bodega ya tiene una ubicación con ese código.';
+export const DESPACHO_INACTIVA =
+  'La bodega de despacho debe estar activa: actívala primero.';
 
 export type BodegaPanel = BodegaPanelDto;
 
@@ -34,6 +36,7 @@ const SELECCION = {
   tipo: true,
   abasteceVentaOnline: true,
   activa: true,
+  esDespacho: true,
   comuna: {
     select: {
       codigoCut: true,
@@ -97,8 +100,26 @@ export class BodegasService {
     const comunaId =
       dto.comuna === undefined ? undefined : await this.comunaId(dto.comuna);
     await this.prisma.$transaction(async (tx) => {
-      const existe = await tx.bodega.count({ where: { id } });
-      if (!existe) throw new NotFoundException(BODEGA_NO_EXISTE);
+      const actual = await tx.bodega.findUnique({
+        where: { id },
+        select: { activa: true, esDespacho: true },
+      });
+      if (!actual) throw new NotFoundException(BODEGA_NO_EXISTE);
+      const activa = dto.activa ?? actual.activa;
+      // SCRUM-153 · Solo una de despacho, y activa: marcar esta le quita la marca a la anterior
+      if (dto.esDespacho === true) {
+        if (!activa) {
+          throw errorDeCampo(
+            BadRequestException,
+            DESPACHO_INACTIVA,
+            'esDespacho',
+          );
+        }
+        await tx.bodega.updateMany({
+          where: { esDespacho: true, NOT: { id } },
+          data: { esDespacho: false },
+        });
+      }
       await tx.bodega.update({
         where: { id },
         data: {
@@ -108,6 +129,8 @@ export class BodegasService {
           abasteceVentaOnline: dto.abasteceVentaOnline,
           activa: dto.activa,
           comunaId,
+          // Desactivada deja de ser la de despacho: las OT no saldrían de una bodega inactiva
+          esDespacho: dto.activa === false ? false : dto.esDespacho,
         },
       });
       // Después de desactivarla: una entrada que llegue ahora ya no la acepta

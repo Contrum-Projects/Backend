@@ -17,8 +17,9 @@ import { DespachoController } from './despacho.controller.js';
 import { crearSeguimiento } from './seguimiento-chilexpress.js';
 import { SeguimientoEnvio } from './seguimiento-envio.js';
 import { SeguimientoProcessor } from './seguimiento.processor.js';
+import { URL_SANDBOX_CHILEXPRESS } from './orden-transporte.js';
 
-const URL_SANDBOX = 'https://testservices.wschilexpress.com';
+const URL_SANDBOX = URL_SANDBOX_CHILEXPRESS;
 
 /**
  * Épica 7: cotización del despacho con Chilexpress (ver src/modulos/README.md). El courier se
