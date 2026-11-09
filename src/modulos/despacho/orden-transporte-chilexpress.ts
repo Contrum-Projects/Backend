@@ -9,8 +9,11 @@ import {
 } from './orden-transporte.js';
 
 const RUTA = '/transport-orders/api/v1.0/transport-orders';
-/** Si Chilexpress no responde en este plazo, la OT no se crea y el pedido no cambia. */
-const PLAZO_RESPUESTA_MS = 15_000;
+/**
+ * Si Chilexpress no responde en este plazo, la OT no se crea y el pedido no cambia. Su ambiente de
+ * prueba tardó de 8 a más de 15 s en crear una (9 nov): 30 s deja margen sin colgar al personal.
+ */
+const PLAZO_RESPUESTA_MS = 30_000;
 /** `labelType` 2: la etiqueta como imagen en binario, más sus datos. */
 const ETIQUETA_IMAGEN = 2;
 /** `productCode` 3: encomienda. */

@@ -730,7 +730,7 @@ la cotización (peso en kg con dos decimales, mínimo 0,01). **Servicio:** el `s
 cotizó al comprar (`envio.codigo_servicio`, nuevo; los pedidos anteriores no lo tienen). Producto
 encomienda (3), contenido «otros» (5, PROPUESTA), valor declarado = total con IVA menos el despacho,
 referencia = código del pedido. **Falla:** sin bodega de despacho, sin cobertura, sin servicio
-cotizado o sin teléfono responde 409; si Chilexpress rechaza o no responde (15 s), 503; en todos los
+cotizado o sin teléfono responde 409; si Chilexpress rechaza o no responde (30 s), 503; en todos los
 casos el pedido no cambia y el mensaje ofrece el **respaldo**: escribir el número de una OT creada en
 el portal, como antes (con número escrito no se llama a Chilexpress y no hay etiqueta). Si la OT se
 crea pero el cambio de estado falla después, queda una advertencia en el log con su número para
