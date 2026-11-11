@@ -32,8 +32,7 @@ export class CorreoCampanaDto {
   asunto: string;
 
   @ApiProperty({
-    description:
-      'HTML del correo. El enlace de baja lleva a la pantalla de baja sin token.',
+    description: 'HTML del correo, con el correo para pedir la baja en el pie.',
   })
   html: string;
 

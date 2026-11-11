@@ -47,6 +47,7 @@ describe('Cuentas · registro y confirmación (e2e)', () => {
       rut: rutAleatorio()
         .replace('-', '')
         .replace(/^(\d{2})(\d{3})/, '$1.$2.'),
+      aceptaMarketing: true,
     };
   };
 
@@ -108,6 +109,8 @@ describe('Cuentas · registro y confirmación (e2e)', () => {
     expect(usuario.rut).toBe(normalizarRut(cuerpo.rut));
     expect(usuario.contrasenaHash).not.toContain('Secreta123');
     expect(usuario.tokensCorreo).toHaveLength(1);
+    expect(usuario.aceptaMarketingEmail).toBe(true);
+    expect(usuario.fechaConsentimientoMarketing).not.toBeNull();
     expect(usuario.notificaciones[0].estadoEnvio).toBe(
       ESTADOS_NOTIFICACION.PENDIENTE,
     );
@@ -130,6 +133,30 @@ describe('Cuentas · registro y confirmación (e2e)', () => {
       }),
     ).toBe(0);
   });
+
+  it.each([[undefined], [false], ['true']])(
+    'E1-H1 · registro: sin aceptar las ofertas por correo (aceptaMarketing=%s) responde 400 junto al campo y no crea la cuenta (decisión del 11 nov)',
+    async (aceptaMarketing) => {
+      const cuerpo = { ...nuevoRegistro(), aceptaMarketing };
+      const respuesta = await request(app.getHttpServer())
+        .post('/api/cuentas/registro')
+        .send(cuerpo)
+        .expect(400);
+
+      expect(
+        (respuesta.body as { errores: { campo: string }[] }).errores,
+      ).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ campo: 'aceptaMarketing' }),
+        ]),
+      );
+      expect(
+        await prisma.usuario.count({
+          where: { email: cuerpo.email.toLowerCase() },
+        }),
+      ).toBe(0);
+    },
+  );
 
   it('E1-H1 · registro: rechaza contraseña débil, RUT inválido y campos extra', async () => {
     const servidor = app.getHttpServer();

@@ -42,6 +42,11 @@ export const esquemaEntorno = z
 
     /** Base de los enlaces que van en los correos (confirmación, recuperación). */
     URL_TIENDA: z.url().default('http://localhost:3001'),
+    /**
+     * Correo al que se escribe para dejar de recibir publicidad: va en el pie de todo correo
+     * publicitario (RNF-26, decisión del 11 nov). PLACEHOLDER hasta que el equipo defina la casilla.
+     */
+    CORREO_CONTACTO: z.email().default('contacto@cabelloperfecto.cl'),
     /** Vigencia del enlace de confirmación del correo (E1-H1, decisión del 14 oct). */
     CONFIRMACION_CORREO_HORAS: z.coerce.number().int().positive().default(24),
     /** Vigencia del enlace de invitación al personal (E13-H1, decisión del 18 oct). */

@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Equals } from 'class-validator';
 import {
   ContrasenaIngresada,
   ContrasenaNueva,
@@ -8,6 +9,10 @@ import { FechaSinHora } from '../../../common/validacion/fecha-sin-hora.js';
 import { Rut } from '../../../common/validacion/rut.js';
 import { TextoObligatorio } from '../../../common/validacion/texto-obligatorio.js';
 import { TextoOpcional } from '../../../common/validacion/texto-opcional.js';
+
+/** Mensaje cuando el registro llega sin aceptar las ofertas por correo. */
+export const MENSAJE_ACEPTA_MARKETING =
+  'Para crear tu cuenta debes aceptar recibir ofertas por correo.';
 
 /** Entrada del registro (E1-H1, RF-01.01). */
 export class RegistrarCuentaDto {
@@ -53,4 +58,17 @@ export class RegistrarCuentaDto {
   @ApiPropertyOptional({ maxLength: 30 })
   @TextoOpcional({ etiqueta: 'El género', maximo: 30 })
   genero?: string | null;
+
+  /**
+   * Recibir ofertas por correo (RF-12.02). Es condición para crear la cuenta (decisión del equipo
+   * del 11 de noviembre de 2026): si falta o no es `true`, 400.
+   */
+  @ApiProperty({
+    type: Boolean,
+    example: true,
+    description:
+      'Debe ser true: para crear la cuenta hay que aceptar recibir ofertas por correo.',
+  })
+  @Equals(true, { message: MENSAJE_ACEPTA_MARKETING })
+  aceptaMarketing: boolean;
 }

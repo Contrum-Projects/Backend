@@ -3,13 +3,13 @@ import {
   cajaDatos,
   type CorreoRenderizado,
   type EnlacesPie,
-  ETIQUETA_BAJA,
   type FilaDato,
   marco,
   texto,
   textoPequeno,
   textoPlano,
   titulo,
+  textoBaja,
 } from './base.js';
 
 /** Artículos que se nombran en el correo; del resto solo se dice cuántos más hay. */
@@ -26,8 +26,8 @@ interface DatosRecordatorioCarrito {
   /** Artículos del carrito al enviar, en el orden en que se agregaron. */
   articulos: ArticuloRecordado[];
   urlCarrito: string;
-  /** Enlace firmado de baja (RNF-26). */
-  enlaceBaja: string;
+  /** Correo de contacto para pedir la baja (RNF-26). */
+  correoBaja: string;
   enlacesPie: EnlacesPie;
   /** Imagen de apertura (E12-H6). */
   seguimiento?: string | null;
@@ -47,7 +47,7 @@ export const correoRecordatorioCarrito = ({
   nombre,
   articulos,
   urlCarrito,
-  enlaceBaja,
+  correoBaja,
   enlacesPie,
   seguimiento,
 }: DatosRecordatorioCarrito): CorreoRenderizado => {
@@ -83,7 +83,7 @@ export const correoRecordatorioCarrito = ({
       ].join(''),
       pie,
       enlaces: enlacesPie,
-      baja: enlaceBaja,
+      baja: correoBaja,
       seguimiento,
     }),
     texto: textoPlano(
@@ -99,7 +99,7 @@ export const correoRecordatorioCarrito = ({
       `${accion}: ${urlCarrito}`,
       nota,
       pie,
-      `${ETIQUETA_BAJA}: ${enlaceBaja}`,
+      textoBaja(correoBaja),
     ),
   };
 };

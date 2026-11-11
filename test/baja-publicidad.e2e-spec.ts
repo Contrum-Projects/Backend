@@ -13,7 +13,6 @@ import {
   TIPOS_CAMPANA,
 } from '../src/common/dominio/valores.js';
 import { configurarApp } from '../src/configurar-app.js';
-import { FirmaBaja } from '../src/modulos/marketing/firma-baja.js';
 import { FirmaSuscripcion } from '../src/modulos/marketing/firma-suscripcion.js';
 import {
   CLIENTE_CORREO,
@@ -26,7 +25,6 @@ import { REDIS } from '../src/redis/redis.module.js';
 // Requiere PostgreSQL y Redis levantados: `docker compose up -d db redis`.
 
 const CONTRASENA = 'Secreta123';
-const RUTA_CONSENTIMIENTO = '/api/cuentas/yo/consentimiento-marketing';
 const RUTA_BAJA = '/api/marketing/bajas';
 
 interface Consentimiento {
@@ -34,11 +32,11 @@ interface Consentimiento {
   fechaConsentimiento: string | null;
 }
 
-describe('Marketing · consentimiento de publicidad y baja desde el correo (e2e)', () => {
+describe('Marketing · consentimiento de publicidad y baja desde el panel (e2e)', () => {
   let app: INestApplication<App>;
   let prisma: PrismaService;
   let redis: Redis;
-  let firma: FirmaBaja;
+  let tokenAdministrador: string;
   let envio: EnvioCorreosService;
   let hashContrasena: string;
   const enviados: MensajeCorreo[] = [];
@@ -72,14 +70,12 @@ describe('Marketing · consentimiento de publicidad y baja desde el correo (e2e)
     return (respuesta.body as { tokenAcceso: string }).tokenAcceso;
   };
 
-  const elegir = (token: string, acepta: unknown) =>
+  /** Baja desde el panel, con la sesión del administrador. */
+  const darDeBaja = (email: unknown) =>
     request(app.getHttpServer())
-      .put(RUTA_CONSENTIMIENTO)
-      .auth(token, { type: 'bearer' })
-      .send({ acepta });
-
-  const darDeBaja = (token: string) =>
-    request(app.getHttpServer()).post(RUTA_BAJA).send({ token });
+      .post(RUTA_BAJA)
+      .auth(tokenAdministrador, { type: 'bearer' })
+      .send({ email });
 
   beforeAll(async () => {
     const modulo = await Test.createTestingModule({ imports: [AppModule] })
@@ -95,9 +91,10 @@ describe('Marketing · consentimiento de publicidad y baja desde el correo (e2e)
     await app.init();
     prisma = app.get(PrismaService);
     redis = app.get(REDIS);
-    firma = app.get(FirmaBaja);
     envio = app.get(EnvioCorreosService);
     hashContrasena = await argon2.hash(CONTRASENA);
+    const administrador = await crearCuenta(ROLES.ADMINISTRADOR);
+    tokenAdministrador = await iniciarSesion(administrador.email);
   });
 
   // Todas las peticiones salen de la misma IP: cada prueba parte sin contadores
@@ -118,106 +115,46 @@ describe('Marketing · consentimiento de publicidad y baja desde el correo (e2e)
     await app.close();
   });
 
-  describe('E12-H2 · consentimiento en la cuenta', () => {
-    it('E12-H2 · consentimiento en la cuenta: activar las ofertas guarda la preferencia y la fecha, y se ve en mis datos', async () => {
+  describe('E12-H2 · la cuenta no se da de baja sola (decisión del 11 nov)', () => {
+    it('E12-H2 · la ruta para que la cuenta desactive las ofertas ya no existe', async () => {
       const cuenta = await crearCuenta(ROLES.CLIENTE);
       const token = await iniciarSesion(cuenta.email);
-      const antes = Date.now();
 
-      const respuesta = await elegir(token, true).expect(200);
+      await request(app.getHttpServer())
+        .put('/api/cuentas/yo/consentimiento-marketing')
+        .auth(token, { type: 'bearer' })
+        .send({ acepta: false })
+        .expect(404);
+    });
 
-      const cuerpo = respuesta.body as Consentimiento;
-      expect(cuerpo.acepta).toBe(true);
-      expect(
-        new Date(cuerpo.fechaConsentimiento!).getTime(),
-      ).toBeGreaterThanOrEqual(antes - 1_000);
-      const guardado = await prisma.usuario.findUniqueOrThrow({
+    it('E12-H2 · mis datos sigue mostrando el consentimiento de la cuenta', async () => {
+      const cuenta = await crearCuenta(ROLES.CLIENTE);
+      await prisma.usuario.update({
         where: { id: cuenta.id },
+        data: {
+          aceptaMarketingEmail: true,
+          fechaConsentimientoMarketing: new Date('2026-10-01T00:00:00Z'),
+        },
       });
-      expect(guardado.aceptaMarketingEmail).toBe(true);
-      expect(guardado.fechaConsentimientoMarketing?.toISOString()).toBe(
-        cuerpo.fechaConsentimiento,
-      );
 
+      const token = await iniciarSesion(cuenta.email);
       const datos = await request(app.getHttpServer())
         .get('/api/cuentas/yo')
         .auth(token, { type: 'bearer' })
         .expect(200);
+
       expect(
         (datos.body as { consentimientoMarketing: Consentimiento })
           .consentimientoMarketing,
-      ).toEqual(cuerpo);
-    });
-
-    it('E12-H2 · consentimiento en la cuenta: activarlo otra vez no cambia la fecha y desactivarlo la conserva', async () => {
-      const cuenta = await crearCuenta(ROLES.PROFESIONAL);
-      const token = await iniciarSesion(cuenta.email);
-      const primera = (await elegir(token, true).expect(200))
-        .body as Consentimiento;
-
-      const repetida = (await elegir(token, true).expect(200))
-        .body as Consentimiento;
-      const desactivada = (await elegir(token, false).expect(200))
-        .body as Consentimiento;
-
-      expect(repetida.fechaConsentimiento).toBe(primera.fechaConsentimiento);
-      expect(desactivada).toEqual({
-        acepta: false,
-        fechaConsentimiento: primera.fechaConsentimiento,
+      ).toEqual({
+        acepta: true,
+        fechaConsentimiento: '2026-10-01T00:00:00.000Z',
       });
-    });
-
-    it('E12-H2 · consentimiento en la cuenta: desactivarlo da de baja también la suscripción sin cuenta de la misma dirección; activarlo no la reactiva (decisión del equipo del 4 nov)', async () => {
-      const cuenta = await crearCuenta(ROLES.CLIENTE);
-      await prisma.lead.create({
-        data: {
-          email: cuenta.email,
-          origen: ORIGENES_LEAD.FORMULARIO_WEB,
-          activo: true,
-        },
-      });
-      const token = await iniciarSesion(cuenta.email);
-
-      await elegir(token, false).expect(200);
-      const deBaja = await prisma.lead.findUniqueOrThrow({
-        where: { email: cuenta.email },
-      });
-      await elegir(token, true).expect(200);
-
-      expect(deBaja.activo).toBe(false);
-      expect(deBaja.fechaBaja).not.toBeNull();
-      expect(
-        (
-          await prisma.lead.findUniqueOrThrow({
-            where: { email: cuenta.email },
-          })
-        ).activo,
-      ).toBe(false);
-    });
-
-    it.each([[undefined], ['si'], [null]])(
-      'E12-H2 · consentimiento en la cuenta: acepta=%s responde 400',
-      async (acepta) => {
-        const cuenta = await crearCuenta(ROLES.CLIENTE);
-        const token = await iniciarSesion(cuenta.email);
-
-        await elegir(token, acepta).expect(400);
-      },
-    );
-
-    it('E12-H2 · RNF-03: sin sesión responde 401 y el personal de tienda recibe 403', async () => {
-      await request(app.getHttpServer())
-        .put(RUTA_CONSENTIMIENTO)
-        .send({ acepta: true })
-        .expect(401);
-
-      const vendedor = await crearCuenta(ROLES.VENDEDOR);
-      await elegir(await iniciarSesion(vendedor.email), true).expect(403);
     });
   });
 
-  describe('E12-H2 · baja desde un correo', () => {
-    it('E12-H2 · baja desde un correo: deja de enviar publicidad a la dirección, sea de una cuenta o de un suscriptor', async () => {
+  describe('E12-H2 · baja desde el panel', () => {
+    it('E12-H2 · baja desde el panel: deja de enviar publicidad a la dirección, sea de una cuenta o de un suscriptor, y la cuenta conserva la fecha del consentimiento', async () => {
       const email = nuevoCorreo();
       const cuenta = await crearCuenta(ROLES.CLIENTE, email);
       await prisma.usuario.update({
@@ -231,8 +168,14 @@ describe('Marketing · consentimiento de publicidad y baja desde el correo (e2e)
         data: { email, origen: ORIGENES_LEAD.FORMULARIO_WEB, activo: true },
       });
 
-      await darDeBaja(firma.firmar(email)).expect(200);
+      const respuesta = await darDeBaja(email.toUpperCase()).expect(200);
 
+      expect(respuesta.body).toEqual({
+        email,
+        cuenta: true,
+        suscripcion: true,
+        mensaje: `Listo. ${email} ya no recibirá publicidad.`,
+      });
       const usuario = await prisma.usuario.findUniqueOrThrow({
         where: { id: cuenta.id },
       });
@@ -245,15 +188,14 @@ describe('Marketing · consentimiento de publicidad y baja desde el correo (e2e)
       expect(lead.fechaBaja).not.toBeNull();
     });
 
-    it('E12-H2 · baja desde un correo: repetirla responde lo mismo', async () => {
+    it('E12-H2 · baja desde el panel: repetirla responde lo mismo', async () => {
       const email = nuevoCorreo();
       await prisma.lead.create({
         data: { email, origen: ORIGENES_LEAD.FORMULARIO_WEB, activo: true },
       });
-      const token = firma.firmar(email);
 
-      const primera = await darDeBaja(token).expect(200);
-      const segunda = await darDeBaja(token).expect(200);
+      const primera = await darDeBaja(email).expect(200);
+      const segunda = await darDeBaja(email).expect(200);
 
       expect(segunda.body).toEqual(primera.body);
       expect(
@@ -261,7 +203,7 @@ describe('Marketing · consentimiento de publicidad y baja desde el correo (e2e)
       ).toBe(false);
     });
 
-    it('E12-H2 · baja desde un correo: tras una baja previa y una nueva suscripción pendiente, la baja invalida el enlace de confirmación anterior', async () => {
+    it('E12-H2 · baja desde el panel: tras una baja previa y una nueva suscripción pendiente, la baja invalida el enlace de confirmación anterior', async () => {
       const email = nuevoCorreo();
       await prisma.lead.create({
         data: {
@@ -280,7 +222,7 @@ describe('Marketing · consentimiento de publicidad y baja desde el correo (e2e)
           new Date(Date.now() + 60 * 60_000),
         );
 
-      await darDeBaja(firma.firmar(email)).expect(200);
+      await darDeBaja(email).expect(200);
 
       await request(app.getHttpServer())
         .post('/api/marketing/suscripciones/confirmar')
@@ -291,34 +233,33 @@ describe('Marketing · consentimiento de publicidad y baja desde el correo (e2e)
       ).toBe(false);
     });
 
-    it('E12-H2 · baja desde un correo: una dirección sin cuenta ni suscripción responde lo mismo (no revela si existe)', async () => {
-      const conLead = nuevoCorreo();
-      await prisma.lead.create({
-        data: { email: conLead, origen: ORIGENES_LEAD.FORMULARIO_WEB },
-      });
-
-      const existente = await darDeBaja(firma.firmar(conLead)).expect(200);
-      const inexistente = await darDeBaja(
-        firma.firmar(`nadie-${randomUUID()}@prueba.cl`),
-      ).expect(200);
-
-      expect(inexistente.body).toEqual(existente.body);
+    it('E12-H2 · baja desde el panel: un correo sin cuenta ni suscripción responde 404', async () => {
+      await darDeBaja(`nadie-${randomUUID()}@prueba.cl`).expect(404);
     });
 
-    it('E12-H2 · baja desde un correo: un enlace alterado o vacío responde 400 (RNF-08)', async () => {
+    it.each([[undefined], [''], ['no-es-correo']])(
+      'E12-H2 · baja desde el panel: email=%s responde 400',
+      async (email) => {
+        await darDeBaja(email).expect(400);
+      },
+    );
+
+    it('E12-H2 · RNF-03: sin sesión responde 401, y el vendedor y el cliente reciben 403', async () => {
       const email = nuevoCorreo();
-      const [, sello] = firma.firmar(email).split('.');
-      const otro = Buffer.from('otra@prueba.cl').toString('base64url');
+      await request(app.getHttpServer())
+        .post(RUTA_BAJA)
+        .send({ email })
+        .expect(401);
 
-      await darDeBaja(`${otro}.${sello}`).expect(400);
-      await darDeBaja('').expect(400);
-    });
-
-    it('E12-H2 · RNF-09: más de 5 bajas por minuto desde la misma IP responden 429', async () => {
-      const token = firma.firmar(nuevoCorreo());
-      for (let i = 0; i < 5; i++) await darDeBaja(token).expect(200);
-
-      await darDeBaja(token).expect(429);
+      for (const rol of [ROLES.VENDEDOR, ROLES.CLIENTE]) {
+        const cuenta = await crearCuenta(rol);
+        const token = await iniciarSesion(cuenta.email);
+        await request(app.getHttpServer())
+          .post(RUTA_BAJA)
+          .auth(token, { type: 'bearer' })
+          .send({ email })
+          .expect(403);
+      }
     });
   });
 
@@ -357,7 +298,7 @@ describe('Marketing · consentimiento de publicidad y baja desde el correo (e2e)
       });
       const notificacion = await publicidadPendiente({ leadId: lead.id });
 
-      await darDeBaja(firma.firmar(email)).expect(200);
+      await darDeBaja(email).expect(200);
       await envio.enviar('campana', {
         notificacionId: notificacion.id,
         destinatario: email,
@@ -372,7 +313,7 @@ describe('Marketing · consentimiento de publicidad y baja desde el correo (e2e)
       expect(guardada.intentos).toBe(0);
     });
 
-    it('E12-H2 · baja con correos pendientes: la publicidad en cola para una cuenta que se dio de baja con el enlace queda cancelada', async () => {
+    it('E12-H2 · baja con correos pendientes: la publicidad en cola para una cuenta dada de baja desde el panel queda cancelada', async () => {
       const cuenta = await crearCuenta(ROLES.CLIENTE);
       await prisma.usuario.update({
         where: { id: cuenta.id },
@@ -383,30 +324,7 @@ describe('Marketing · consentimiento de publicidad y baja desde el correo (e2e)
       });
       const notificacion = await publicidadPendiente({ usuarioId: cuenta.id });
 
-      await darDeBaja(firma.firmar(cuenta.email)).expect(200);
-      await envio.enviar('campana', {
-        notificacionId: notificacion.id,
-        destinatario: cuenta.email,
-        nombre: 'Prueba',
-      });
-
-      expect(enviados.some((m) => m.para === cuenta.email)).toBe(false);
-      expect(
-        (
-          await prisma.notificacion.findUniqueOrThrow({
-            where: { id: notificacion.id },
-          })
-        ).estadoEnvio,
-      ).toBe(ESTADOS_NOTIFICACION.CANCELADA);
-    });
-
-    it('E12-H2 · baja con correos pendientes: la publicidad en cola para una cuenta que desactivó las ofertas queda cancelada', async () => {
-      const cuenta = await crearCuenta(ROLES.CLIENTE);
-      const token = await iniciarSesion(cuenta.email);
-      await elegir(token, true).expect(200);
-      const notificacion = await publicidadPendiente({ usuarioId: cuenta.id });
-
-      await elegir(token, false).expect(200);
+      await darDeBaja(cuenta.email).expect(200);
       await envio.enviar('campana', {
         notificacionId: notificacion.id,
         destinatario: cuenta.email,

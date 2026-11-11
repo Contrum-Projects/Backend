@@ -1,19 +1,19 @@
 import {
   type CorreoRenderizado,
   type EnlacesPie,
-  ETIQUETA_BAJA,
   marco,
   textoConSaltos,
   textoPlano,
   titulo,
+  textoBaja,
 } from './base.js';
 
 interface DatosCampana {
   asunto: string;
   /** Texto plano escrito en el panel: se escapa, así no puede inyectar HTML. */
   cuerpo: string;
-  /** Enlace firmado de baja (RNF-26). En la vista previa, la pantalla de baja sin token. */
-  enlaceBaja: string;
+  /** Correo de contacto para pedir la baja (RNF-26). */
+  correoBaja: string;
   enlacesPie: EnlacesPie;
   /** Imagen de apertura (E12-H6). La vista previa no la lleva: no es un envío. */
   seguimiento?: string | null;
@@ -30,13 +30,13 @@ export const parrafosDe = (cuerpo: string): string[] =>
 /**
  * Correo de una campaña (E12-H3). Sin diseño en Figma: usa la base de los demás correos, con el
  * asunto como título y el cuerpo en párrafos. El cuerpo es texto plano (decisión del 5 de noviembre
- * de 2026) y siempre se escapa. Es publicidad: lleva remitente y enlace de baja (RNF-26). Texto
+ * de 2026) y siempre se escapa. Es publicidad: lleva remitente y correo para pedir la baja (RNF-26). Texto
  * del pie PROPUESTA por confirmar con el equipo.
  */
 export const correoCampana = ({
   asunto,
   cuerpo,
-  enlaceBaja,
+  correoBaja,
   enlacesPie,
   seguimiento,
 }: DatosCampana): CorreoRenderizado => {
@@ -50,14 +50,9 @@ export const correoCampana = ({
       cuerpo: [titulo(asunto), ...parrafos.map(textoConSaltos)].join(''),
       pie,
       enlaces: enlacesPie,
-      baja: enlaceBaja,
+      baja: correoBaja,
       seguimiento,
     }),
-    texto: textoPlano(
-      asunto,
-      ...parrafos,
-      pie,
-      `${ETIQUETA_BAJA}: ${enlaceBaja}`,
-    ),
+    texto: textoPlano(asunto, ...parrafos, pie, textoBaja(correoBaja)),
   };
 };

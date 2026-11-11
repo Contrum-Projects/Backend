@@ -273,14 +273,21 @@ interface MarcoCorreo {
   enlaces?: EnlacesPie;
   /** Cabecera con la marca «Panel»: correos para el personal. */
   panel?: boolean;
-  /** Enlace para dejar de recibir publicidad: obligatorio en todo correo publicitario (RNF-26). */
+  /**
+   * Correo al que se escribe para dejar de recibir publicidad: obligatorio en todo correo
+   * publicitario (RNF-26). La cuenta ya no se da de baja sola (decisión del 11 nov).
+   */
   baja?: string;
   /** Imagen invisible que registra la apertura: solo en la publicidad (E12-H6). */
   seguimiento?: string | null;
 }
 
-/** Texto del enlace de baja en el pie de la publicidad (RNF-26). */
-export const ETIQUETA_BAJA = 'Dejar de recibir ofertas';
+/** Texto de la baja en el pie de la publicidad, antes del correo de contacto (RNF-26). */
+export const ETIQUETA_BAJA = 'Para dejar de recibir ofertas, escríbenos a';
+
+/** Línea de la baja en la versión de texto plano. */
+export const textoBaja = (correoContacto: string): string =>
+  `${ETIQUETA_BAJA} ${correoContacto}.`;
 
 /** Cabecera con el logo, cuerpo y pie, comunes a todos los correos. */
 export const marco = ({
@@ -310,7 +317,7 @@ export const marco = ({
       ? `<p style="margin:6px 0 0 0;${estiloPie}">${enlacesVisibles.join(' · ')}</p>`
       : '';
   const filaBaja = baja
-    ? `<p style="margin:6px 0 0 0;${estiloPie}"><a href="${escapar(baja)}" style="color:${COLORES.textoSecundario};text-decoration:underline;">${ETIQUETA_BAJA}</a></p>`
+    ? `<p style="margin:6px 0 0 0;${estiloPie}">${ETIQUETA_BAJA} <a href="mailto:${escapar(baja)}" style="color:${COLORES.textoSecundario};text-decoration:underline;">${escapar(baja)}</a>.</p>`
     : '';
   const imagenSeguimiento = seguimiento
     ? `<img src="${escapar(seguimiento)}" width="1" height="1" alt="" style="display:block;width:1px;height:1px;border:0;">`

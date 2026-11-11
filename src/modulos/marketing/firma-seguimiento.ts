@@ -27,7 +27,7 @@ export const MAXIMO_DESTINO = 2048;
  * de apertura y la redirección de cada clic apuntan a esta API con el id de la NOTIFICACION
  * firmado. El clic firma también su destino, así nadie arma una redirección a otro sitio con un
  * enlace válido. No vencen: un correo abierto meses después también cuenta. La clave sale de
- * `JWT_ACCESS_SECRET` con separación de dominio, como `FirmaBaja`. Sin `URL_API` no hay enlaces y
+ * `JWT_ACCESS_SECRET` con separación de dominio, como `FirmaSuscripcion`. Sin `URL_API` no hay enlaces y
  * los correos salen sin seguimiento.
  */
 @Injectable()

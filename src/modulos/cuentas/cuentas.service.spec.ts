@@ -49,6 +49,7 @@ const dtoBase = (): RegistrarCuentaDto => ({
   contrasena: 'Secreta123',
   confirmacionContrasena: 'Secreta123',
   rut: '12345678-5',
+  aceptaMarketing: true,
 });
 
 describe('CuentasService', () => {
@@ -81,7 +82,10 @@ describe('CuentasService', () => {
         email: 'camila@correo.cl',
         rut: '12345678-5',
         rol: ROLES.CLIENTE,
+        // Decisión del 11 nov: la cuenta nace aceptando las ofertas, con la fecha del consentimiento
+        aceptaMarketingEmail: true,
       });
+      expect(datosUsuario.fechaConsentimientoMarketing).toBeInstanceOf(Date);
       expect(datosUsuario.fechaVerificacionCorreo).toBeUndefined();
       expect(datosUsuario.contrasenaHash).not.toBe('Secreta123');
       expect(

@@ -3,12 +3,12 @@ import {
   boton,
   type CorreoRenderizado,
   type EnlacesPie,
-  ETIQUETA_BAJA,
   marco,
   texto,
   textoConSaltos,
   textoPlano,
   titulo,
+  textoBaja,
 } from './base.js';
 import { parrafosDe } from './campana.js';
 
@@ -20,8 +20,8 @@ interface DatosCumpleanos {
   /** Texto de la oferta si el administrador la activó (E12-H5, CA2); si no, `null`. */
   oferta: string | null;
   urlCatalogo: string;
-  /** Enlace firmado de baja (RNF-26). */
-  enlaceBaja: string;
+  /** Correo de contacto para pedir la baja (RNF-26). */
+  correoBaja: string;
   enlacesPie: EnlacesPie;
   /** Imagen de apertura (E12-H6). */
   seguimiento?: string | null;
@@ -34,7 +34,7 @@ export const ENCABEZADO_OFERTA_CUMPLEANOS = 'Tu regalo de cumpleaños';
  * Saludo de cumpleaños (E12-H5, RF-12.10 y RF-12.11). Sin diseño en Figma: usa la base de los
  * demás correos, con el asunto como título, el saludo en párrafos y, si está activa, la oferta en
  * un recuadro. Saludo y oferta son texto plano y siempre se escapan. Es publicidad: lleva
- * remitente y enlace de baja (RNF-26). Textos PROPUESTA por confirmar con el equipo.
+ * remitente y correo para pedir la baja (RNF-26). Textos PROPUESTA por confirmar con el equipo.
  */
 export const correoCumpleanos = ({
   asunto,
@@ -42,7 +42,7 @@ export const correoCumpleanos = ({
   cuerpo,
   oferta,
   urlCatalogo,
-  enlaceBaja,
+  correoBaja,
   enlacesPie,
   seguimiento,
 }: DatosCumpleanos): CorreoRenderizado => {
@@ -64,7 +64,7 @@ export const correoCumpleanos = ({
       ].join(''),
       pie,
       enlaces: enlacesPie,
-      baja: enlaceBaja,
+      baja: correoBaja,
       seguimiento,
     }),
     texto: textoPlano(
@@ -74,7 +74,7 @@ export const correoCumpleanos = ({
       oferta ? `${ENCABEZADO_OFERTA_CUMPLEANOS}: ${oferta}` : null,
       `${accion}: ${urlCatalogo}`,
       pie,
-      `${ETIQUETA_BAJA}: ${enlaceBaja}`,
+      textoBaja(correoBaja),
     ),
   };
 };

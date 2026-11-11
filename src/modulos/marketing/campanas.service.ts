@@ -380,8 +380,7 @@ export class CampanasService {
 
   /**
    * E12-H3 · El correo tal como saldrá, cuántas direcciones lo recibirían hoy y la confirmación
-   * que exige el envío. El enlace de baja de la vista previa lleva a la pantalla de baja sin token:
-   * así no da de baja a nadie.
+   * que exige el envío. El pie lleva el mismo correo para pedir la baja que el envío (RNF-26).
    */
   async vistaPrevia(
     id: number,
@@ -445,7 +444,7 @@ export class CampanasService {
     const { html, texto } = correoCampana({
       asunto: asuntoFinal,
       cuerpo: aplicarMarcadores(cuerpo, datos),
-      enlaceBaja: `${urlTienda}/ofertas/baja`,
+      correoBaja: this.config.get('CORREO_CONTACTO', { infer: true }),
       enlacesPie: rutasTienda(urlTienda).pie,
     });
     return { asunto: asuntoFinal, html, texto };

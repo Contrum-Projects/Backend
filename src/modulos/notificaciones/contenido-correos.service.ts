@@ -25,7 +25,6 @@ import {
 import type { Entorno } from '../../config/entorno.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { CarritoService } from '../carrito/carrito.service.js';
-import { FirmaBaja } from '../marketing/firma-baja.js';
 import { FirmaSeguimiento } from '../marketing/firma-seguimiento.js';
 import {
   aplicarMarcadores,
@@ -117,7 +116,6 @@ export class ContenidoCorreosService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService<Entorno, true>,
-    private readonly firmaBaja: FirmaBaja,
     private readonly carritoService: CarritoService,
     private readonly seguimiento: FirmaSeguimiento,
   ) {}
@@ -187,13 +185,18 @@ export class ContenidoCorreosService {
     }
   }
 
+  /** Correo al que se escribe para pedir la baja de la publicidad (RNF-26). */
+  private get correoBaja(): string {
+    return this.config.get('CORREO_CONTACTO', { infer: true });
+  }
+
   private get rutas() {
     return rutasTienda(this.config.get('URL_TIENDA', { infer: true }));
   }
 
   /**
-   * E12-H6 · Los enlaces de la publicidad pasan por la API para registrar el primer clic. El de baja
-   * no: no es interés en la oferta, y debe funcionar aunque la API no responda.
+   * E12-H6 · Los enlaces de la publicidad pasan por la API para registrar el primer clic. El correo
+   * para pedir la baja no es un enlace a la tienda: no se registra.
    */
   private pieConSeguimiento(notificacionId: number): EnlacesPie {
     const { ayuda, terminos, privacidad } = this.rutas.pie;
@@ -270,7 +273,7 @@ export class ContenidoCorreosService {
    * no se puede editar, así que es el mismo texto de la vista previa confirmada.
    */
   private async campana(
-    { notificacionId, destinatario }: TrabajoCampana,
+    { notificacionId }: TrabajoCampana,
     { asunto, campanaId, usuarioId }: NotificacionACorreo,
   ): Promise<CorreoRenderizado> {
     const [campana, cuenta, codigoCupon] = await Promise.all([
@@ -301,7 +304,7 @@ export class ContenidoCorreosService {
       ...correoCampana({
         asunto: asuntoFinal,
         cuerpo: aplicarMarcadores(campana.cuerpo, datos),
-        enlaceBaja: this.firmaBaja.enlace(destinatario),
+        correoBaja: this.correoBaja,
         enlacesPie: this.pieConSeguimiento(notificacionId),
         seguimiento: this.seguimiento.enlaceApertura(notificacionId),
       }),
@@ -315,7 +318,7 @@ export class ContenidoCorreosService {
    * oferta. El asunto es el guardado en la NOTIFICACION.
    */
   private async cumpleanos(
-    { notificacionId, nombre, destinatario }: TrabajoCumpleanos,
+    { notificacionId, nombre }: TrabajoCumpleanos,
     { asunto }: NotificacionACorreo,
   ): Promise<CorreoRenderizado> {
     const configurado = await this.prisma.campana.findFirst({
@@ -334,7 +337,7 @@ export class ContenidoCorreosService {
         notificacionId,
         this.rutas.catalogo,
       ),
-      enlaceBaja: this.firmaBaja.enlace(destinatario),
+      correoBaja: this.correoBaja,
       enlacesPie: this.pieConSeguimiento(notificacionId),
       seguimiento: this.seguimiento.enlaceApertura(notificacionId),
     });
@@ -342,10 +345,10 @@ export class ContenidoCorreosService {
 
   /**
    * E12-H4 · Los artículos se leen del carrito al enviar, sin precios: así un correo reencolado
-   * muestra el carrito de ese momento (RNF-29). El enlace de baja va firmado y no vence (RNF-26).
+   * muestra el carrito de ese momento (RNF-29). Lleva el correo para pedir la baja (RNF-26).
    */
   private async recordatorioCarrito(
-    { notificacionId, nombre, destinatario }: TrabajoRecordatorioCarrito,
+    { notificacionId, nombre }: TrabajoRecordatorioCarrito,
     { asunto, usuarioId }: NotificacionACorreo,
   ): Promise<CorreoRenderizado> {
     const carrito = await this.prisma.carrito.findUnique({
@@ -398,7 +401,7 @@ export class ContenidoCorreosService {
         notificacionId,
         this.rutas.carrito,
       ),
-      enlaceBaja: this.firmaBaja.enlace(destinatario),
+      correoBaja: this.correoBaja,
       enlacesPie: this.pieConSeguimiento(notificacionId),
       seguimiento: this.seguimiento.enlaceApertura(notificacionId),
     });
