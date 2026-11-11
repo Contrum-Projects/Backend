@@ -19,6 +19,7 @@ import { HuellaCampana } from './huella-campana.js';
 const CONFIG: Record<string, unknown> = {
   JWT_ACCESS_SECRET: 's'.repeat(32),
   URL_TIENDA: 'https://tienda.cl/',
+  CORREO_CONTACTO: 'contacto@tienda.cl',
 };
 const config = {
   get: (clave: string) => CONFIG[clave],
@@ -317,7 +318,7 @@ describe('CampanasService', () => {
 
       expect(vista.destinatarios).toBe(2);
       expect(vista.html).toContain('Llegó la línea reparadora.');
-      expect(vista.html).toContain('https://tienda.cl/ofertas/baja"');
+      expect(vista.html).toContain('href="mailto:contacto@tienda.cl"');
       expect(
         huella.verificar(
           {
@@ -355,7 +356,7 @@ describe('CampanasService', () => {
       expect(vista.html).toContain(
         'Llegó la línea &lt;b&gt;reparadora&lt;/b&gt;.',
       );
-      expect(vista.html).toContain('https://tienda.cl/ofertas/baja"');
+      expect(vista.html).toContain('href="mailto:contacto@tienda.cl"');
       expect(vista.texto).toContain('Llegó la línea');
       expect(vista).not.toHaveProperty('confirmacion');
       expect(vista).not.toHaveProperty('destinatarios');

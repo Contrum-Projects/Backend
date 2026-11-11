@@ -1,46 +1,47 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service.js';
-import { FirmaBaja } from './firma-baja.js';
-import type { Mensaje } from './suscripciones.service.js';
+import { darDeBajaDireccion } from './baja-direccion.js';
 
-/**
- * Mismo mensaje haya o no una cuenta o una suscripción con esa dirección, y aunque ya estuviera de
- * baja: la baja se puede repetir sin error.
- */
-export const MENSAJE_BAJA =
-  'Listo. Dejaremos de enviarte publicidad a este correo.';
+/** Resultado de dar de baja una dirección desde el panel. */
+export interface BajaDireccion {
+  email: string;
+  /** Hay una cuenta con esa dirección. */
+  cuenta: boolean;
+  /** Hay una suscripción sin cuenta (LEAD) con esa dirección. */
+  suscripcion: boolean;
+  mensaje: string;
+}
 
 @Injectable()
 export class BajasService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly firma: FirmaBaja,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * E12-H2 · Baja desde un correo publicitario, por dirección (decisión del 4 de noviembre de 2026):
-   * apaga la publicidad de la cuenta y la suscripción sin cuenta que tengan ese correo, en una sola
-   * transacción. La suscripción queda de baja con la fecha de esta baja aunque estuviera pendiente
-   * o ya de baja: así ningún enlace de confirmación anterior la activa (E12-H1), ni uno pedido
-   * después de una baja previa. La cuenta conserva la fecha del último consentimiento.
+   * E12-H2 · El administrador da de baja una dirección cuando la persona lo pide por correo: la
+   * cuenta ya no puede hacerlo sola (decisión del equipo del 11 de noviembre de 2026). Es la misma
+   * baja por dirección de siempre (`darDeBajaDireccion`): apaga la publicidad de la cuenta y de la
+   * suscripción sin cuenta con ese correo en una transacción, y la cuenta conserva la fecha de su
+   * último consentimiento. Repetirla responde lo mismo. Si no hay cuenta ni suscripción con esa
+   * dirección, 404: el panel debe saber que escribió mal el correo.
    */
-  async darDeBaja(token: string): Promise<Mensaje> {
-    const email = this.firma.verificar(token);
-    if (!email) {
-      throw new BadRequestException('El enlace de baja no es válido.');
-    }
-
-    const ahora = new Date();
-    await this.prisma.$transaction([
-      this.prisma.lead.updateMany({
-        where: { email },
-        data: { activo: false, fechaBaja: ahora },
-      }),
-      this.prisma.usuario.updateMany({
-        where: { email, aceptaMarketingEmail: true },
-        data: { aceptaMarketingEmail: false },
-      }),
-    ]);
-    return { mensaje: MENSAJE_BAJA };
+  async darDeBaja(email: string): Promise<BajaDireccion> {
+    return this.prisma.$transaction(async (tx) => {
+      const [cuenta, suscripcion] = await Promise.all([
+        tx.usuario.count({ where: { email } }),
+        tx.lead.count({ where: { email } }),
+      ]);
+      if (cuenta === 0 && suscripcion === 0) {
+        throw new NotFoundException(
+          'No hay ninguna cuenta ni suscripción con ese correo.',
+        );
+      }
+      await darDeBajaDireccion(tx, email, new Date());
+      return {
+        email,
+        cuenta: cuenta > 0,
+        suscripcion: suscripcion > 0,
+        mensaje: `Listo. ${email} ya no recibirá publicidad.`,
+      };
+    });
   }
 }

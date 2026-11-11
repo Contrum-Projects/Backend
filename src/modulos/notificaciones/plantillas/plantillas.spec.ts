@@ -54,22 +54,25 @@ describe('Plantillas de correo', () => {
   });
 
   describe('Campaña', () => {
-    const BAJA = 'https://tienda.cl/ofertas/baja?token=t';
+    const BAJA = 'contacto@tienda.cl';
 
     it('E12-H3 · CA1 campaña enviada: el asunto es el título, el cuerpo va en párrafos y lleva remitente y baja (RNF-26)', () => {
       const { html, texto } = correoCampana({
         asunto: 'Nueva línea reparadora',
         cuerpo: 'Hola:\r\n\r\nLlegó la línea.\nEncuéntrala en la tienda.',
-        enlaceBaja: BAJA,
+        correoBaja: BAJA,
         enlacesPie,
       });
 
       expect(html).toContain('Nueva línea reparadora');
       expect(html).toContain('Llegó la línea.<br>Encuéntrala en la tienda.');
-      expect(html).toContain(escapar(BAJA));
-      expect(html).toContain('Dejar de recibir ofertas');
+      expect(html).toContain(
+        `Para dejar de recibir ofertas, escríbenos a <a href="mailto:${BAJA}"`,
+      );
       expect(texto).toContain('Hola:\n\nLlegó la línea.\nEncuéntrala');
-      expect(texto).toContain(`Dejar de recibir ofertas: ${BAJA}`);
+      expect(texto).toContain(
+        `Para dejar de recibir ofertas, escríbenos a ${BAJA}.`,
+      );
     });
 
     it('E12-H3 · el cuerpo de la campaña es texto plano: el HTML no se interpreta', () => {
@@ -77,7 +80,7 @@ describe('Plantillas de correo', () => {
         asunto: '<img src=x onerror=alert(1)>',
         cuerpo:
           '<script>alert(1)</script><a href="https://otro.sitio">aquí</a>',
-        enlaceBaja: BAJA,
+        correoBaja: BAJA,
         enlacesPie,
       });
 
@@ -91,7 +94,7 @@ describe('Plantillas de correo', () => {
       const datos = {
         asunto: 'Novedades',
         cuerpo: 'Hola.',
-        enlaceBaja: BAJA,
+        correoBaja: BAJA,
         enlacesPie,
       };
       const conImagen = correoCampana({

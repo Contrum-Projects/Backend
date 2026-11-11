@@ -12,7 +12,7 @@ interface DatosConfirmacionSuscripcion {
 
 /**
  * Confirmación de la suscripción a ofertas (E12-H1). Sin diseño propio en Figma: usa la base de
- * «Confirma tu correo». No es publicidad, así que no lleva enlace de baja (RNF-26): mientras no se
+ * «Confirma tu correo». No es publicidad, así que no lleva el correo para pedir la baja (RNF-26): mientras no se
  * confirme, la dirección no recibe ofertas.
  */
 export const correoConfirmacionSuscripcion = ({

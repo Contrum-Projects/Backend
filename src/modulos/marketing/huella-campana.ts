@@ -28,7 +28,7 @@ export type ResultadoHuella = 'valida' | 'vencida' | 'invalida';
  * Huella de la vista previa de una campaña (E12-H3, decisión del 5 de noviembre de 2026): el envío
  * exige la de una vista previa de la última hora, así se confirma exactamente lo que se vio, y con
  * destinatarios recientes. Si la campaña cambió después, la firma ya no coincide. Va firmada con
- * una clave derivada de `JWT_ACCESS_SECRET` con su propio dominio, como `FirmaBaja`: no hace falta
+ * una clave derivada de `JWT_ACCESS_SECRET` con su propio dominio, como `FirmaSuscripcion`: no hace falta
  * otra variable ni guardarla (sin cambios al MER).
  */
 @Injectable()

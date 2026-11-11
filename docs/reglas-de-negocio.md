@@ -12,13 +12,13 @@ Lo que aparece como **PENDIENTE** no está decidido: no lo inventes, pregunta al
 
 Cinco roles fijos en el código (`src/common/dominio/roles.ts`); una cuenta tiene un solo rol.
 
-| Rol | Quién | Qué puede |
-| --- | --- | --- |
-| `cliente` | Consumidor final con cuenta | Compra a precio minorista |
-| `profesional` | Peluquero con la verificación aprobada | Compra a precio mayorista; ve los productos exclusivos |
-| `vendedor` | Personal de tienda | Catálogo, consultar stock y pedidos (matriz de E13-H2) |
-| `bodeguero` | Personal de tienda | Recibe el aviso de stock bajo; proveedores, inventario y pedidos (matriz de E13-H2) |
-| `administrador` | La dueña | Todos los permisos del panel; aviso de stock bajo, oferta de cumpleaños |
+| Rol             | Quién                                  | Qué puede                                                                           |
+| --------------- | -------------------------------------- | ----------------------------------------------------------------------------------- |
+| `cliente`       | Consumidor final con cuenta            | Compra a precio minorista                                                           |
+| `profesional`   | Peluquero con la verificación aprobada | Compra a precio mayorista; ve los productos exclusivos                              |
+| `vendedor`      | Personal de tienda                     | Catálogo, consultar stock y pedidos (matriz de E13-H2)                              |
+| `bodeguero`     | Personal de tienda                     | Recibe el aviso de stock bajo; proveedores, inventario y pedidos (matriz de E13-H2) |
+| `administrador` | La dueña                               | Todos los permisos del panel; aviso de stock bajo, oferta de cumpleaños             |
 
 El visitante (sin sesión) ve el catálogo con precio minorista, sin productos exclusivos, y puede
 suscribirse a ofertas. No hay compra como invitado.
@@ -97,6 +97,11 @@ confirmación dura 24 h (`CONFIRMACION_CORREO_HORAS`); contraseña de 8+ caracte
 número; RUT guardado como `12345678-K`. Valores nuevos en `valores.ts`: `TIPOS_TOKEN`
 (`confirmacion_correo`), `TIPOS_NOTIFICACION` (`confirmacion_correo`) y `ESTADOS_NOTIFICACION`
 (`pendiente`, `enviada`, `fallida`).
+Decisión del equipo del 11 nov (SCRUM-19): para crear la cuenta hay que aceptar recibir ofertas
+por correo. `POST /api/cuentas/registro` exige `aceptaMarketing: true` (si falta o es otro valor,
+400 junto al campo `aceptaMarketing`) y la cuenta nace con `acepta_marketing_email = true` y
+`fecha_consentimiento_marketing` en la fecha del registro. La publicidad le llega solo con el
+correo verificado (E12). Después la cuenta no puede desactivarlas sola: ver E12-H2.
 Decisiones del 17 oct (E1-H2): para iniciar sesión la cuenta debe tener `activo` verdadero **y**
 el correo confirmado (si no, 403, y solo se informa con la contraseña correcta); correo inexistente
 y contraseña errónea responden el mismo 401. El token de acceso (`JWT_ACCESS_TTL`, con `sub` =
@@ -179,58 +184,58 @@ Decisiones del 19 oct (E13-H2): los permisos son fijos en el código
 `@RequierePermiso(...)` y `PermisosGuard` (sin decorador, 403). Cliente y profesional no tienen
 ninguno. El administrador tiene todos, también los que se agreguen.
 
-| Permiso | Cubre | Administrador | Vendedor | Bodeguero |
-| --- | --- | :-: | :-: | :-: |
-| `personal.gestionar` | Cuentas del personal (E13) | ✅ | | |
-| `proveedores.gestionar` | Proveedores (E11-H1) | ✅ | | ✅ |
-| `inventario.registrar` | Entradas, salidas, ajustes y transferencias (E11-H2 a H4) | ✅ | | ✅ |
-| `inventario.consultar` | Stock por formato y ubicación (E11-H5) | ✅ | ✅ | ✅ |
-| `catalogo.gestionar` | Productos, formatos, imágenes, marcas, categorías y packs (E3, E4) | ✅ | ✅ | |
-| `precios.gestionar` | Precio minorista y mayorista (E3-H5) | ✅ | | |
-| `pedidos.gestionar` | Ver pedidos y cambiar su estado en el panel (E8-H2) | ✅ | ✅ | ✅ |
-| `facturacion.gestionar` | Registrar la factura emitida en el SII (E9-H3) | ✅ | ✅ | |
-| `verificacion.gestionar` | Revisión manual de profesionales (E10-H3) | ✅ | | |
-| `campanas.gestionar` | Campañas de correo (E12-H3) | ✅ | | |
-| `reportes.ver` | Indicadores y reportes (E14) | ✅ | | |
-Decisiones del 18 oct (E13-H1): el administrador crea la cuenta con nombre, apellido, correo y un
-único rol (`vendedor`, `bodeguero` o `administrador`); la cuenta nace con una contraseña aleatoria
-que nadie conoce y se envía una invitación de un uso (`TIPOS_TOKEN.INVITACION_PERSONAL`, 72 h,
-`INVITACION_PERSONAL_HORAS`) a `URL_TIENDA/personal/activar?token=...`; al aceptarla la persona
-define su contraseña (mismas reglas que el registro) y queda con el correo confirmado. El
-administrador puede reenviar la invitación (invalida la anterior) mientras la cuenta esté activa y
-sin contraseña definida, y listar al personal. Desactivar pone `activo` en falso, revoca todas sus
-sesiones e invalida su invitación pendiente, en una transacción; el administrador no puede
-desactivarse a sí mismo (409) y quien crea, reinvita o desactiva debe seguir activo dentro de la
-transacción (403), así que siempre queda al menos un administrador activo. El guard JWT rechaza
-también las sesiones de cuentas desactivadas. No hay reactivación (no está en la historia).
-Decisiones del 4 nov (E13-H3, SCRUM-148, RF-13.04): `PATCH /api/cuentas/:codigoPublico/rol`
-(`{ rol, motivo? }`, UUID de la cuenta) con `personal.gestionar`; va en `cuentas` porque el
-profesional no es parte del personal. **Solo baja el rol:** administrador → `vendedor` o
-`bodeguero`, y profesional → `cliente`. Otro rol de destino responde 400; un cambio que no
-corresponde al rol actual (vendedor ↔ bodeguero, cliente, etc.), 409. **Motivo:** se recorta, de
-10 a 1000 caracteres; obligatorio al pasar a cliente (400 «El motivo es obligatorio al quitar el rol
-profesional.»), opcional para el personal. **Cambio al MER:** tabla `historial_rol`
-(`id_usuario`, `id_usuario_responsable`, `rol_anterior`, `rol_nuevo`, `motivo`, `fecha_cambio`):
-guarda cada cambio, quién y cuándo. En una transacción, con los administradores activos bloqueados
-(`FOR UPDATE`, como al desactivar) y luego la cuenta: quien pide debe seguir siendo administrador
-activo (403); cuenta desactivada, 409; **nunca queda la tienda sin administrador** (409 si es el
-único activo). El administrador **puede bajarse a sí mismo** si queda otro activo. Se guarda el rol y
-su historial y **se revocan todas las sesiones** de la cuenta (RNF-28): el token anterior responde
-401 y al volver a entrar el rol se lee de la base. **Profesional → cliente:** en la misma
-transacción se **quitan del carrito los artículos exclusivos** (formatos de productos y packs con
-`canal_venta = profesional`) y se registra la NOTIFICACION `rol_profesional_retirado`; el correo
-(asunto «Tu cuenta volvió a ser de cliente», **PROPUESTA** de texto, sin diseño en Figma) se encola
-después del commit y lleva el motivo, que se lee de `historial_rol` al enviar (no viaja en Redis).
-El precio mayorista deja de verse porque la sesión se revoca y el carrito ya calcula por rol. **Los
-pedidos ya creados no se tocan**, tampoco uno pendiente de pago (RNF-11). `POST /api/pedidos` relee
-el rol de la cuenta con la fila bloqueada y responde 409 si ya no es el del token: un pedido que
-esperaba el bloqueo no sale al precio mayorista. Por lo mismo (auditoría del 4 nov), las escrituras
-del carrito bloquean la cuenta con `bloquearCuentaConRol` y responden 409 `ROL_CAMBIADO` si el rol
-de la base ya no es el del token, y el **inicio de sesión** crea la sesión con la fila de la cuenta
-bloqueada y firma el token con el rol releído ahí: un login simultáneo con el cambio no queda con
-el rol anterior. El 409 también le puede tocar al cliente recién aprobado (E10-H4) que no renovó la
-sesión: el frontend debe renovarla ante ese 409. La verificación no cambia: el ex profesional no
-puede volver a solicitarla (sigue el 409 «ya fue aprobada»); el perfil profesional se conserva.
+| Permiso                                                                                               | Cubre                                                              | Administrador | Vendedor | Bodeguero |
+| ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | :-----------: | :------: | :-------: |
+| `personal.gestionar`                                                                                  | Cuentas del personal (E13)                                         |      ✅       |          |           |
+| `proveedores.gestionar`                                                                               | Proveedores (E11-H1)                                               |      ✅       |          |    ✅     |
+| `inventario.registrar`                                                                                | Entradas, salidas, ajustes y transferencias (E11-H2 a H4)          |      ✅       |          |    ✅     |
+| `inventario.consultar`                                                                                | Stock por formato y ubicación (E11-H5)                             |      ✅       |    ✅    |    ✅     |
+| `catalogo.gestionar`                                                                                  | Productos, formatos, imágenes, marcas, categorías y packs (E3, E4) |      ✅       |    ✅    |           |
+| `precios.gestionar`                                                                                   | Precio minorista y mayorista (E3-H5)                               |      ✅       |          |           |
+| `pedidos.gestionar`                                                                                   | Ver pedidos y cambiar su estado en el panel (E8-H2)                |      ✅       |    ✅    |    ✅     |
+| `facturacion.gestionar`                                                                               | Registrar la factura emitida en el SII (E9-H3)                     |      ✅       |    ✅    |           |
+| `verificacion.gestionar`                                                                              | Revisión manual de profesionales (E10-H3)                          |      ✅       |          |           |
+| `campanas.gestionar`                                                                                  | Campañas de correo (E12-H3)                                        |      ✅       |          |           |
+| `reportes.ver`                                                                                        | Indicadores y reportes (E14)                                       |      ✅       |          |           |
+| Decisiones del 18 oct (E13-H1): el administrador crea la cuenta con nombre, apellido, correo y un     |
+| único rol (`vendedor`, `bodeguero` o `administrador`); la cuenta nace con una contraseña aleatoria    |
+| que nadie conoce y se envía una invitación de un uso (`TIPOS_TOKEN.INVITACION_PERSONAL`, 72 h,        |
+| `INVITACION_PERSONAL_HORAS`) a `URL_TIENDA/personal/activar?token=...`; al aceptarla la persona       |
+| define su contraseña (mismas reglas que el registro) y queda con el correo confirmado. El             |
+| administrador puede reenviar la invitación (invalida la anterior) mientras la cuenta esté activa y    |
+| sin contraseña definida, y listar al personal. Desactivar pone `activo` en falso, revoca todas sus    |
+| sesiones e invalida su invitación pendiente, en una transacción; el administrador no puede            |
+| desactivarse a sí mismo (409) y quien crea, reinvita o desactiva debe seguir activo dentro de la      |
+| transacción (403), así que siempre queda al menos un administrador activo. El guard JWT rechaza       |
+| también las sesiones de cuentas desactivadas. No hay reactivación (no está en la historia).           |
+| Decisiones del 4 nov (E13-H3, SCRUM-148, RF-13.04): `PATCH /api/cuentas/:codigoPublico/rol`           |
+| (`{ rol, motivo? }`, UUID de la cuenta) con `personal.gestionar`; va en `cuentas` porque el           |
+| profesional no es parte del personal. **Solo baja el rol:** administrador → `vendedor` o              |
+| `bodeguero`, y profesional → `cliente`. Otro rol de destino responde 400; un cambio que no            |
+| corresponde al rol actual (vendedor ↔ bodeguero, cliente, etc.), 409. **Motivo:** se recorta, de      |
+| 10 a 1000 caracteres; obligatorio al pasar a cliente (400 «El motivo es obligatorio al quitar el rol  |
+| profesional.»), opcional para el personal. **Cambio al MER:** tabla `historial_rol`                   |
+| (`id_usuario`, `id_usuario_responsable`, `rol_anterior`, `rol_nuevo`, `motivo`, `fecha_cambio`):      |
+| guarda cada cambio, quién y cuándo. En una transacción, con los administradores activos bloqueados    |
+| (`FOR UPDATE`, como al desactivar) y luego la cuenta: quien pide debe seguir siendo administrador     |
+| activo (403); cuenta desactivada, 409; **nunca queda la tienda sin administrador** (409 si es el      |
+| único activo). El administrador **puede bajarse a sí mismo** si queda otro activo. Se guarda el rol y |
+| su historial y **se revocan todas las sesiones** de la cuenta (RNF-28): el token anterior responde    |
+| 401 y al volver a entrar el rol se lee de la base. **Profesional → cliente:** en la misma             |
+| transacción se **quitan del carrito los artículos exclusivos** (formatos de productos y packs con     |
+| `canal_venta = profesional`) y se registra la NOTIFICACION `rol_profesional_retirado`; el correo      |
+| (asunto «Tu cuenta volvió a ser de cliente», **PROPUESTA** de texto, sin diseño en Figma) se encola   |
+| después del commit y lleva el motivo, que se lee de `historial_rol` al enviar (no viaja en Redis).    |
+| El precio mayorista deja de verse porque la sesión se revoca y el carrito ya calcula por rol. **Los   |
+| pedidos ya creados no se tocan**, tampoco uno pendiente de pago (RNF-11). `POST /api/pedidos` relee   |
+| el rol de la cuenta con la fila bloqueada y responde 409 si ya no es el del token: un pedido que      |
+| esperaba el bloqueo no sale al precio mayorista. Por lo mismo (auditoría del 4 nov), las escrituras   |
+| del carrito bloquean la cuenta con `bloquearCuentaConRol` y responden 409 `ROL_CAMBIADO` si el rol    |
+| de la base ya no es el del token, y el **inicio de sesión** crea la sesión con la fila de la cuenta   |
+| bloqueada y firma el token con el rol releído ahí: un login simultáneo con el cambio no queda con     |
+| el rol anterior. El 409 también le puede tocar al cliente recién aprobado (E10-H4) que no renovó la   |
+| sesión: el frontend debe renovarla ante ese 409. La verificación no cambia: el ex profesional no      |
+| puede volver a solicitarla (sigue el 409 «ya fue aprobada»); el perfil profesional se conserva.       |
 
 **E3 Administración del catálogo.** Producto: nombre, descripción, marca (de una lista), categoría,
 canal de venta. Formatos con SKU y código de barras únicos, contenido, peso, medidas, stock mínimo,
@@ -323,8 +328,7 @@ Búsqueda por nombre, marca, categoría o subcategoría; filtros combinables. Ca
 para el árbol de categorías y marcas (RNF-30).
 Decisiones del 6 nov (SCRUM-150): `categoriaId` y `marcaId` de `GET /api/tienda/productos` se
 repiten para marcar varias (hasta 30 de cada una): dentro de un grupo basta una (cada categoría
-con sus subcategorías) y entre grupos se exigen los dos; un id inexistente o una marca inactiva,
-404. `GET /api/tienda/facetas` (mismos filtros y visibilidad, sin paginar) cuenta los productos
+con sus subcategorías) y entre grupos se exigen los dos; un id inexistente o una marca inactiva, 404. `GET /api/tienda/facetas` (mismos filtros y visibilidad, sin paginar) cuenta los productos
 por categoría (con sus subcategorías) y por marca; cada grupo cuenta con la búsqueda y los
 filtros del **otro** grupo, y solo vienen las opciones con productos. `orden` (`ORDENES_TIENDA`):
 sin él, por nombre; `mas-vendidos`, por unidades vendidas de sus formatos en los últimos
@@ -591,8 +595,7 @@ Decisiones del 31 oct (E6-H2): `POST /api/pagos/notificaciones` es pública y la
 (`x-signature`, con `WebhookSignatureValidator` del SDK y `MERCADOPAGO_WEBHOOK_SECRET`). Sin firma
 válida responde 401 y no guarda nada; sin el secreto, 503 para que Mercado Pago reintente. No se
 limita la antigüedad de `ts`, porque Mercado Pago reintenta durante horas y repetir no tiene efecto.
-Un aviso firmado que no es de pago responde 200 sin guardarse; uno de pago sin sus identificadores,
-400. La URL y el secreto se configuran en el panel de Mercado Pago (sin `notification_url`).
+Un aviso firmado que no es de pago responde 200 sin guardarse; uno de pago sin sus identificadores, 400. La URL y el secreto se configuran en el panel de Mercado Pago (sin `notification_url`).
 Se guarda un EVENTO_PAGO (`id_evento_externo` = `id` del cuerpo; `contenido_recibido` solo con id,
 tipo, acción e id del pago) y se responde 200 aunque Redis no responda. El worker de `eventos-pago`
 consulta el pago a Mercado Pago y usa `AplicarPagoService`. `ESTADOS_EVENTO_PAGO`: `pendiente`,
@@ -746,8 +749,7 @@ es el comprobante de Mercado Pago (E9-H1). Cambio a la matriz de permisos del 19
 agrega `facturacion.gestionar` para vendedor y administrador. Sin cambios al MER.
 Decisiones del 31 oct (E9-H4): `GET /api/pedidos/:codigoPedido/documento` solo para cliente y
 profesional (`CompradorGuard`; el personal recibe 403, sin sesión 401) y siempre sobre un pedido
-de la cuenta del token: el de otra cuenta, uno inexistente o con un código mal formado responde
-404. Entrega el PDF de la factura vigente (`id_documento_anulador` nulo y con archivo) como
+de la cuenta del token: el de otra cuenta, uno inexistente o con un código mal formado responde 404. Entrega el PDF de la factura vigente (`id_documento_anulador` nulo y con archivo) como
 descarga (`Content-Type: application/pdf`, `Content-Disposition: attachment;
 filename="factura-<folio>.pdf"`, `Cache-Control: private, no-store`, `X-Content-Type-Options:
 nosniff`): la API lo lee de R2 con `AlmacenArchivos.obtener` y nunca devuelve una URL ni la clave
@@ -1021,11 +1023,11 @@ configurado la tarea no marca nada. Los logs nunca llevan la ubicación del arch
 MER.
 
 **E12 Marketing.** Publicidad solo a quien la aceptó (cuenta activa con correo verificado o
-suscriptor confirmado); el consentimiento se revisa de nuevo al enviar. Baja desde cualquier
-correo, por dirección. Campaña con vista previa y confirmación; sale una vez y llega una vez a cada
+suscriptor confirmado); el consentimiento se revisa de nuevo al enviar. Baja por dirección, la
+registra el administrador cuando la persona la pide por correo (decisión del 11 nov). Campaña con vista previa y confirmación; sale una vez y llega una vez a cada
 dirección. Recordatorios de carrito a 1, 24 y 72 h, una serie por semana. Saludo de cumpleaños
-anual. Registrar apertura, clic y rebote. Todo correo publicitario lleva remitente y enlace de baja
-(RNF-26). Prioridad de correos: pedido y cuenta > suscripción > publicidad (RNF-16).
+anual. Registrar apertura, clic y rebote. Todo correo publicitario lleva remitente y el correo de
+contacto para pedir la baja (`CORREO_CONTACTO`, RNF-26; decisión del 11 nov). Prioridad de correos: pedido y cuenta > suscripción > publicidad (RNF-16).
 Decisiones del 3 nov (E12-H1): `POST /api/marketing/suscripciones` `{ email }` es pública y responde
 **202** con el mismo mensaje para todo correo válido (no revela si ya estaba suscrito, pendiente,
 dado de baja o con cuenta). Un correo nuevo crea LEAD con `activo = false`, `fecha_baja` nula y
@@ -1066,6 +1068,21 @@ tienda, SCRUM-139; alineado el 6 nov, SCRUM-150). Al enviar, todo correo de camp
 `TIPOS_NOTIFICACION_PUBLICIDAD` revisa otra vez el consentimiento (cuenta activa, con correo
 verificado y que acepta; o LEAD activo); si no lo tiene, no se envía y queda **`cancelada`**
 (nuevo valor de `ESTADOS_NOTIFICACION`). Sin cambios al MER.
+**Reemplazado por la decisión del equipo del 11 nov (SCRUM-19):** la cuenta acepta las ofertas al
+registrarse (ver E1) y ya no puede darse de baja sola. Se quitaron `PUT
+/api/cuentas/yo/consentimiento-marketing`, el enlace firmado de baja (`FirmaBaja`) y la baja
+pública con `{ token }`. `GET /api/cuentas/yo` sigue respondiendo `consentimientoMarketing`. Todo
+correo publicitario lleva en el pie «Para dejar de recibir ofertas, escríbenos a
+`CORREO_CONTACTO`» (enlace `mailto:`, sin seguimiento; PLACEHOLDER `contacto@cabelloperfecto.cl`
+hasta que el equipo defina la casilla). La persona escribe y el administrador la da de baja con
+`POST /api/marketing/bajas` `{ email }` (permiso `campanas.gestionar`; 401 sin sesión, 403 sin el
+permiso; 400 si el correo falta o no es válido): la misma baja por dirección de antes
+(`darDeBajaDireccion`, en una transacción; la cuenta conserva la fecha del consentimiento y LEAD
+queda con `fecha_baja`, así ningún enlace de confirmación anterior la activa). Responde 200 con
+`{ email, cuenta, suscripcion, mensaje }` y lo mismo si se repite; si no hay cuenta ni suscripción
+con ese correo, **404** (el panel debe saber que escribió mal la dirección). La pantalla
+`/ofertas/baja` de la tienda queda solo para los enlaces de correos antiguos: dice a quién
+escribir. Sin cambios al MER.
 Decisiones del 4 nov (E12-H4): sin rutas. Un job repetible cada 30 s (RNF-31) en su propia cola
 `carritos-abandonados` revisa los carritos **con artículos** de cuentas cliente o profesional
 activas, con correo verificado y que aceptan publicidad. Los plazos (1, 24 y 72 h) se cuentan desde
@@ -1087,7 +1104,7 @@ carrito cambió después de decidirse o quedó vacío, el correo queda `cancelad
 artículos que la tienda le vende hoy a esa cuenta (la regla de `articulosALaVenta` del carrito): un
 exclusivo nunca se le nombra a un cliente (RNF-04), y un carrito sin ninguno no se recuerda (y si
 pasa al enviar, queda `cancelada`). El correo nombra hasta 5 artículos con su cantidad, **sin precios**, con botón al carrito (PROPUESTA por confirmar con
-frontend: `/carrito`) y el enlace de baja firmado (`FirmaBaja`, RNF-26). Texto PROPUESTA por
+frontend: `/carrito`) y el correo para pedir la baja (RNF-26). Texto PROPUESTA por
 confirmar con el equipo.
 Decisiones del 5 nov (E12-H6, SCRUM-73): **seguimiento propio, solo en la publicidad** (correos de
 campaña y tipos de `TIPOS_NOTIFICACION_PUBLICIDAD`: recordatorio de carrito y saludo de
@@ -1130,7 +1147,7 @@ primero, paginado) y `GET /:id` da el detalle con los correos por estado; `PATCH
 un borrador (enviada: 409; cuerpo vacío: 400). El asunto va en una sola línea, sin caracteres de
 control (400; auditoría del 5 nov). **Cuerpo en texto plano:** se escapa siempre (el
 HTML no se interpreta); una línea en blanco separa párrafos. El correo usa la base de los demás,
-con el asunto como título, remitente y enlace de baja firmado (RNF-26); sin diseño en Figma.
+con el asunto como título, remitente y correo para pedir la baja (RNF-26); sin diseño en Figma.
 **Segmento** (JSON en `campana.segmento`): `tipos` (al menos uno de `TIPOS_DESTINATARIO_CAMPANA`:
 `cliente`, `profesional`, `suscriptor`) y, opcionales, `categorias` y `marcas` (hasta 50 cada
 una; deben existir, si no 400). Con categorías o marcas solo entran las cuentas con un pedido
@@ -1138,7 +1155,7 @@ pagado (todo estado salvo `ESTADOS_SIN_VENTA`) con algún producto de esas categ
 sus subcategorías) **o** de esas marcas; un pack cuenta por sus formatos. Los suscriptores sin
 cuenta no tienen compras: pedirlos con un filtro de compras responde 400. **Vista previa:**
 `POST /:id/vista-previa` devuelve `{ asunto, html, texto, destinatarios, confirmacion }`; el
-enlace de baja de la vista previa lleva a `/ofertas/baja` sin token (no da de baja a nadie).
+pie de la vista previa lleva el mismo correo para pedir la baja que el envío.
 `confirmacion` es `emisión.firma`: un HMAC-SHA256 de id + asunto + cuerpo + segmento + emisión
 (clave derivada de `JWT_ACCESS_SECRET` con su propio dominio, `HuellaCampana`; sin variable ni
 columna nueva). **Vence a la hora** (`VIGENCIA_VISTA_PREVIA_MS`): pasada, 409 «más de una hora»
@@ -1203,7 +1220,7 @@ la transacción y se encola después en `correos` con prioridad de publicidad; l
 pendientes la reencola (RNF-29). Al enviar se revisa otra vez el consentimiento (E12-H2) y el saludo
 y la oferta se leen de la base: **la oferta va si está activa al enviarse** (CA2). El correo usa la
 base de los demás («Hola, {nombre}:», el saludo, la oferta en un recuadro y botón a `/catalogo`),
-con remitente y enlace de baja firmado (RNF-26); sin diseño en Figma. Sin cambios al MER.
+con remitente y correo para pedir la baja (RNF-26); sin diseño en Figma. Sin cambios al MER.
 PENDIENTE (auditoría del 5 nov): la cuenta puede editar su fecha de nacimiento (solo se valida que
 no sea futura), así que puede poner la de hoy para recibir la oferta, una vez al año por cuenta. Hay
 que decidir si se acepta (la oferta se canjea a mano) o si se limita (fecha no editable una vez

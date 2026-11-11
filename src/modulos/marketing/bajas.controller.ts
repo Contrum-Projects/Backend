@@ -8,38 +8,56 @@ import {
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
+  ApiBearerAuth,
+  ApiForbiddenResponse,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
-  ApiTooManyRequestsResponse,
+  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
-import { LIMITES } from '../../limites/limites.js';
-import { BajasService } from './bajas.service.js';
+import { JwtAutenticacionGuard } from '../../autenticacion/jwt-autenticacion.guard.js';
+import {
+  PermisosGuard,
+  RequierePermiso,
+} from '../../autenticacion/permisos.guard.js';
+import { PERMISOS } from '../../common/dominio/permisos.js';
+import { type BajaDireccion, BajasService } from './bajas.service.js';
+import { BajaRespuestaDto } from './dto/baja-respuesta.dto.js';
 import { DarDeBajaDto } from './dto/dar-de-baja.dto.js';
-import type { Mensaje } from './suscripciones.service.js';
 
-/** Ruta pública: se llega desde el enlace de baja de un correo publicitario (E12-H2). */
+/**
+ * Baja de la publicidad desde el panel (E12-H2). La persona lo pide escribiendo al correo de
+ * contacto y el administrador la registra aquí (decisión del equipo del 11 de noviembre de 2026).
+ */
 @ApiTags('marketing')
+@ApiBearerAuth()
 @Controller('marketing/bajas')
-@UseGuards(ThrottlerGuard)
-@Throttle({ default: LIMITES.SUSCRIPCION })
+@UseGuards(JwtAutenticacionGuard, PermisosGuard)
+@RequierePermiso(PERMISOS.CAMPANAS_GESTIONAR)
+@ApiUnauthorizedResponse({ description: 'Falta iniciar sesión.' })
+@ApiForbiddenResponse({
+  description: 'El rol no tiene el permiso de gestionar campañas.',
+})
 export class BajasController {
   constructor(private readonly bajas: BajasService) {}
 
   @Post()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Dejar de recibir publicidad con el enlace del correo (E12-H2)',
+    summary: 'Dar de baja una dirección de la publicidad (E12-H2)',
     description:
-      'Da de baja la dirección del enlace, sea de una cuenta o de un suscriptor. Responde lo mismo si ya estaba de baja.',
+      'Deja sin publicidad la cuenta y la suscripción sin cuenta con ese correo. Responde lo mismo si ya estaba de baja.',
   })
-  @ApiOkResponse({ description: 'La dirección ya no recibe publicidad.' })
-  @ApiBadRequestResponse({ description: 'Enlace inválido.' })
-  @ApiTooManyRequestsResponse({
-    description: 'Más de 5 peticiones por minuto desde la misma IP.',
+  @ApiOkResponse({
+    type: BajaRespuestaDto,
+    description: 'La dirección ya no recibe publicidad.',
   })
-  darDeBaja(@Body() dto: DarDeBajaDto): Promise<Mensaje> {
-    return this.bajas.darDeBaja(dto.token);
+  @ApiBadRequestResponse({ description: 'Falta el correo o no es válido.' })
+  @ApiNotFoundResponse({
+    description: 'No hay cuenta ni suscripción con ese correo.',
+  })
+  darDeBaja(@Body() dto: DarDeBajaDto): Promise<BajaDireccion> {
+    return this.bajas.darDeBaja(dto.email);
   }
 }

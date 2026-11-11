@@ -4,11 +4,12 @@ import { ROLES } from '../../common/dominio/roles.js';
 import type { Entorno } from '../../config/entorno.js';
 import type { PrismaService } from '../../prisma/prisma.service.js';
 import type { CarritoService } from '../carrito/carrito.service.js';
-import type { FirmaBaja } from '../marketing/firma-baja.js';
 import type { FirmaSeguimiento } from '../marketing/firma-seguimiento.js';
 import { ContenidoCorreosService } from './contenido-correos.service.js';
 
 const MOTIVO = 'Dejó de ejercer como peluquera según nos informó.';
+
+const CORREO_CONTACTO = 'contacto@tienda.cl';
 
 describe('ContenidoCorreosService', () => {
   const crear = () => {
@@ -47,14 +48,9 @@ describe('ContenidoCorreosService', () => {
       ),
     };
     const config = {
-      get: () => 'https://tienda.cl/',
+      get: (clave: string) =>
+        clave === 'CORREO_CONTACTO' ? CORREO_CONTACTO : 'https://tienda.cl/',
     } as unknown as ConfigService<Entorno, true>;
-    const firmaBaja = {
-      enlace: vi.fn(
-        (email: string) =>
-          `https://tienda.cl/ofertas/baja?token=firma-${email}`,
-      ),
-    };
     // Por defecto, sin URL_API: sin imagen de apertura y con los enlaces tal cual
     const seguimiento = {
       enlaceApertura: vi.fn((): string | null => null),
@@ -62,21 +58,19 @@ describe('ContenidoCorreosService', () => {
     };
     return {
       prisma,
-      firmaBaja,
       carritoService,
       seguimiento,
       servicio: new ContenidoCorreosService(
         prisma as unknown as PrismaService,
         config,
-        firmaBaja as unknown as FirmaBaja,
         carritoService as unknown as CarritoService,
         seguimiento as unknown as FirmaSeguimiento,
       ),
     };
   };
 
-  it('E12-H3 · CA1 campaña enviada: el correo lleva el cuerpo de la campaña leído al enviar y el enlace de baja de esa dirección', async () => {
-    const { servicio, prisma, firmaBaja } = crear();
+  it('E12-H3 · CA1 campaña enviada: el correo lleva el cuerpo de la campaña leído al enviar y el correo para pedir la baja', async () => {
+    const { servicio, prisma } = crear();
 
     const { html, texto } = await servicio.construir(
       TRABAJOS_CORREO.CAMPANA,
@@ -87,11 +81,12 @@ describe('ContenidoCorreosService', () => {
     expect(prisma.campana.findUnique).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: 4 } }),
     );
-    expect(firmaBaja.enlace).toHaveBeenCalledWith('camila@correo.cl');
     expect(html).toContain('Llegó la línea reparadora.');
     expect(html).toContain('&lt;b&gt;Solo&lt;/b&gt;');
-    expect(html).toContain('firma-camila@correo.cl');
-    expect(texto).toContain('Dejar de recibir ofertas');
+    expect(html).toContain(`href="mailto:${CORREO_CONTACTO}"`);
+    expect(texto).toContain(
+      `Para dejar de recibir ofertas, escríbenos a ${CORREO_CONTACTO}.`,
+    );
   });
 
   it('SCRUM-150 · los marcadores del asunto y el cuerpo se completan con los datos de la cuenta que lo recibe', async () => {
@@ -160,8 +155,8 @@ describe('ContenidoCorreosService', () => {
     },
   });
 
-  it('E12-H4 · CA1 serie de recordatorios: el correo nombra los artículos del carrito con su cantidad, sin precios, y lleva el enlace de baja', async () => {
-    const { prisma, firmaBaja, servicio } = crear();
+  it('E12-H4 · CA1 serie de recordatorios: el correo nombra los artículos del carrito con su cantidad, sin precios, y lleva el correo para pedir la baja', async () => {
+    const { prisma, servicio } = crear();
     prisma.itemCarrito.findMany.mockResolvedValue([
       formato('Shampoo Reparador', '300 ml', 2),
       {
@@ -184,20 +179,16 @@ describe('ContenidoCorreosService', () => {
     expect(prisma.itemCarrito.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { carrito: { usuarioId: 20 } } }),
     );
-    expect(firmaBaja.enlace).toHaveBeenCalledWith('camila@correo.cl');
     expect(html).toContain('Hola, Camila.');
     expect(html).toContain('Shampoo Reparador · 300 ml');
     expect(html).toContain('2 unidades');
     expect(html).toContain('Dúo Hidratación');
     expect(html).toContain('https://tienda.cl/carrito');
-    expect(html).toContain(
-      'https://tienda.cl/ofertas/baja?token=firma-camila@correo.cl',
-    );
-    expect(html).toContain('Dejar de recibir ofertas');
+    expect(html).toContain(`href="mailto:${CORREO_CONTACTO}"`);
     expect(html).not.toMatch(/\$\d/);
     expect(texto).toContain('- Shampoo Reparador · 300 ml: 2 unidades');
     expect(texto).toContain(
-      'Dejar de recibir ofertas: https://tienda.cl/ofertas/baja?token=firma-camila@correo.cl',
+      `Para dejar de recibir ofertas, escríbenos a ${CORREO_CONTACTO}.`,
     );
   });
 
@@ -263,8 +254,8 @@ describe('ContenidoCorreosService', () => {
     campanaId: 4,
   };
 
-  it('E12-H5 · CA2 saludo con oferta: con la oferta activa al enviar, el correo la incluye escapada, con el saludo y el enlace de baja', async () => {
-    const { servicio, prisma, firmaBaja } = crear();
+  it('E12-H5 · CA2 saludo con oferta: con la oferta activa al enviar, el correo la incluye escapada, con el saludo y el correo para pedir la baja', async () => {
+    const { servicio, prisma } = crear();
 
     const { html, texto } = await servicio.construir(
       TRABAJOS_CORREO.CUMPLEANOS,
@@ -285,8 +276,9 @@ describe('ContenidoCorreosService', () => {
     expect(texto).toContain(
       'Tu regalo de cumpleaños: 20 % en <b>toda</b> la tienda',
     );
-    expect(firmaBaja.enlace).toHaveBeenCalledWith('camila@correo.cl');
-    expect(texto).toContain('firma-camila@correo.cl');
+    expect(texto).toContain(
+      `Para dejar de recibir ofertas, escríbenos a ${CORREO_CONTACTO}.`,
+    );
   });
 
   it('E12-H5 · CA2 saludo con oferta: con la oferta desactivada, el correo sale sin ella', async () => {
@@ -364,7 +356,7 @@ describe('ContenidoCorreosService', () => {
       return creado;
     };
 
-    it('E12-H6 · CA1 apertura y clic: la campaña lleva la imagen de apertura de su notificación y sus enlaces pasan por el seguimiento, menos el de baja', async () => {
+    it('E12-H6 · CA1 apertura y clic: la campaña lleva la imagen de apertura de su notificación y sus enlaces pasan por el seguimiento, menos el correo para pedir la baja', async () => {
       const { servicio, seguimiento } = conSeguimiento();
 
       const { html, texto } = await servicio.construir(
@@ -377,9 +369,7 @@ describe('ContenidoCorreosService', () => {
       expect(html).toContain('<img src="https://api.tienda.cl/apertura/9"');
       // SCRUM-150: el pie no enlaza páginas que la tienda aún no tiene
       expect(html).not.toContain('Política de privacidad');
-      expect(html).toContain(
-        'href="https://tienda.cl/ofertas/baja?token=firma-camila@correo.cl"',
-      );
+      expect(html).toContain(`href="mailto:${CORREO_CONTACTO}"`);
       expect(texto).not.toContain('apertura');
     });
 
@@ -425,9 +415,7 @@ describe('ContenidoCorreosService', () => {
       expect(html).toContain(
         'https://api.tienda.cl/clic/30?destino=https://tienda.cl/catalogo',
       );
-      expect(html).toContain(
-        'href="https://tienda.cl/ofertas/baja?token=firma-camila@correo.cl"',
-      );
+      expect(html).toContain(`href="mailto:${CORREO_CONTACTO}"`);
     });
 
     it('E12-H6 · un correo que no es publicidad no lleva seguimiento', async () => {

@@ -212,8 +212,8 @@ describe('Marketing · aperturas, clics y rebotes (e2e)', () => {
       // SCRUM-150: el pie no enlaza páginas que la tienda aún no tiene, así que la campaña (texto
       // plano) no lleva enlaces con seguimiento de clic
       expect(correo.html).not.toContain(`${URL_API}${RUTA_SEGUIMIENTO}/clic/`);
-      // El de baja va directo a la tienda
-      expect(correo.html).toMatch(/href="http[^"]*\/ofertas\/baja\?token=/);
+      // El correo para pedir la baja va sin seguimiento (SCRUM-19)
+      expect(correo.html).toMatch(/href="mailto:[^"]+@[^"]+"/);
     });
 
     it('E12-H6 · CA1 apertura: guarda la fecha de la primera apertura y responde la imagen; abrir otra vez no la cambia', async () => {

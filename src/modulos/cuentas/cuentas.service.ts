@@ -42,7 +42,9 @@ export class CuentasService {
 
   /**
    * E1-H1 · Crea la cuenta con el correo sin verificar (no puede comprar hasta
-   * confirmarlo) y deja encolado el correo con el enlace de confirmación.
+   * confirmarlo) y deja encolado el correo con el enlace de confirmación. La cuenta nace
+   * aceptando las ofertas por correo, con la fecha del consentimiento (el DTO exige
+   * `aceptaMarketing`); la publicidad le llega solo con el correo verificado (E12).
    */
   async registrar(dto: RegistrarCuentaDto): Promise<Mensaje> {
     if (dto.contrasena !== dto.confirmacionContrasena) {
@@ -86,6 +88,8 @@ export class CuentasService {
             telefono: dto.telefono,
             fechaNacimiento,
             genero: dto.genero,
+            aceptaMarketingEmail: true,
+            fechaConsentimientoMarketing: new Date(),
           },
           select: { id: true },
         });
