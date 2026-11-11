@@ -26,6 +26,7 @@ src/modulos/<modulo>/
 | `inventario`     | E11         | Proveedores, entradas, salidas, ajustes, existencias y movimientos                                                         |
 | `marketing`      | E12         | Suscripciones, campañas y carritos abandonados                                                                             |
 | `cupones`        | E12         | Cupones de descuento: panel, vista previa en el carrito y aplicación al pedido                                             |
+| `portada`        | E12         | Portada del inicio: slides con imagen de escritorio y de celular, orden y destino (SCRUM-157)                              |
 | `notificaciones` | transversal | Cola de correos y su envío                                                                                                 |
 | `reportes`       | E14         | Indicadores y reportes del panel                                                                                           |
 | `territorio`     | transversal | Regiones y comunas                                                                                                         |

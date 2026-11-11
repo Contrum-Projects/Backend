@@ -1254,6 +1254,19 @@ del pedido trae `montos.descuento` y `cupon` (código). PROPUESTA por confirmar:
 cobra al menos $1 de productos (Mercado Pago no cobra $0), y el reparto neto/IVA del descuento con
 quien lleve la contabilidad.
 
+**Portada del inicio** (decisiones del 11 nov 2026, SCRUM-157; módulo `portada`). **Cambio al MER:**
+tabla `slide_portada` (`imagen_escritorio`, `imagen_celular` opcional, `orden`, `tipo_destino`,
+`destino`). Slides de la portada de la tienda, gestionados con `campanas.gestionar` (administrador).
+Solo se editan las imágenes, el orden y el destino. Cada slide tiene imagen de **escritorio
+obligatoria** y de **celular opcional** (sin ella, el celular muestra la de escritorio); mismas
+reglas que las fotos del catálogo (JPEG, PNG o WebP por su contenido, hasta 4 MB). Hasta **8**
+slides, orden 1..n sin huecos. El destino se elige de una lista (`TIPOS_DESTINO_PORTADA`):
+producto, pack, categoría, marca o página (`PAGINAS_PORTADA`: catálogo, packs, precio
+profesional); nunca una URL. Está **disponible** si cualquier visitante lo ve: producto y pack con
+las reglas del catálogo público (de venta general, a la venta; el pack vigente hoy), marca activa,
+categoría existente. Al guardar, un destino no disponible responde 400; si deja de estarlo
+después, `GET /api/portada` (pública) omite el slide y el panel lo marca `disponible: false`.
+
 **E14 Reportes.** Solo administrador. OE1 30 %, OE2 70 % en 48 h, OE3 80 %; ventas por período y
 tipo de cliente; carritos abandonados y recuperados; resultado de campañas; stock bajo el mínimo.
 Decisiones del 30 oct (E14-H4): `GET /api/reportes/stock-bajo-minimo` con `reportes.ver` (solo

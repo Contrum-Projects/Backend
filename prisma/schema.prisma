@@ -839,3 +839,19 @@ model Comuna {
   @@index([regionId])
   @@map("comuna")
 }
+
+/// Portada del inicio de la tienda (SCRUM-157): slides con su imagen y a dónde llevan.
+model SlidePortada {
+  id               Int      @id @default(autoincrement()) @map("id_slide")
+  /// Claves del almacén (como imagen_articulo.ubicacion_archivo); la URL se arma al responder.
+  imagenEscritorio String   @map("imagen_escritorio") @db.VarChar(500)
+  imagenCelular    String?  @map("imagen_celular") @db.VarChar(500)
+  orden            Int
+  /// TIPOS_DESTINO_PORTADA: producto, pack, categoria, marca o pagina.
+  tipoDestino      String   @map("tipo_destino") @db.VarChar(20)
+  /// Id del producto, pack, categoría o marca; o la clave de PAGINAS_PORTADA.
+  destino          String   @db.VarChar(40)
+  fechaCreacion    DateTime @default(now()) @map("fecha_creacion") @db.Timestamptz(6)
+
+  @@map("slide_portada")
+}

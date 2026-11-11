@@ -23,6 +23,8 @@ export const CANDADOS = {
   CATEGORIAS: 3402,
   /** Una sola configuración del saludo de cumpleaños (fila CAMPANA `cumpleanos`, E12-H5). */
   SALUDO_CUMPLEANOS: 1205,
+  /** Slides de la portada: máximo y orden 1..n sin huecos (SCRUM-157). */
+  PORTADA: 1570,
 } as const;
 
 export type Candado = (typeof CANDADOS)[keyof typeof CANDADOS];

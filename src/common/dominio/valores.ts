@@ -515,3 +515,25 @@ export const ESPECIALIDADES = {
 } as const;
 
 export type Valor<T extends Record<string, string>> = T[keyof T];
+
+/**
+ * SLIDE_PORTADA.tipo_destino (SCRUM-157): a dónde lleva un slide de la portada del inicio. El
+ * destino se elige de una lista; nunca es una URL escrita.
+ */
+export const TIPOS_DESTINO_PORTADA = {
+  PRODUCTO: 'producto',
+  PACK: 'pack',
+  CATEGORIA: 'categoria',
+  MARCA: 'marca',
+  PAGINA: 'pagina',
+} as const;
+
+/**
+ * Páginas de la tienda a las que puede llevar un slide (`tipo_destino` = `pagina`, SCRUM-157).
+ * El frontend arma la ruta de cada una.
+ */
+export const PAGINAS_PORTADA = {
+  CATALOGO: 'catalogo',
+  PACKS: 'packs',
+  PRECIO_PROFESIONAL: 'precio-profesional',
+} as const;
