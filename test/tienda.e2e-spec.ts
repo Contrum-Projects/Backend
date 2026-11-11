@@ -275,6 +275,8 @@ describe('Tienda · explorar el catálogo (e2e)', () => {
         categoria: { id: nieta, nombre: expect.any(String) as string },
         precio: conIva(10000),
         imagen: expect.stringMatching(/principal\.jpg$/) as string,
+        formatoId: expect.any(Number) as number,
+        formatos: 1,
       });
     });
 
@@ -659,6 +661,8 @@ describe('Tienda · explorar el catálogo (e2e)', () => {
         precioMayorista: conIva(7000),
         exclusivo: false,
         imagen: expect.stringMatching(/principal\.jpg$/) as string,
+        formatoId: expect.any(Number) as number,
+        formatos: 1,
       });
     });
 

@@ -87,6 +87,7 @@ const SELECCION = {
   formatos: {
     where: FORMATO_VENDIBLE,
     select: {
+      id: true,
       esPredeterminado: true,
       articulo: {
         select: { precioMinoristaNeto: true, imagenes: IMAGEN_PRINCIPAL },
@@ -102,6 +103,7 @@ const SELECCION_PROFESIONAL = {
   formatos: {
     where: FORMATO_VENDIBLE_PROFESIONAL,
     select: {
+      id: true,
       esPredeterminado: true,
       articulo: {
         select: {
@@ -139,6 +141,13 @@ export interface ProductoTienda {
   precio: number;
   /** URL pública de la imagen principal del formato mostrado. */
   imagen: string;
+  /**
+   * Id del formato mostrado (es el `articuloId` del carrito): la tarjeta lo agrega directo cuando
+   * el producto tiene un solo formato a la venta (SCRUM-157).
+   */
+  formatoId: number;
+  /** Cuántos formatos del producto están a la venta para quien consulta. */
+  formatos: number;
 }
 
 /** Lo que ve el profesional (E2-H4): los dos precios del mismo formato y si es exclusivo. */
@@ -509,6 +518,7 @@ interface Precios {
 }
 
 interface FormatoCandidato {
+  id: number;
   esPredeterminado: boolean;
   articulo: { imagenes: { ubicacionArchivo: string }[] };
 }
@@ -543,6 +553,8 @@ const datosComunes = (
     urlBaseImagenes,
     formato.articulo.imagenes[0]!.ubicacionArchivo,
   ),
+  formatoId: formato.id,
+  formatos: fila.formatos.length,
 });
 
 /** Para quien no es profesional. El precio va con IVA, en pesos enteros, como lo cobrará el pedido. */
