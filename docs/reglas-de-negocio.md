@@ -236,6 +236,17 @@ ninguno. El administrador tiene todos, también los que se agreguen.
 | el rol anterior. El 409 también le puede tocar al cliente recién aprobado (E10-H4) que no renovó la   |
 | sesión: el frontend debe renovarla ante ese 409. La verificación no cambia: el ex profesional no      |
 | puede volver a solicitarla (sigue el 409 «ya fue aprobada»); el perfil profesional se conserva.       |
+| Decisiones del 11 nov (E13-H4, SCRUM-154): `GET /api/clientes`, `GET /api/clientes/:codigoPublico`,   |
+| `POST /api/clientes/:codigoPublico/desactivar` y `/reactivar`, con `personal.gestionar` (solo         |
+| administrador). Solo cuentas `cliente` y `profesional`: una del personal responde 404. El listado va  |
+| paginado (`pagina`, `limite`), más recientes primero, con `rol`, `activo` y `buscar` (cada palabra en |
+| nombre, apellido, correo o RUT; un RUT válido con o sin puntos busca ese RUT) y `conteos` por filtro. |
+| El detalle trae perfil profesional, la última solicitud de verificación, la cantidad de pedidos y el  |
+| historial de rol. **Desactivar solo corta el acceso:** `activo` en falso y se revocan sus sesiones;   |
+| pedidos, carrito, verificación y suscripción a correos no cambian. **Reactivar** pone `activo` en     |
+| verdadero; las sesiones cerradas siguen cerradas. Ambas son idempotentes (204), sin motivo ni         |
+| historial (no cambia el MER), y quien pide debe seguir siendo administrador activo (403). El personal |
+| sigue sin reactivación.                                                                               |
 
 **E3 Administración del catálogo.** Producto: nombre, descripción, marca (de una lista), categoría,
 canal de venta. Formatos con SKU y código de barras únicos, contenido, peso, medidas, stock mínimo,
