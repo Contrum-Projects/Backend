@@ -17,7 +17,6 @@ const CATEGORIAS = [
 ];
 
 const formato = (neto: string, extra: object = {}, imagen = 'img/a.jpg') => ({
-  id: 41,
   esPredeterminado: false,
   articulo: {
     precioMinoristaNeto: neto,
@@ -108,35 +107,12 @@ describe('TiendaService', () => {
             categoria: { id: 3, nombre: 'Reparación' },
             precio: 11900,
             imagen: 'img/a.jpg',
-            formatoId: 41,
-            formatos: 1,
           },
         ],
         total: 1,
         pagina: 1,
         limite: 20,
       });
-    });
-
-    it('SCRUM-157 · cada producto trae el formato que muestra y cuántos formatos hay a la venta', async () => {
-      prisma.producto.findMany.mockResolvedValue([
-        fila({
-          formatos: [
-            { ...formato('5000'), id: 51 },
-            { ...formato('9000', { esPredeterminado: true }), id: 52 },
-          ],
-        }),
-        fila({ id: 6, formatos: [{ ...formato('7000'), id: 61 }] }),
-      ]);
-
-      const { items } = await servicio.listarProductos({});
-
-      expect(
-        items.map(({ formatoId, formatos }) => ({ formatoId, formatos })),
-      ).toEqual([
-        { formatoId: 52, formatos: 2 },
-        { formatoId: 61, formatos: 1 },
-      ]);
     });
 
     it('E3-H5 · precio guardado en neto: la tienda lo devuelve con el IVA incluido, calculado a partir del neto', async () => {
@@ -381,7 +357,6 @@ describe('TiendaService', () => {
       extra: object = {},
       imagen = 'img/a.jpg',
     ) => ({
-      id: 41,
       esPredeterminado: false,
       articulo: {
         precioMinoristaNeto: minorista,
@@ -423,8 +398,6 @@ describe('TiendaService', () => {
           precioMayorista: 8330,
           exclusivo: false,
           imagen: 'img/a.jpg',
-          formatoId: 41,
-          formatos: 1,
         },
       ]);
       expect(consultaDe()).toContain('"precioMayoristaNeto":true');
@@ -555,8 +528,6 @@ describe('TiendaService', () => {
         expect(consultaDe()).not.toContain('"canalVenta":true');
         expect(Object.keys(items[0]!).sort()).toEqual([
           'categoria',
-          'formatoId',
-          'formatos',
           'id',
           'imagen',
           'marca',
