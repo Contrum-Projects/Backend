@@ -37,7 +37,7 @@ const aActividad = (valor: unknown): ActividadSii | null => {
 };
 
 /**
- * Lee la respuesta 200 de Khipu: `{ Status, Data: { TaxSituation: { RolUnicoTributario,
+ * Lee la respuesta 200 de Khipu: `{ Status, Data: { TaxSituation: { RolUnicoTributario, Name,
  * Activities: [{ Activity, Code, Category, AffectsIVA, Date }] } }, Error, OperationId }`.
  * `Data` nulo o sin actividades es un RUT sin actividades; una forma que no se espera, no.
  */
@@ -57,7 +57,7 @@ const interpretar = (cuerpo: unknown, rut: string): SituacionTributaria => {
     typeof cuerpo.OperationId === 'string' ? cuerpo.OperationId : null;
   const situacion = esObjeto(cuerpo.Data) ? cuerpo.Data.TaxSituation : null;
   if (situacion === null || situacion === undefined) {
-    return { actividades: [], operacion };
+    return { actividades: [], contribuyente: null, operacion };
   }
   if (!esObjeto(situacion)) {
     throw new ConsultaSiiNoDisponible('Khipu devolvió una situación ilegible.');
@@ -77,6 +77,10 @@ const interpretar = (cuerpo: unknown, rut: string): SituacionTributaria => {
     actividades: crudas
       .map(aActividad)
       .filter((actividad) => actividad !== null),
+    contribuyente:
+      typeof situacion.Name === 'string' && situacion.Name.trim() !== ''
+        ? situacion.Name.trim()
+        : null,
     operacion,
   };
 };

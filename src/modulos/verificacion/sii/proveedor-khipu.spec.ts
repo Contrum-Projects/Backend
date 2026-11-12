@@ -78,6 +78,7 @@ describe('ProveedorKhipu', () => {
     expect(proveedor.nombre).toBe('khipu');
     expect(situacion).toEqual({
       operacion: '6baf6c19-e485-463b-ae24-a821b025c8a4',
+      contribuyente: 'Khipu.S.A',
       actividades: [
         {
           codigo: '960200',
@@ -86,6 +87,23 @@ describe('ProveedorKhipu', () => {
         },
       ],
     });
+  });
+
+  it('SCRUM-163 · el nombre del contribuyente viene recortado; vacío, ausente o sin Data queda en null', async () => {
+    responde(
+      cuerpoOk({ ...situacionDe([ACTIVIDAD]), Name: '  SOTO MARCELA ' }),
+    );
+    expect((await proveedor.consultar(RUT)).contribuyente).toBe('SOTO MARCELA');
+
+    for (const cuerpo of [
+      cuerpoOk({ ...situacionDe([ACTIVIDAD]), Name: '   ' }),
+      cuerpoOk({ ...situacionDe([ACTIVIDAD]), Name: undefined }),
+      cuerpoOk({ ...situacionDe([ACTIVIDAD]), Name: 42 }),
+      cuerpoOk(null),
+    ]) {
+      responde(cuerpo);
+      expect((await proveedor.consultar(RUT)).contribuyente).toBeNull();
+    }
   });
 
   it('E10-H1 · sin actividades: Data nula, sin lista o lista vacía son un RUT sin inicio de actividades, no un error', async () => {

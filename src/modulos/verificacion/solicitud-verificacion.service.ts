@@ -23,6 +23,7 @@ import { bloquearCuenta } from '../../prisma/bloqueos.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { registrarAprobacion } from './aprobacion-verificacion.js';
 import { evaluarSituacion } from './sii/evaluar-situacion.js';
+import { nombreCalza } from './sii/nombre-contribuyente.js';
 import { ProveedorSituacionTributaria } from './sii/proveedor-situacion-tributaria.js';
 
 export const YA_ES_PROFESIONAL = 'Tu cuenta ya es profesional.';
@@ -91,6 +92,8 @@ const SELECCION_CUENTA = {
   id: true,
   rol: true,
   rut: true,
+  nombre: true,
+  apellido: true,
   solicitudesPresentadas: {
     where: { estado: { in: ESTADOS_QUE_BLOQUEAN } },
     select: { estado: true },
@@ -108,13 +111,29 @@ interface ConsultaRealizada {
   resultado: string;
   giros:
     { codigo: string; nombre: string; fechaInicio: string | null }[] | null;
+  /** Nombre o razón social que informó el SII; `null` si no lo informó o la consulta falló. */
+  contribuyente: string | null;
   operacion: string | null;
 }
 
 /**
+ * El resultado que queda en la solicitud: el giro sin el nombre de la cuenta no basta (SCRUM-163),
+ * así nadie queda aprobado con el RUT de otra persona.
+ */
+const resultadoFinal = (
+  consulta: ConsultaRealizada,
+  cuenta: { nombre: string; apellido: string },
+): string =>
+  consulta.resultado === RESULTADOS_CONSULTA_SII.APROBADO &&
+  !nombreCalza(consulta.contribuyente, cuenta.nombre, cuenta.apellido)
+    ? RESULTADOS_CONSULTA_SII.NOMBRE_NO_COINCIDE
+    : consulta.resultado;
+
+/**
  * Solicitud de verificación como profesional (E10-H1, RF-10.01, RF-10.04, RF-10.05 y RF-10.09).
  * Al solicitar se consulta el inicio de actividades del RUT en el SII: con el giro 960200 vigente
- * la solicitud queda `aprobada` sola; con cualquier otro resultado, o si la consulta falla, queda
+ * y el nombre del contribuyente igual al de la cuenta (SCRUM-163) la solicitud queda `aprobada`
+ * sola; con cualquier otro resultado, o si la consulta falla, queda
  * `pendiente` a la espera de documentos (E10-H2). El sistema nunca rechaza solo (RNF-27). Aprobada,
  * la cuenta pasa a `profesional` en la misma transacción y se encola el correo que lo avisa (E10-H4).
  *
@@ -153,7 +172,9 @@ export class SolicitudVerificacionService {
       if (cuenta.rut !== previa.rut)
         throw new ConflictException(DATOS_CAMBIARON);
 
-      const aprobada = consulta.resultado === RESULTADOS_CONSULTA_SII.APROBADO;
+      // Con la cuenta bloqueada: el nombre comparado es el que queda (no se edita en curso)
+      const resultado = resultadoFinal(consulta, cuenta);
+      const aprobada = resultado === RESULTADOS_CONSULTA_SII.APROBADO;
       const creada = await tx.solicitudVerificacion.create({
         data: {
           solicitanteId: cuenta.id,
@@ -163,7 +184,7 @@ export class SolicitudVerificacionService {
           // La aprobó el sistema: no hay personal que la resolviera
           fechaResolucion: aprobada ? consulta.fecha : null,
           fechaConsultaSii: consulta.fecha,
-          resultadoConsultaSii: consulta.resultado,
+          resultadoConsultaSii: resultado,
           girosSii: consulta.giros ?? undefined,
           proveedorConsultaSii: this.proveedor.nombre,
           operacionConsultaSii: consulta.operacion,
@@ -221,6 +242,7 @@ export class SolicitudVerificacionService {
           nombre,
           fechaInicio,
         })),
+        contribuyente: situacion.contribuyente,
         operacion: situacion.operacion,
       };
     } catch (error) {
@@ -231,6 +253,7 @@ export class SolicitudVerificacionService {
         fecha,
         resultado: RESULTADOS_CONSULTA_SII.NO_DISPONIBLE,
         giros: null,
+        contribuyente: null,
         operacion: null,
       };
     }

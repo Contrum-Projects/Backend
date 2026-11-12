@@ -40,6 +40,7 @@ const cuenta = (cambios: object = {}) => ({
   rut: RUT,
   email: 'marcela@correo.cl',
   nombre: 'Marcela',
+  apellido: 'Soto',
   solicitudesPresentadas: [],
   ...cambios,
 });
@@ -106,9 +107,11 @@ describe('SolicitudVerificacionService', () => {
     db = crearDb();
     proveedor = {
       nombre: 'khipu',
-      consultar: vi
-        .fn()
-        .mockResolvedValue({ actividades: [PELUQUERIA], operacion: 'op-1' }),
+      consultar: vi.fn().mockResolvedValue({
+        actividades: [PELUQUERIA],
+        contribuyente: 'SOTO PEREZ MARCELA ANDREA',
+        operacion: 'op-1',
+      }),
     };
     correos = { add: vi.fn().mockResolvedValue({}) };
     servicio = new SolicitudVerificacionService(
@@ -157,6 +160,40 @@ describe('SolicitudVerificacionService', () => {
       motivoRechazo: null,
       requiereDocumentos: false,
       documentos: [],
+    });
+  });
+
+  it('SCRUM-163 · giro 960200 a nombre de otra persona: no aprueba, queda pendiente con nombre_no_coincide', async () => {
+    proveedor.consultar.mockResolvedValue({
+      actividades: [PELUQUERIA],
+      contribuyente: 'ROJAS DIAZ PEDRO ANTONIO',
+      operacion: 'op-3',
+    });
+
+    const respuesta = await servicio.solicitar(CODIGO);
+
+    expect(guardado()).toMatchObject({
+      estado: 'pendiente',
+      fechaResolucion: null,
+      resultadoConsultaSii: 'nombre_no_coincide',
+    });
+    expect(db.usuario.updateMany).not.toHaveBeenCalled();
+    expect(correos.add).not.toHaveBeenCalled();
+    expect(respuesta.requiereDocumentos).toBe(true);
+  });
+
+  it('SCRUM-163 · giro 960200 sin nombre del contribuyente: no aprueba, queda pendiente con nombre_no_coincide', async () => {
+    proveedor.consultar.mockResolvedValue({
+      actividades: [PELUQUERIA],
+      contribuyente: null,
+      operacion: null,
+    });
+
+    await servicio.solicitar(CODIGO);
+
+    expect(guardado()).toMatchObject({
+      estado: 'pendiente',
+      resultadoConsultaSii: 'nombre_no_coincide',
     });
   });
 

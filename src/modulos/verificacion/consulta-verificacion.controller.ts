@@ -57,7 +57,7 @@ export class ConsultaVerificacionController {
   @ApiOperation({
     summary: 'Listar las solicitudes en revisión manual (E10-H7)',
     description:
-      'Las solicitudes que esperan al personal, de la más antigua a la más reciente, con el nombre y el RUT de quien solicitó, la fecha de la solicitud y el motivo de la revisión (`sin_inicio_actividades`, `otro_giro` o `no_disponible`). Paginado con `pagina` y `limite`. `codigoPublicoCuenta` abre el detalle y sirve para aprobar o rechazar.',
+      'Las solicitudes que esperan al personal, de la más antigua a la más reciente, con el nombre y el RUT de quien solicitó, la fecha de la solicitud y el motivo de la revisión (`sin_inicio_actividades`, `otro_giro`, `nombre_no_coincide` o `no_disponible`). Paginado con `pagina` y `limite`. `codigoPublicoCuenta` abre el detalle y sirve para aprobar o rechazar.',
   })
   @ApiOkResponse({
     description: 'Página de solicitudes con el total; vacía si no hay.',

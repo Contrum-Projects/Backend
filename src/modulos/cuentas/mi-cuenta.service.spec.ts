@@ -52,7 +52,12 @@ describe('MiCuentaService', () => {
   let servicio: MiCuentaService;
 
   const cuentaConRol = (rol: string, rut: string | null = '12345678-5') =>
-    tx.usuario.findUniqueOrThrow.mockResolvedValue({ rol, rut });
+    tx.usuario.findUniqueOrThrow.mockResolvedValue({
+      rol,
+      rut,
+      nombre: 'Andrea',
+      apellido: 'Soto',
+    });
 
   beforeEach(() => {
     ({ prisma, tx } = crearPrisma());
@@ -170,7 +175,10 @@ describe('MiCuentaService', () => {
       cuentaConRol(ROLES.PROFESIONAL);
       tx.usuario.update.mockResolvedValue(usuarioGuardado);
 
-      await servicio.actualizar(CODIGO, { rut: '12345678-5', nombre: 'Ana' });
+      await servicio.actualizar(CODIGO, {
+        rut: '12345678-5',
+        nombre: 'Andrea',
+      });
 
       expect(tx.usuario.findFirst).not.toHaveBeenCalled();
       expect(tx.usuario.update).toHaveBeenCalled();
@@ -184,6 +192,40 @@ describe('MiCuentaService', () => {
         );
       }
       expect(tx.usuario.update).not.toHaveBeenCalled();
+    });
+
+    it('SCRUM-163 · el profesional no puede cambiar su nombre ni su apellido', async () => {
+      for (const cambio of [{ nombre: 'Ana' }, { apellido: 'Rojas' }]) {
+        cuentaConRol(ROLES.PROFESIONAL);
+        await expect(servicio.actualizar(CODIGO, cambio)).rejects.toThrow(
+          /nombre quedó registrado en la verificación profesional/,
+        );
+      }
+      expect(tx.usuario.update).not.toHaveBeenCalled();
+    });
+
+    it('SCRUM-163 · con una verificación profesional en curso no cambia el nombre ni el apellido', async () => {
+      for (const cambio of [{ nombre: 'Ana' }, { apellido: 'Rojas' }]) {
+        cuentaConRol(ROLES.CLIENTE);
+        tx.solicitudVerificacion.findFirst.mockResolvedValue({ id: 3 });
+        await expect(servicio.actualizar(CODIGO, cambio)).rejects.toThrow(
+          /Podrás cambiar tu nombre cuando se resuelva/,
+        );
+      }
+      expect(tx.usuario.update).not.toHaveBeenCalled();
+    });
+
+    it('SCRUM-163 · el profesional guarda otros datos si envía el mismo nombre y apellido', async () => {
+      cuentaConRol(ROLES.PROFESIONAL);
+      tx.usuario.update.mockResolvedValue(usuarioGuardado);
+
+      await servicio.actualizar(CODIGO, {
+        nombre: 'Andrea',
+        apellido: 'Soto',
+        telefono: '+56912345678',
+      });
+
+      expect(tx.usuario.update).toHaveBeenCalled();
     });
 
     it('rechaza una fecha de nacimiento futura', async () => {

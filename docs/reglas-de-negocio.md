@@ -907,13 +907,24 @@ Decisiones del 2 nov (E10-H1, SCRUM-62): `POST /api/verificaciones` (sin cuerpo)
 clave en `KHIPU_API_KEY`, URL en `KHIPU_URL_BASE`), así se puede cambiar sin tocar el servicio.
 La consulta es síncrona, con plazo de **10 s**; sin clave la app arranca, pero toda consulta falla y
 se piden documentos. `SII_PROVEEDOR=simulado` es solo para desarrollo (último dígito del RUT:
-0 sin actividades, 1 otro giro, 2 falla, otro peluquería) y la app no arranca con él en producción.
+0 sin actividades, 1 otro giro, 2 falla, 3 peluquería a nombre de otra persona, otro peluquería a
+nombre de la cuenta con ese RUT) y la app no arranca con él en producción.
 **Regla de aprobación:** alguna actividad con `Code` `960200` y `Date` ya cumplida; Khipu no trae un
 campo de vigencia, así que «vigente» es «está en la lista del SII y su fecha de inicio ya pasó».
-Una fecha que falta no aprueba. Estados: `aprobada` si aprueba (sin resolutor: la aprobó el
+Una fecha que falta no aprueba. **Además, el nombre del contribuyente debe calzar con la cuenta**
+(SCRUM-163, auditoría de seguridad del 12 nov 2026): sin esto, un cliente con el RUT de un
+peluquero real que aún no tiene cuenta quedaba aprobado. Khipu entrega el nombre en
+`TaxSituation.Name`; calza si todas las palabras del nombre y del apellido de la cuenta están en él,
+sin distinguir mayúsculas, tildes ni signos (`sii/nombre-contribuyente.ts`). Si no calza o no viene,
+el resultado es `nombre_no_coincide` y sigue por documentos (nunca rechaza, RNF-27); una empresa con
+el giro también va por documentos. El nombre y el apellido de la cuenta no se cambian mientras haya
+una solicitud en curso o la cuenta sea profesional (403, como el RUT). Riesgo que queda: el nombre de
+un RUT es público en Chile, así que quien lo conozca puede poner ese nombre en su cuenta antes de
+solicitar; la medida sube la barrera, no la elimina. Estados: `aprobada` si aprueba (sin resolutor: la aprobó el
 sistema); si no, `pendiente`, que significa «falta que adjunte documentos» (`requiereDocumentos`
 en la respuesta), y `revision_manual` cuando los envíe (E10-H2). Se guarda en la solicitud la fecha
-de la consulta, el resultado (`aprobado`, `sin_inicio_actividades`, `otro_giro` o `no_disponible`),
+de la consulta, el resultado (`aprobado`, `sin_inicio_actividades`, `otro_giro`,
+`nombre_no_coincide` o `no_disponible`),
 los giros recibidos, el proveedor y el id de la operación; quien solicita nunca los ve. **409** si
 la cuenta no tiene RUT, ya es profesional, o tiene una solicitud `pendiente`, `revision_manual` o
 `aprobada`; tras un rechazo puede enviar otra y se consulta de nuevo. La consulta se hace antes de

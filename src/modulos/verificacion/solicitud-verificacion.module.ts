@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { AlmacenModule } from '../../almacen/almacen.module.js';
 import { COLAS } from '../../colas/colas.js';
 import type { Entorno } from '../../config/entorno.js';
+import { PrismaService } from '../../prisma/prisma.service.js';
 import { ConsultaVerificacionController } from './consulta-verificacion.controller.js';
 import { ConsultaVerificacionService } from './consulta-verificacion.service.js';
 import { DocumentosVerificacionService } from './documentos-verificacion.service.js';
@@ -50,15 +51,16 @@ import { ProveedorSituacionTributaria } from './sii/proveedor-situacion-tributar
   providers: [
     {
       provide: ProveedorSituacionTributaria,
-      inject: [ConfigService],
+      inject: [ConfigService, PrismaService],
       useFactory: (
         config: ConfigService<Entorno, true>,
+        prisma: PrismaService,
       ): ProveedorSituacionTributaria => {
         if (config.get('SII_PROVEEDOR', { infer: true }) === 'simulado') {
           new Logger('Verificacion').warn(
             'SII simulado: la consulta responde según el último dígito del RUT. Solo para desarrollo.',
           );
-          return new ProveedorSimulado();
+          return new ProveedorSimulado(prisma);
         }
         const clave = config.get('KHIPU_API_KEY', { infer: true });
         if (!clave) {
