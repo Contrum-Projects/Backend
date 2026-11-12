@@ -3,6 +3,7 @@ import { validate } from 'class-validator';
 import { mensajesValidacion } from '../../../common/validacion/mensajes-validacion.js';
 import { ActualizarPackDto } from './actualizar-pack.dto.js';
 import { CrearPackDto } from './crear-pack.dto.js';
+import { MINIMO_DESCRIPCION_PRODUCTO } from './crear-producto.dto.js';
 
 const mensajes = async (datos: object) =>
   mensajesValidacion(await validate(plainToInstance(CrearPackDto, datos)));
@@ -13,7 +14,8 @@ const mensajesEdicion = async (datos: object) =>
 const packBase = () => ({
   sku: 'PACK-REP-DUO',
   nombre: 'Dúo reparador',
-  descripcion: 'Shampoo y acondicionador a precio de promoción.',
+  descripcion:
+    'Shampoo y acondicionador reparador a precio de promoción por tiempo limitado.',
   canalVenta: 'general',
   componentes: [
     { formatoId: 11, cantidad: 1 },
@@ -150,5 +152,35 @@ describe('ActualizarPackDto', () => {
       'El nombre del pack es obligatorio.',
       'El canal de venta es obligatorio.',
     ]);
+  });
+});
+
+describe('Packs · largo mínimo de la descripción', () => {
+  const mensajeCorta = `La descripción del pack debe tener al menos ${MINIMO_DESCRIPCION_PRODUCTO} caracteres.`;
+
+  it(`al crear, rechaza menos de ${MINIMO_DESCRIPCION_PRODUCTO} caracteres (sin contar los espacios de los extremos)`, async () => {
+    const corta = `  ${'x'.repeat(MINIMO_DESCRIPCION_PRODUCTO - 1)}  `;
+    expect(await mensajes({ ...packBase(), descripcion: corta })).toEqual([
+      mensajeCorta,
+    ]);
+    expect(
+      await mensajes({
+        ...packBase(),
+        descripcion: 'x'.repeat(MINIMO_DESCRIPCION_PRODUCTO),
+      }),
+    ).toEqual([]);
+  });
+
+  it(`al editar, si llega la descripción exige ${MINIMO_DESCRIPCION_PRODUCTO} caracteres`, async () => {
+    expect(
+      await mensajesEdicion({
+        descripcion: 'x'.repeat(MINIMO_DESCRIPCION_PRODUCTO - 1),
+      }),
+    ).toEqual([mensajeCorta]);
+    expect(
+      await mensajesEdicion({
+        descripcion: 'x'.repeat(MINIMO_DESCRIPCION_PRODUCTO),
+      }),
+    ).toEqual([]);
   });
 });

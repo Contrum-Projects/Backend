@@ -200,7 +200,8 @@ describe('Catálogo · sugerir la descripción desde la foto del reverso (e2e)',
       .auth(token, { type: 'bearer' })
       .send({
         nombre: `${PREFIJO} Shampoo ${randomUUID().slice(0, 8)}`,
-        descripcion: 'Descripción escrita a mano por el personal.',
+        descripcion:
+          'Descripción escrita a mano por el personal, sin ayuda de la IA.',
         categoriaId: categoria.id,
         marcaId: marca.id,
         canalVenta: 'general',
@@ -211,7 +212,7 @@ describe('Catálogo · sugerir la descripción desde la foto del reverso (e2e)',
       where: { id: (respuesta.body as { id: number }).id },
     });
     expect(producto.descripcion).toBe(
-      'Descripción escrita a mano por el personal.',
+      'Descripción escrita a mano por el personal, sin ayuda de la IA.',
     );
     expect(producto.origenDescripcion).toBe(ORIGENES_DESCRIPCION.MANUAL);
   });

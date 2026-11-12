@@ -6,6 +6,7 @@ import { TextoObligatorio } from '../../../common/validacion/texto-obligatorio.j
 import { TextoOpcional } from '../../../common/validacion/texto-opcional.js';
 import { LARGO_MAXIMO_INGREDIENTES_IA } from '../cliente-ia.js';
 import { SugerenciaUsada, SugerenciaUsadaDto } from './sugerencia-usada.dto.js';
+import { MINIMO_DESCRIPCION_PRODUCTO } from './crear-producto.dto.js';
 
 /**
  * Cambios sobre un producto (E3-H1). Solo se modifica lo que llega en el cuerpo; lo que
@@ -23,10 +24,14 @@ export class ActualizarProductoDto {
   })
   nombre?: string;
 
-  @ApiPropertyOptional({ maxLength: 5000 })
+  @ApiPropertyOptional({
+    minLength: MINIMO_DESCRIPCION_PRODUCTO,
+    maxLength: 5000,
+  })
   @TextoObligatorio({
     etiqueta: 'La descripción del producto',
     maximo: 5000,
+    minimo: MINIMO_DESCRIPCION_PRODUCTO,
     femenino: true,
     puedeFaltar: true,
   })

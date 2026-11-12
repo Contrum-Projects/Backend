@@ -4,6 +4,7 @@ import { CANALES_VENTA } from '../../../common/dominio/valores.js';
 import { FechaSinHora } from '../../../common/validacion/fecha-sin-hora.js';
 import { TextoObligatorio } from '../../../common/validacion/texto-obligatorio.js';
 import { CanalVenta } from './canal-venta.decorator.js';
+import { MINIMO_DESCRIPCION_PRODUCTO } from './crear-producto.dto.js';
 import {
   ComponentePackDto,
   ListaComponentes,
@@ -29,10 +30,14 @@ export class ActualizarPackDto {
   })
   nombre?: string;
 
-  @ApiPropertyOptional({ maxLength: 5000 })
+  @ApiPropertyOptional({
+    minLength: MINIMO_DESCRIPCION_PRODUCTO,
+    maxLength: 5000,
+  })
   @TextoObligatorio({
     etiqueta: 'La descripción del pack',
     maximo: 5000,
+    minimo: MINIMO_DESCRIPCION_PRODUCTO,
     femenino: true,
     puedeFaltar: true,
   })

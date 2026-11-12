@@ -214,8 +214,12 @@ describe('Catálogo · aceptar, editar o descartar la descripción sugerida (e2e
   });
 
   it('E4-H2 · sugerencia editada en un producto existente: al editarlo con la sugerencia, queda «IA editada»', async () => {
-    const creado = (await crear({ descripcion: 'Texto inicial.' }).expect(201))
-      .body as ProductoRespuesta;
+    const creado = (
+      await crear({
+        descripcion:
+          'Texto inicial escrito por el personal para este producto de prueba.',
+      }).expect(201)
+    ).body as ProductoRespuesta;
     const sugerencia = await sugerir();
 
     await editar(creado.id, {
@@ -235,20 +239,25 @@ describe('Catálogo · aceptar, editar o descartar la descripción sugerida (e2e
     await sugerir();
 
     const respuesta = await crear({
-      descripcion: 'Descripción escrita por el personal.',
+      descripcion:
+        'Descripción escrita por el personal para este producto de prueba.',
     }).expect(201);
 
     expect(
       await enBase((respuesta.body as ProductoRespuesta).id),
     ).toMatchObject({
-      descripcion: 'Descripción escrita por el personal.',
+      descripcion:
+        'Descripción escrita por el personal para este producto de prueba.',
       origenDescripcion: ORIGENES_DESCRIPCION.MANUAL,
     });
   });
 
   it('E4-H2 · sin publicación automática: pedir la sugerencia no cambia ningún producto', async () => {
     const creado = (
-      await crear({ descripcion: 'Texto publicado.' }).expect(201)
+      await crear({
+        descripcion:
+          'Texto publicado por el personal para este producto de prueba.',
+      }).expect(201)
     ).body as ProductoRespuesta;
     const antes = await enBase(creado.id);
     const productosAntes = await prisma.producto.count();
@@ -262,17 +271,30 @@ describe('Catálogo · aceptar, editar o descartar la descripción sugerida (e2e
   it('E4-H2 · sin publicación automática: una firma que no corresponde al texto sugerido responde 400 sin cambios', async () => {
     const sugerencia = await sugerir();
     const creado = (
-      await crear({ descripcion: 'Texto publicado.' }).expect(201)
+      await crear({
+        descripcion:
+          'Texto publicado por el personal para este producto de prueba.',
+      }).expect(201)
     ).body as ProductoRespuesta;
     const productosAntes = await prisma.producto.count();
 
     const alCrear = await crear({
-      descripcion: 'Texto inventado.',
-      sugerencia: { descripcion: 'Texto inventado.', firma: sugerencia.firma },
+      descripcion:
+        'Texto inventado que la IA nunca sugirió para este producto de prueba.',
+      sugerencia: {
+        descripcion:
+          'Texto inventado que la IA nunca sugirió para este producto de prueba.',
+        firma: sugerencia.firma,
+      },
     }).expect(400);
     const alEditar = await editar(creado.id, {
-      descripcion: 'Texto inventado.',
-      sugerencia: { descripcion: 'Texto inventado.', firma: sugerencia.firma },
+      descripcion:
+        'Texto inventado que la IA nunca sugirió para este producto de prueba.',
+      sugerencia: {
+        descripcion:
+          'Texto inventado que la IA nunca sugirió para este producto de prueba.',
+        firma: sugerencia.firma,
+      },
     }).expect(400);
 
     expect((alCrear.body as { message: string }).message).toBe(
@@ -283,14 +305,18 @@ describe('Catálogo · aceptar, editar o descartar la descripción sugerida (e2e
     );
     expect(await prisma.producto.count()).toBe(productosAntes);
     expect(await enBase(creado.id)).toMatchObject({
-      descripcion: 'Texto publicado.',
+      descripcion:
+        'Texto publicado por el personal para este producto de prueba.',
       origenDescripcion: ORIGENES_DESCRIPCION.MANUAL,
     });
   });
 
   it('E4-H2 · sugerencia sin descripción, sin firma o que no es un objeto: 400', async () => {
     const creado = (
-      await crear({ descripcion: 'Texto publicado.' }).expect(201)
+      await crear({
+        descripcion:
+          'Texto publicado por el personal para este producto de prueba.',
+      }).expect(201)
     ).body as ProductoRespuesta;
     const sugerencia = await sugerir();
 
@@ -311,7 +337,8 @@ describe('Catálogo · aceptar, editar o descartar la descripción sugerida (e2e
   it('E4-H2 · ingredientes: se pueden cambiar y borrar al editar', async () => {
     const creado = (
       await crear({
-        descripcion: 'Texto publicado.',
+        descripcion:
+          'Texto publicado por el personal para este producto de prueba.',
         ingredientes: 'Aqua',
       }).expect(201)
     ).body as ProductoRespuesta;

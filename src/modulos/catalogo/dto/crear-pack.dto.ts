@@ -13,6 +13,7 @@ import { IdEntero } from '../../../common/validacion/id-entero.js';
 import { NumeroPositivo } from '../../../common/validacion/numero-positivo.js';
 import { TextoObligatorio } from '../../../common/validacion/texto-obligatorio.js';
 import { CanalVenta } from './canal-venta.decorator.js';
+import { MINIMO_DESCRIPCION_PRODUCTO } from './crear-producto.dto.js';
 import { Sku } from './formato.validadores.js';
 
 /** Unidades máximas de un formato dentro de un pack. */
@@ -142,11 +143,13 @@ export class CrearPackDto {
 
   @ApiProperty({
     example: 'Shampoo y acondicionador reparador a precio de promoción.',
+    minLength: MINIMO_DESCRIPCION_PRODUCTO,
     maxLength: 5000,
   })
   @TextoObligatorio({
     etiqueta: 'La descripción del pack',
     maximo: 5000,
+    minimo: MINIMO_DESCRIPCION_PRODUCTO,
     femenino: true,
   })
   descripcion: string;

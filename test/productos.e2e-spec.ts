@@ -16,6 +16,7 @@ import {
   TIPOS_PRECIO,
 } from '../src/common/dominio/valores.js';
 import { configurarApp } from '../src/configurar-app.js';
+import { MINIMO_DESCRIPCION_PRODUCTO } from '../src/modulos/catalogo/dto/crear-producto.dto.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { REDIS } from '../src/redis/redis.module.js';
 
@@ -80,7 +81,8 @@ describe('Catálogo · productos (e2e)', () => {
 
   const datosValidos = (extra: object = {}) => ({
     nombre: nombreUnico('Shampoo'),
-    descripcion: 'Repara el cabello dañado por procesos químicos.',
+    descripcion:
+      'Repara el cabello dañado por procesos químicos y le devuelve su brillo natural.',
     categoriaId,
     marcaId,
     canalVenta: 'general',
@@ -273,6 +275,10 @@ describe('Catálogo · productos (e2e)', () => {
           datosValidos({ descripcion: '' }),
           'La descripción del producto es obligatoria.',
         ],
+        [
+          datosValidos({ descripcion: 'Repara el cabello.' }),
+          `La descripción del producto debe tener al menos ${MINIMO_DESCRIPCION_PRODUCTO} caracteres.`,
+        ],
         [sinCategoria, 'La categoría del producto es obligatoria.'],
         [sinMarca, 'La marca del producto es obligatoria.'],
         [
@@ -432,7 +438,8 @@ describe('Catálogo · productos (e2e)', () => {
       });
 
       const respuesta = await editar(token, producto.id, {
-        descripcion: 'Texto corregido por el personal.',
+        descripcion:
+          'Texto corregido por el personal a partir de la sugerencia de la IA.',
       }).expect(200);
 
       expect(respuesta.body).toMatchObject({
