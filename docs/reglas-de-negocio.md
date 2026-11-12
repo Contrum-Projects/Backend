@@ -252,7 +252,10 @@ ninguno. El administrador tiene todos, también los que se agreguen.
 canal de venta. Formatos con SKU y código de barras únicos, contenido, peso, medidas, stock mínimo,
 uno predeterminado, fecha de vencimiento **opcional** que solo se muestra en el panel (no se usa
 para vender ni avisar). Cada artículo tiene al menos una imagen y una sola principal. Categorías
-sin ciclos. Cada cambio de precio queda en HISTORIAL_PRECIO con vigencia, quién y motivo. Producto
+sin ciclos. Una marca o categoría se puede **borrar** solo si no se usa (decisión del 11 nov 2026,
+SCRUM-158): sin productos, subcategorías (en categorías), cupones ni imágenes de la portada; si se
+usa, 409 con dónde y cuántos. `DELETE /api/catalogo/marcas/:id` y `/api/catalogo/categorias/:id`
+con `catalogo.gestionar`. Cada cambio de precio queda en HISTORIAL_PRECIO con vigencia, quién y motivo. Producto
 exclusivo: solo precio mayorista. Un pack solo tiene formatos como componentes, no tiene stock
 propio y puede tener vigencia.
 Decisiones del 24 oct (E3-H2): el formato nace activo y **sin precios**
