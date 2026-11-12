@@ -22,6 +22,7 @@ import { REDIS } from '../src/redis/redis.module.js';
 
 const CONTRASENA = 'Secreta123';
 const RUTA = '/api/reportes/ventas';
+const RUTA_EXPORTAR = '/api/reportes/ventas/exportar';
 // Todo lo que crean estas pruebas lleva este prefijo, para borrarlo al terminar
 const PREFIJO = 'E2E-reporte-ventas';
 const PREFIJO_CORREO = 'e2e-reporte-ventas-';
@@ -131,6 +132,23 @@ describe('Reportes · ventas por período y tipo de cliente (e2e)', () => {
       .get(RUTA)
       .query({ desde, hasta })
       .auth(token, { type: 'bearer' });
+
+  /** E14-H5 · Descarga el CSV como texto (con su BOM) y lo separa en líneas, sin la última vacía. */
+  const exportar = (desde: string, hasta: string, token = tokenAdministrador) =>
+    servidor()
+      .get(RUTA_EXPORTAR)
+      .query({ desde, hasta })
+      .auth(token, { type: 'bearer' })
+      .buffer(true)
+      .parse((res, listo) => {
+        const partes: Buffer[] = [];
+        res.on('data', (parte: Buffer) => partes.push(parte));
+        res.on('end', () =>
+          listo(null, Buffer.concat(partes).toString('utf-8')),
+        );
+      });
+
+  const lineas = (csv: unknown) => (csv as string).split('\r\n').slice(0, -1);
 
   const limpiar = async () => {
     // Las líneas se borran en cascada con el pedido
@@ -353,5 +371,97 @@ describe('Reportes · ventas por período y tipo de cliente (e2e)', () => {
         403,
       );
     }
+  });
+
+  describe('exportación pedido a pedido (E14-H5, SCRUM-159)', () => {
+    it('E14-H5 · descarga del período: CSV con una fila por pedido pagado, en hora de Chile', async () => {
+      // 23:30 del 4 de marzo en Chile (UTC-3)
+      await nuevoPedido({
+        usuarioId: clienteId,
+        fecha: '2031-03-05T02:30:00Z',
+        tipoPrecio: TIPOS_PRECIO.MINORISTA,
+        neto: 10000,
+      });
+      await nuevoPedido({
+        usuarioId: profesionalId,
+        fecha: '2031-03-10T15:00:00Z',
+        tipoPrecio: TIPOS_PRECIO.MAYORISTA,
+        estado: ESTADOS_PEDIDO.RETIRADO,
+        neto: 8000,
+      });
+
+      const respuesta = await exportar('2031-03-01', '2031-03-31').expect(200);
+
+      expect(respuesta.headers['content-type']).toBe('text/csv; charset=utf-8');
+      expect(respuesta.headers['content-disposition']).toBe(
+        'attachment; filename="ventas-2031-03-01-2031-03-31.csv"',
+      );
+      expect(respuesta.headers['cache-control']).toBe('private, no-store');
+      const [encabezados, ...filas] = lineas(respuesta.body);
+      expect(encabezados).toBe(
+        '﻿Código pedido;Fecha;Estado;Tipo de cliente;Tipo de entrega;Documento;Descuento;Neto;IVA;Total',
+      );
+      expect(filas).toHaveLength(2);
+      expect(filas[0]).toMatch(
+        /^[0-9a-f]{12};2031-03-04 23:30;pagado;minorista;retiro;boleta;0;10000;1900;11900$/,
+      );
+      expect(filas[1]).toMatch(
+        /^[0-9a-f]{12};2031-03-10 12:00;retirado;mayorista;retiro;boleta;0;8000;1520;9520$/,
+      );
+    });
+
+    it('E14-H5 · coherente con el reporte: mismas filas y montos que el reporte de ventas', async () => {
+      for (const estado of Object.values(ESTADOS_PEDIDO)) {
+        await nuevoPedido({
+          usuarioId: clienteId,
+          fecha: '2031-03-05T15:00:00Z',
+          tipoPrecio: TIPOS_PRECIO.MINORISTA,
+          estado,
+          neto: 10000,
+        });
+      }
+
+      const reporte = (await consultar('2031-03-01', '2031-03-31').expect(200))
+        .body as Reporte;
+      const filas = lineas(
+        (await exportar('2031-03-01', '2031-03-31').expect(200)).body,
+      ).slice(1);
+
+      expect(filas).toHaveLength(reporte.total.pedidos);
+      const sumaTotal = filas.reduce(
+        (suma, fila) => suma + Number(fila.split(';')[9]),
+        0,
+      );
+      expect(sumaTotal).toBe(reporte.total.montoTotal);
+    });
+
+    it('E14-H5 · período sin ventas: el CSV trae solo los encabezados', async () => {
+      const respuesta = await exportar('2031-04-01', '2031-04-30').expect(200);
+
+      expect(lineas(respuesta.body)).toHaveLength(1);
+    });
+
+    it('E14-H5 · período inválido: rango invertido o de más de 366 días responde 400', async () => {
+      await exportar('2031-03-31', '2031-03-01').expect(400);
+      await exportar('2030-01-01', '2031-01-02').expect(400);
+      await exportar('2031-02-30', '2031-03-31').expect(400);
+    });
+
+    it('RNF-03 · exportación de ventas: sin sesión 401; bodeguero, vendedor, cliente y profesional 403', async () => {
+      await servidor()
+        .get(RUTA_EXPORTAR)
+        .query({ desde: '2031-03-01', hasta: '2031-03-31' })
+        .expect(401);
+      for (const rol of [
+        ROLES.BODEGUERO,
+        ROLES.VENDEDOR,
+        ROLES.CLIENTE,
+        ROLES.PROFESIONAL,
+      ]) {
+        await exportar('2031-03-01', '2031-03-31', await tokenDe(rol)).expect(
+          403,
+        );
+      }
+    });
   });
 });

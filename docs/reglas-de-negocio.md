@@ -1360,6 +1360,17 @@ nunca se configuró). Cada fila trae `id`, `nombre`, `segmento` (el guardado, es
 `enviados`, `rebotados`, `cancelados`, `fallidos` y `porcentajeAbiertos` / `porcentajeClic`:
 de los correos `enviada`, cuántos tienen apertura o clic, 0 a 100 redondeado al entero; `null`
 si no salió ninguno (RNF-03).
+Decisiones del 11 nov (E14-H5, SCRUM-159): **exportar ventas pedido a pedido**, `GET
+/api/reportes/ventas/exportar?desde=AAAA-MM-DD&hasta=AAAA-MM-DD` con `reportes.ver` (401/403). Mismo
+período y mismos pedidos que E14-H2 (comparten el filtro SQL, así las filas y la suma cuadran con el
+reporte). Una fila por pedido, del más antiguo al más reciente: código del pedido, fecha `AAAA-MM-DD
+HH:MI` en hora de Chile, estado, tipo de cliente (precio aplicado), tipo de entrega, documento
+solicitado, descuento, neto, IVA y total, en pesos enteros sin separador de miles. **Sin datos
+personales** del comprador (nombre, correo, RUT). CSV para Excel en Chile: UTF-8 con BOM, separador
+`;`, saltos `\r\n`; un texto que empieza con `=`, `+`, `-`, `@`, tabulación o retorno lleva un
+apóstrofo delante (inyección CSV). Descarga `ventas-<desde>-<hasta>.csv` con `Cache-Control: private,
+no-store` y `X-Content-Type-Options: nosniff`. Sin pedidos, solo los encabezados. Sin caché, sin
+paginar y sin cambios al MER.
 
 ## Rendimiento y operación
 
