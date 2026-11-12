@@ -31,6 +31,11 @@ const RUTA = '/api/marketing/campanas';
 // Todo lo que crean estas pruebas lleva este prefijo, para borrarlo al terminar
 const PREFIJO = 'E2E-campanas';
 const PREFIJO_CORREO = 'e2e-campanas-';
+// Regiones y comunas de prueba (códigos que no usa el CUT ni otra prueba); se borran al terminar
+const COMUNAS_DE_PRUEBA = [
+  { region: '86', comuna: '86001' },
+  { region: '85', comuna: '85001' },
+] as const;
 
 interface Cuenta {
   id: number;
@@ -305,8 +310,40 @@ describe('Marketing · campañas de correo (e2e)', () => {
 
   afterAll(async () => {
     await limpiar();
+    const codigos = COMUNAS_DE_PRUEBA.map(({ comuna }) => comuna);
+    await prisma.comuna.deleteMany({ where: { codigoCut: { in: codigos } } });
+    await prisma.region.deleteMany({
+      where: {
+        codigoCut: { in: COMUNAS_DE_PRUEBA.map(({ region }) => region) },
+      },
+    });
     await app.close();
   });
+
+  /** Región y comuna de prueba, con la región incluida como la pide la prueba de filtros. */
+  const comunaDePrueba = async ({
+    region,
+    comuna,
+  }: (typeof COMUNAS_DE_PRUEBA)[number]) => {
+    const { id: regionId } = await prisma.region.upsert({
+      where: { codigoCut: region },
+      update: {},
+      create: {
+        codigoCut: region,
+        nombre: `Región de prueba campañas ${region}`,
+      },
+    });
+    return prisma.comuna.upsert({
+      where: { codigoCut: comuna },
+      update: {},
+      create: {
+        codigoCut: comuna,
+        nombre: `Comuna de prueba campañas ${comuna}`,
+        regionId,
+      },
+      include: { region: true },
+    });
+  };
 
   /** Cuentas con compras: solo las tres primeras deben recibir la campaña filtrada. */
   const prepararCompradores = async () => {
@@ -348,16 +385,10 @@ describe('Marketing · campañas de correo (e2e)', () => {
   });
 
   it('SCRUM-150 · filtros de cuenta: compras recientes o antiguas, pedidos, gasto, ubicación, perfil, antigüedad y carrito', async () => {
-    const [comuna, otraComuna] = await Promise.all([
-      prisma.comuna.findFirstOrThrow({
-        orderBy: { id: 'asc' },
-        include: { region: true },
-      }),
-      prisma.comuna.findFirstOrThrow({
-        orderBy: { id: 'desc' },
-        include: { region: true },
-      }),
-    ]);
+    // Comunas propias, en regiones distintas: la base del CI no trae la semilla (SCRUM-161)
+    const [comuna, otraComuna] = await Promise.all(
+      COMUNAS_DE_PRUEBA.map(comunaDePrueba),
+    );
     const hace = (dias: number) => new Date(Date.now() - dias * 86_400_000);
     // Las dos compraron en la categoría: ese filtro las aísla de las cuentas de otras pruebas
     const reciente = await nuevaCuenta(ROLES.CLIENTE);

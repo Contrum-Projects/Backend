@@ -1,0 +1,6 @@
+# Hallazgos de gitleaks ya revisados (RNF-10, SCRUM-161). Cada línea es la huella de un hallazgo
+# puntual: commit, archivo, regla y línea. El escaneo revisa todo el historial, así que la huella
+# se mantiene aunque el valor ya no esté en el código.
+#
+# Secreto de webhook de prueba en entorno.spec.ts (reemplazado por uno evidente en SCRUM-161).
+5bf4043b8336a383850742e415bb89a8fe391095:src/config/entorno.spec.ts:generic-api-key:177

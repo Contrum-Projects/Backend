@@ -27,6 +27,9 @@ const CONTRASENA = 'Secreta123';
 const RUTA = '/api/marketing/cupones';
 const PREFIJO = 'E2E-cupones';
 const PREFIJO_CORREO = 'e2e-cupones-';
+// Región y comuna de prueba (códigos que no usa el CUT ni otra prueba); se borran al terminar
+const REGION = '87';
+const COMUNA = '87001';
 const PREFIJO_CODIGO = 'E2ECUP';
 const IVA = 19;
 
@@ -231,7 +234,21 @@ describe('Cupones (e2e)', () => {
     const administrador = await cuenta(ROLES.ADMINISTRADOR);
     tokenAdministrador = administrador.token;
     administradorId = administrador.id;
-    const comuna = await prisma.comuna.findFirstOrThrow();
+    // Comuna propia: la base del CI no trae las comunas de la semilla (SCRUM-161)
+    const region = await prisma.region.upsert({
+      where: { codigoCut: REGION },
+      update: {},
+      create: { codigoCut: REGION, nombre: 'Región de prueba cupones' },
+    });
+    const comuna = await prisma.comuna.upsert({
+      where: { codigoCut: COMUNA },
+      update: {},
+      create: {
+        codigoCut: COMUNA,
+        nombre: 'Comuna de prueba cupones',
+        regionId: region.id,
+      },
+    });
     const bodega = await prisma.bodega.create({
       data: {
         nombre: `${PREFIJO} Central`,
@@ -262,6 +279,8 @@ describe('Cupones (e2e)', () => {
 
   afterAll(async () => {
     await limpiar();
+    await prisma.comuna.deleteMany({ where: { codigoCut: COMUNA } });
+    await prisma.region.deleteMany({ where: { codigoCut: REGION } });
     await app.close();
   });
 
