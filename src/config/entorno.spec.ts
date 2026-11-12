@@ -174,7 +174,7 @@ describe('validarEntorno · seguimiento de correos', () => {
   it('E12-H6 · el secreto del webhook es el whsec_ de Resend y la URL de la API va sin barra final', () => {
     const entorno = validarEntorno({
       ...BASE,
-      RESEND_WEBHOOK_SECRET: 'whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw',
+      RESEND_WEBHOOK_SECRET: 'whsec_ClaveDePruebaNoEsSecreta',
       URL_API: 'https://api.tienda.cl/',
     });
 
