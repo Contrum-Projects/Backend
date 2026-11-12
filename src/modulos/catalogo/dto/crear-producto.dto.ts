@@ -7,6 +7,9 @@ import { LARGO_MAXIMO_INGREDIENTES_IA } from '../cliente-ia.js';
 import { CanalVenta } from './canal-venta.decorator.js';
 import { SugerenciaUsada, SugerenciaUsadaDto } from './sugerencia-usada.dto.js';
 
+/** Largo mínimo de la descripción del producto, ya recortada. */
+export const MINIMO_DESCRIPCION_PRODUCTO = 50;
+
 /**
  * Entrada para crear un producto (E3-H1, RF-03.01).
  * El producto nace activo. La descripción es manual salvo que llegue la `sugerencia` firmada de la
@@ -21,12 +24,15 @@ export class CrearProductoDto {
   nombre: string;
 
   @ApiProperty({
-    example: 'Repara el cabello dañado por procesos químicos.',
+    example:
+      'Repara el cabello dañado por procesos químicos y le devuelve su brillo natural.',
+    minLength: MINIMO_DESCRIPCION_PRODUCTO,
     maxLength: 5000,
   })
   @TextoObligatorio({
     etiqueta: 'La descripción del producto',
     maximo: 5000,
+    minimo: MINIMO_DESCRIPCION_PRODUCTO,
     femenino: true,
   })
   descripcion: string;

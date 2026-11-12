@@ -24,6 +24,8 @@ import { REDIS } from '../src/redis/redis.module.js';
 const CONTRASENA = 'Secreta123';
 // Todo lo que crean estas pruebas lleva este prefijo, para borrarlo al terminar
 const PREFIJO = 'E2E-packs';
+const DESCRIPCION_PACK =
+  'Shampoo y acondicionador reparador a precio de promoción por tiempo limitado.';
 
 interface PackRespuesta {
   id: number;
@@ -145,7 +147,7 @@ describe('Catálogo · packs (e2e)', () => {
     const respuesta = await crear({
       sku: `${PREFIJO}-${unico()}`,
       nombre: `${PREFIJO} Dúo ${unico()}`,
-      descripcion: 'Shampoo y acondicionador.',
+      descripcion: DESCRIPCION_PACK,
       canalVenta: CANALES_VENTA.GENERAL,
       componentes,
       ...extra,
@@ -236,7 +238,7 @@ describe('Catálogo · packs (e2e)', () => {
       {
         sku,
         nombre: `${PREFIJO} Dúo reparador`,
-        descripcion: 'Shampoo y acondicionador.',
+        descripcion: DESCRIPCION_PACK,
         canalVenta: CANALES_VENTA.GENERAL,
         fechaInicioVigencia: diaDesdeHoy(0),
         fechaFinVigencia: diaDesdeHoy(30),
@@ -317,7 +319,7 @@ describe('Catálogo · packs (e2e)', () => {
     const respuesta = await crear({
       sku,
       nombre: `${PREFIJO} Pack de packs`,
-      descripcion: 'No se puede.',
+      descripcion: DESCRIPCION_PACK,
       canalVenta: CANALES_VENTA.GENERAL,
       componentes: [
         { formatoId: formato, cantidad: 1 },
@@ -406,7 +408,7 @@ describe('Catálogo · packs (e2e)', () => {
     const respuesta = await crear({
       sku: `${PREFIJO}-${unico()}`,
       nombre: `${PREFIJO} Mezcla`,
-      descripcion: 'No se puede.',
+      descripcion: DESCRIPCION_PACK,
       canalVenta: CANALES_VENTA.GENERAL,
       componentes: [
         { formatoId: await nuevoFormato(), cantidad: 1 },
@@ -427,7 +429,7 @@ describe('Catálogo · packs (e2e)', () => {
     const respuesta = await crear({
       sku: pack.sku,
       nombre: `${PREFIJO} Otro`,
-      descripcion: 'Repite el SKU.',
+      descripcion: DESCRIPCION_PACK,
       canalVenta: CANALES_VENTA.GENERAL,
       componentes: [{ formatoId: formato, cantidad: 2 }],
     }).expect(409);
@@ -441,7 +443,7 @@ describe('Catálogo · packs (e2e)', () => {
     const cuerpo = {
       sku: `${PREFIJO}-${unico()}`,
       nombre: `${PREFIJO} Sin permiso`,
-      descripcion: 'No se guarda.',
+      descripcion: DESCRIPCION_PACK,
       canalVenta: CANALES_VENTA.GENERAL,
       componentes: [{ formatoId: await nuevoFormato(), cantidad: 2 }],
     };
