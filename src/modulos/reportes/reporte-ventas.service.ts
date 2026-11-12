@@ -3,7 +3,9 @@ import {
   ESTADOS_SIN_VENTA,
   TIPOS_PRECIO,
 } from '../../common/dominio/valores.js';
+import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { armarCsv } from './csv.js';
 import { validarPeriodo } from './periodo-reporte.js';
 
 export interface TotalesVentas {
@@ -29,6 +31,50 @@ interface FilaVentas {
   montoIva: bigint;
   montoTotal: bigint;
 }
+
+/** Un pedido pagado del período, como sale en la exportación (E14-H5). */
+export interface VentaPedido {
+  codigoPedido: string;
+  /** AAAA-MM-DD HH:MI en hora de Chile. */
+  fecha: string;
+  estado: string;
+  tipoCliente: string;
+  tipoEntrega: string;
+  documento: string;
+  montoDescuento: number;
+  montoNeto: number;
+  montoIva: number;
+  montoTotal: number;
+}
+
+const ENCABEZADOS_EXPORTACION = [
+  'Código pedido',
+  'Fecha',
+  'Estado',
+  'Tipo de cliente',
+  'Tipo de entrega',
+  'Documento',
+  'Descuento',
+  'Neto',
+  'IVA',
+  'Total',
+] as const;
+
+/**
+ * FROM y WHERE de los pedidos que son venta en el período, con el tipo de cliente de su primera
+ * línea (`d.tipo_precio`). Lo comparten el reporte y la exportación para que siempre cuadren.
+ * Los días se cortan a medianoche de Chile: AT TIME ZONE respeta el cambio de horario.
+ */
+const pedidosConVenta = (desde: string, hasta: string) => Prisma.sql`
+  FROM pedido p
+  JOIN LATERAL (
+    SELECT dp.tipo_precio FROM detalle_pedido dp
+    WHERE dp.id_pedido = p.id_pedido
+    LIMIT 1
+  ) d ON true
+  WHERE p.fecha_pedido >= (${desde}::date)::timestamp AT TIME ZONE 'America/Santiago'
+    AND p.fecha_pedido < (${hasta}::date + 1)::timestamp AT TIME ZONE 'America/Santiago'
+    AND p.estado_actual <> ALL(${ESTADOS_SIN_VENTA}::text[])`;
 
 const enCero = (): TotalesVentas => ({
   pedidos: 0,
@@ -60,22 +106,13 @@ export class ReporteVentasService {
   ): Promise<ReporteVentas> {
     validarPeriodo(desde, hasta);
 
-    // Los días se cortan a medianoche de Chile: AT TIME ZONE respeta el cambio de horario
     const filas = await this.prisma.$queryRaw<FilaVentas[]>`
       SELECT d.tipo_precio AS "tipoPrecio",
              COUNT(*) AS "pedidos",
              SUM(p.monto_neto) AS "montoNeto",
              SUM(p.monto_iva) AS "montoIva",
              SUM(p.monto_total) AS "montoTotal"
-      FROM pedido p
-      JOIN LATERAL (
-        SELECT dp.tipo_precio FROM detalle_pedido dp
-        WHERE dp.id_pedido = p.id_pedido
-        LIMIT 1
-      ) d ON true
-      WHERE p.fecha_pedido >= (${desde}::date)::timestamp AT TIME ZONE 'America/Santiago'
-        AND p.fecha_pedido < (${hasta}::date + 1)::timestamp AT TIME ZONE 'America/Santiago'
-        AND p.estado_actual <> ALL(${ESTADOS_SIN_VENTA}::text[])
+      ${pedidosConVenta(desde, hasta)}
       GROUP BY d.tipo_precio`;
 
     const minorista = enCero();
@@ -101,5 +138,48 @@ export class ReporteVentasService {
       mayorista,
       total: sumar(minorista, mayorista),
     };
+  }
+
+  /**
+   * E14-H5 (SCRUM-159) · Los mismos pedidos que suma `ventasPorTipoCliente`, uno por fila y del
+   * más antiguo al más reciente, para exportarlos. Sin datos personales del comprador: solo el
+   * código del pedido. La fecha va en hora de Chile.
+   */
+  async ventasPorPedido(desde: string, hasta: string): Promise<VentaPedido[]> {
+    validarPeriodo(desde, hasta);
+
+    return this.prisma.$queryRaw<VentaPedido[]>`
+      SELECT p.codigo_publico AS "codigoPedido",
+             to_char(p.fecha_pedido AT TIME ZONE 'America/Santiago', 'YYYY-MM-DD HH24:MI') AS "fecha",
+             p.estado_actual AS "estado",
+             d.tipo_precio AS "tipoCliente",
+             p.tipo_entrega AS "tipoEntrega",
+             p.tipo_documento_solicitado AS "documento",
+             p.monto_descuento AS "montoDescuento",
+             p.monto_neto AS "montoNeto",
+             p.monto_iva AS "montoIva",
+             p.monto_total AS "montoTotal"
+      ${pedidosConVenta(desde, hasta)}
+      ORDER BY p.fecha_pedido, p.id_pedido`;
+  }
+
+  /** E14-H5 · El CSV de `ventasPorPedido`, con encabezados en español. */
+  async exportarVentas(desde: string, hasta: string): Promise<string> {
+    const pedidos = await this.ventasPorPedido(desde, hasta);
+    return armarCsv(
+      ENCABEZADOS_EXPORTACION,
+      pedidos.map((p) => [
+        p.codigoPedido,
+        p.fecha,
+        p.estado,
+        p.tipoCliente,
+        p.tipoEntrega,
+        p.documento,
+        p.montoDescuento,
+        p.montoNeto,
+        p.montoIva,
+        p.montoTotal,
+      ]),
+    );
   }
 }
