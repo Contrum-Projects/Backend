@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -15,6 +16,7 @@ import {
   ApiConflictResponse,
   ApiCreatedResponse,
   ApiForbiddenResponse,
+  ApiNoContentResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
@@ -86,5 +88,22 @@ export class CategoriasController {
     @Body() dto: ActualizarCategoriaDto,
   ) {
     return this.categorias.actualizar(id, dto);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Borrar una categoría que ya no se usa (SCRUM-158)',
+    description:
+      'Solo si no tiene productos, subcategorías, cupones ni imágenes de la portada; si no, 409 con dónde se usa.',
+  })
+  @ApiNoContentResponse({ description: 'Categoría borrada.' })
+  @ApiNotFoundResponse({ description: 'La categoría no existe.' })
+  @ApiConflictResponse({
+    description:
+      'La usan productos, subcategorías, cupones o imágenes de la portada.',
+  })
+  eliminar(@Param('id', ID_CATEGORIA) id: number) {
+    return this.categorias.eliminar(id);
   }
 }

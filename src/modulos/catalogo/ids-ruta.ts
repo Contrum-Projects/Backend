@@ -8,3 +8,4 @@ export const ID_PACK = new IdRutaPipe('El pack no existe.');
 export const ID_ARTICULO = new IdRutaPipe('El artículo no existe.');
 export const ID_IMAGEN = new IdRutaPipe('La imagen no existe.');
 export const ID_CATEGORIA = new IdRutaPipe('La categoría no existe.');
+export const ID_MARCA = new IdRutaPipe('La marca no existe.');

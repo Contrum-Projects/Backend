@@ -1,9 +1,11 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
+  Param,
   Post,
   Query,
   UseGuards,
@@ -14,6 +16,8 @@ import {
   ApiConflictResponse,
   ApiCreatedResponse,
   ApiForbiddenResponse,
+  ApiNoContentResponse,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiQuery,
@@ -27,6 +31,7 @@ import {
 } from '../../autenticacion/permisos.guard.js';
 import { PERMISOS } from '../../common/dominio/permisos.js';
 import { CrearMarcaDto } from './dto/crear-marca.dto.js';
+import { ID_MARCA } from './ids-ruta.js';
 import { MarcasService } from './marcas.service.js';
 
 @ApiTags('catalogo')
@@ -53,6 +58,22 @@ export class MarcasController {
   @ApiConflictResponse({ description: 'Ya existe una marca con ese nombre.' })
   crear(@Body() dto: CrearMarcaDto) {
     return this.marcas.crear(dto);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Borrar una marca que ya no se usa (SCRUM-158)',
+    description:
+      'Solo si ningún producto, cupón ni imagen de la portada la usa; si no, 409 con dónde se usa.',
+  })
+  @ApiNoContentResponse({ description: 'Marca borrada.' })
+  @ApiNotFoundResponse({ description: 'La marca no existe.' })
+  @ApiConflictResponse({
+    description: 'La usan productos, cupones o imágenes de la portada.',
+  })
+  eliminar(@Param('id', ID_MARCA) id: number) {
+    return this.marcas.eliminar(id);
   }
 
   @Get()

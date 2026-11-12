@@ -11,6 +11,12 @@ import { CacheCatalogo, CLAVES_CACHE } from './cache-catalogo.js';
 import type { ActualizarCategoriaDto } from './dto/actualizar-categoria.dto.js';
 import type { CrearCategoriaDto } from './dto/crear-categoria.dto.js';
 import { errorDeCampo } from '../../common/errores/error-de-campo.js';
+import { TIPOS_DESTINO_PORTADA } from '../../common/dominio/valores.js';
+import {
+  contarEnPortada,
+  exigirSinUsos,
+  traducirUsoSimultaneo,
+} from './usos-catalogo.js';
 
 export interface NodoCategoria {
   id: number;
@@ -96,6 +102,41 @@ export class CategoriasService {
     });
     await this.cache.invalidar(CLAVES_CACHE.CATEGORIAS);
     return actualizada;
+  }
+
+  /**
+   * Borra una categoría que ya no se usa (SCRUM-158): sin productos, subcategorías, cupones ni
+   * imágenes de la portada. Si se usa, 409 con dónde. Toma el bloqueo de la estructura del árbol
+   * (así no se le agrega una subcategoría mientras se borra) y después del commit invalida el
+   * árbol de la tienda.
+   */
+  async eliminar(id: number): Promise<void> {
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        await tomarCandado(tx, CANDADOS.CATEGORIAS);
+        const categoria = await tx.categoria.findUnique({
+          where: { id },
+          select: { id: true },
+        });
+        if (!categoria) {
+          throw new NotFoundException('La categoría no existe.');
+        }
+        const [productos, subcategorias, cupones, portada] = await Promise.all([
+          tx.producto.count({ where: { categoriaId: id } }),
+          tx.categoria.count({ where: { padreId: id } }),
+          tx.cuponCategoria.count({ where: { categoriaId: id } }),
+          contarEnPortada(tx, TIPOS_DESTINO_PORTADA.CATEGORIA, id),
+        ]);
+        exigirSinUsos(
+          { productos, subcategorias, cupones, portada },
+          'categoría',
+        );
+        await tx.categoria.delete({ where: { id } });
+      });
+    } catch (error) {
+      throw traducirUsoSimultaneo(error, 'categoría');
+    }
+    await this.cache.invalidar(CLAVES_CACHE.CATEGORIAS);
   }
 
   /** Árbol de categorías con sus subcategorías anidadas, ordenadas por nombre. */
