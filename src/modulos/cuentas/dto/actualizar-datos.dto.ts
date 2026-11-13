@@ -42,6 +42,8 @@ export class ActualizarDatosDto {
     example: '1990-05-21',
     format: 'date',
     nullable: true,
+    description:
+      'Se indica una sola vez (SCRUM-152): con la fecha ya guardada, cambiarla o borrarla responde 409.',
   })
   @FechaSinHora({ etiqueta: 'La fecha de nacimiento' })
   fechaNacimiento?: string | null;
