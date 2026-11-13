@@ -10,6 +10,11 @@ export interface ActividadSii {
 /** Lo que el SII informa de un RUT: sus actividades económicas. Sin actividades, no hay inicio. */
 export interface SituacionTributaria {
   actividades: ActividadSii[];
+  /**
+   * Nombre o razón social del contribuyente, como lo entrega el SII; `null` si el proveedor no lo
+   * informa. Sin él la solicitud no se aprueba sola (SCRUM-163).
+   */
+  contribuyente: string | null;
   /** Identificador de la consulta en el proveedor, para reclamar con él; `null` si no lo hay. */
   operacion: string | null;
 }

@@ -294,6 +294,8 @@ export const RESULTADOS_CONSULTA_SII = {
   SIN_INICIO_ACTIVIDADES: 'sin_inicio_actividades',
   OTRO_GIRO: 'otro_giro',
   NO_DISPONIBLE: 'no_disponible',
+  /** Tiene el giro, pero el nombre del contribuyente no calza con el de la cuenta (SCRUM-163). */
+  NOMBRE_NO_COINCIDE: 'nombre_no_coincide',
 } as const;
 
 /** SOLICITUD_VERIFICACION.proveedor_consulta_sii: quién respondió la consulta al SII. */

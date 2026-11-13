@@ -73,6 +73,7 @@ class ProveedorDePrueba extends ProveedorSituacionTributaria {
   readonly nombre = 'khipu';
   situacion: SituacionTributaria = {
     actividades: [OTRO_GIRO],
+    contribuyente: 'SOTO PEREZ MARCELA',
     operacion: null,
   };
   falla = false;
@@ -87,7 +88,11 @@ class ProveedorDePrueba extends ProveedorSituacionTributaria {
   }
 
   reiniciar() {
-    this.situacion = { actividades: [OTRO_GIRO], operacion: null };
+    this.situacion = {
+      actividades: [OTRO_GIRO],
+      contribuyente: 'SOTO PEREZ MARCELA',
+      operacion: null,
+    };
     this.falla = false;
   }
 }
@@ -346,7 +351,11 @@ describe('Verificación · adjuntar documentos para la revisión manual (e2e)', 
   });
 
   it('E10-H2 · solicitud aprobada automáticamente: no acepta documentos, responde 409 y no guarda nada', async () => {
-    proveedor.situacion = { actividades: [PELUQUERIA], operacion: null };
+    proveedor.situacion = {
+      actividades: [PELUQUERIA],
+      contribuyente: 'SOTO PEREZ MARCELA',
+      operacion: null,
+    };
     const solicitante = await cuenta();
     await servidor()
       .post('/api/verificaciones')

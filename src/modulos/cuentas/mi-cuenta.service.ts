@@ -69,6 +69,32 @@ const aDatosPersonales = ({
 });
 
 /**
+ * El nombre y el apellido se comparan con los del SII al verificar (SCRUM-163): no cambian si la
+ * cuenta ya es profesional o tiene una solicitud en curso, como el RUT. Si no, alguien podría
+ * verificarse con el nombre de otra persona y volver al suyo.
+ */
+const verificarCambioNombre = async (
+  tx: Prisma.TransactionClient,
+  usuarioId: number,
+  rol: string,
+) => {
+  if (rol === ROLES.PROFESIONAL) {
+    throw new ForbiddenException(
+      'Tu nombre quedó registrado en la verificación profesional y no se puede cambiar. Si hay un error, contacta a la tienda.',
+    );
+  }
+  const solicitudEnCurso = await tx.solicitudVerificacion.findFirst({
+    where: { solicitanteId: usuarioId, estado: { in: SOLICITUD_EN_CURSO } },
+    select: { id: true },
+  });
+  if (solicitudEnCurso) {
+    throw new ForbiddenException(
+      'Tienes una verificación profesional en curso. Podrás cambiar tu nombre cuando se resuelva.',
+    );
+  }
+};
+
+/**
  * El RUT nuevo (o `null` para borrarlo) no puede romper la verificación profesional ni estar en
  * otra cuenta.
  */
@@ -121,7 +147,8 @@ export class MiCuentaService {
   /**
    * E1-H5 · Guarda los datos que vienen y devuelve la cuenta actualizada. El RUT no puede estar
    * en otra cuenta, y no cambia si la verificación profesional depende de él: la cuenta ya es
-   * profesional o tiene una solicitud en curso (decisión del 20 oct). Se lee y se guarda con la
+   * profesional o tiene una solicitud en curso (decisión del 20 oct). Lo mismo vale para el nombre
+   * y el apellido, que se comparan con los del SII (SCRUM-163). Se lee y se guarda con la
    * cuenta bloqueada, para que la verificación no se resuelva con un RUT a medio cambiar.
    */
   async actualizar(
@@ -144,7 +171,13 @@ export class MiCuentaService {
         const usuarioId = await bloquearCuenta(tx, codigoPublico);
         const cuenta = await tx.usuario.findUniqueOrThrow({
           where: { id: usuarioId },
-          select: { rol: true, rut: true, fechaNacimiento: true },
+          select: {
+            rol: true,
+            rut: true,
+            nombre: true,
+            apellido: true,
+            fechaNacimiento: true,
+          },
         });
         // SCRUM-152 · Se indica una sola vez: con la fecha guardada no se cambia ni se borra, así
         // nadie la mueve al día de hoy para recibir la oferta de cumpleaños. La misma fecha no cambia nada
@@ -161,6 +194,12 @@ export class MiCuentaService {
         }
         if (dto.rut !== undefined && dto.rut !== cuenta.rut) {
           await verificarCambioRut(tx, usuarioId, cuenta.rol, dto.rut);
+        }
+        const cambiaNombre =
+          (dto.nombre !== undefined && dto.nombre !== cuenta.nombre) ||
+          (dto.apellido !== undefined && dto.apellido !== cuenta.apellido);
+        if (cambiaNombre) {
+          await verificarCambioNombre(tx, usuarioId, cuenta.rol);
         }
 
         const usuario = await tx.usuario.update({

@@ -4,10 +4,14 @@ import {
 } from '../../../common/dominio/valores.js';
 import type { ActividadSii } from './proveedor-situacion-tributaria.js';
 
-/** Lo que se concluye de las actividades de un RUT; la consulta que falla se registra aparte. */
+/**
+ * Lo que se concluye de las actividades de un RUT; la consulta que falla y el nombre que no calza
+ * (`nombre-contribuyente.ts`) se registran aparte.
+ */
 export type ResultadoEvaluacion = Exclude<
   (typeof RESULTADOS_CONSULTA_SII)[keyof typeof RESULTADOS_CONSULTA_SII],
-  typeof RESULTADOS_CONSULTA_SII.NO_DISPONIBLE
+  | typeof RESULTADOS_CONSULTA_SII.NO_DISPONIBLE
+  | typeof RESULTADOS_CONSULTA_SII.NOMBRE_NO_COINCIDE
 >;
 
 /**

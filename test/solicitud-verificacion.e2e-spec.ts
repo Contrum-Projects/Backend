@@ -42,6 +42,7 @@ class ProveedorDePrueba extends ProveedorSituacionTributaria {
   readonly nombre = 'khipu';
   situacion: SituacionTributaria = {
     actividades: [PELUQUERIA],
+    contribuyente: 'SOTO PEREZ MARCELA',
     operacion: 'operacion-de-prueba',
   };
   falla = false;
@@ -61,6 +62,7 @@ class ProveedorDePrueba extends ProveedorSituacionTributaria {
   reiniciar() {
     this.situacion = {
       actividades: [PELUQUERIA],
+      contribuyente: 'SOTO PEREZ MARCELA',
       operacion: 'operacion-de-prueba',
     };
     this.falla = false;
@@ -214,9 +216,41 @@ describe('Verificación · solicitar la verificación como profesional (e2e)', (
     expect(solicitud.fechaResolucion).toBeInstanceOf(Date);
   });
 
+  it('SCRUM-163 · giro 960200 a nombre de otra persona: no aprueba, sigue siendo cliente y pide documentos', async () => {
+    const solicitante = await cuenta();
+    proveedor.situacion = {
+      actividades: [PELUQUERIA],
+      contribuyente: 'ROJAS DIAZ PEDRO ANTONIO',
+      operacion: null,
+    };
+
+    const respuesta = await solicitar(solicitante.token).expect(201);
+
+    expect(respuesta.body).toMatchObject({
+      estado: 'pendiente',
+      fechaResolucion: null,
+      requiereDocumentos: true,
+    });
+    const [solicitud] = await solicitudesDe(solicitante.id);
+    expect(solicitud).toMatchObject({
+      estado: 'pendiente',
+      resultadoConsultaSii: 'nombre_no_coincide',
+      girosSii: [PELUQUERIA],
+    });
+    const { rol } = await prisma.usuario.findUniqueOrThrow({
+      where: { id: solicitante.id },
+      select: { rol: true },
+    });
+    expect(rol).toBe(ROLES.CLIENTE);
+  });
+
   it('E10-H1 · sin inicio de actividades: no rechaza, queda pendiente, pide documentos y guarda el resultado', async () => {
     const solicitante = await cuenta();
-    proveedor.situacion = { actividades: [], operacion: null };
+    proveedor.situacion = {
+      actividades: [],
+      contribuyente: null,
+      operacion: null,
+    };
 
     const respuesta = await solicitar(solicitante.token).expect(201);
 
@@ -236,7 +270,11 @@ describe('Verificación · solicitar la verificación como profesional (e2e)', (
 
   it('E10-H1 · otro giro: no rechaza, queda pendiente, pide documentos y guarda los giros recibidos', async () => {
     const solicitante = await cuenta();
-    proveedor.situacion = { actividades: [OTRO_GIRO], operacion: null };
+    proveedor.situacion = {
+      actividades: [OTRO_GIRO],
+      contribuyente: null,
+      operacion: null,
+    };
 
     const respuesta = await solicitar(solicitante.token).expect(201);
 

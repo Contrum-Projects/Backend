@@ -144,13 +144,19 @@ export const esquemaEntorno = z
     /** Modelo de Groq con visión que lee el reverso cuando Gemini falla. */
     GROQ_MODELO: z.string().min(1).default('qwen/qwen3.8-27b'),
     /**
-     * Clave de la API de Khipu (E10-H1, decisión del 2 nov 2026), que consulta la «Situación
-     * tributaria de terceros» del SII. Sin ella la app arranca, pero la consulta falla y quien
-     * solicita la verificación debe adjuntar documentos.
+     * Cliente OAuth de Khipu (E10-H1, decisión del 2 nov 2026), que consulta la «Situación
+     * tributaria de terceros» del SII: «Id de cobrador» y «Llave» de la cuenta. Con ellos se pide
+     * el JWT (`client_credentials`); Khipu retira el `x-api-key`. Sin ellos la app arranca, pero
+     * la consulta falla y quien solicita la verificación debe adjuntar documentos.
      */
-    KHIPU_API_KEY: opcional(z.string()),
+    KHIPU_CLIENT_ID: opcional(z.string()),
+    KHIPU_CLIENT_SECRET: opcional(z.string()),
     /** Sin ella se usa la de producción de Khipu. */
     KHIPU_URL_BASE: opcional(
+      z.url({ protocol: /^https$/ }).transform((v) => v.replace(/\/+$/, '')),
+    ),
+    /** Servidor de autorización de Khipu, que entrega el token. Sin ella, el de producción. */
+    KHIPU_URL_AUTH: opcional(
       z.url({ protocol: /^https$/ }).transform((v) => v.replace(/\/+$/, '')),
     ),
     /**
@@ -178,6 +184,16 @@ export const esquemaEntorno = z
         code: 'custom',
         path: ['CORREO_REMITENTE'],
         message: 'es obligatorio si hay clave de Resend',
+      });
+    }
+    // Media credencial no es «sin configurar»: es un error al copiarla, y no debe pasar callado
+    if (!entorno.KHIPU_CLIENT_ID !== !entorno.KHIPU_CLIENT_SECRET) {
+      contexto.addIssue({
+        code: 'custom',
+        path: [
+          entorno.KHIPU_CLIENT_ID ? 'KHIPU_CLIENT_SECRET' : 'KHIPU_CLIENT_ID',
+        ],
+        message: 'van juntos: falta uno de los dos datos del cliente de Khipu',
       });
     }
     // Con el simulado, cualquiera con RUT acabado en 3..9 sería profesional sin serlo (E10-H1)

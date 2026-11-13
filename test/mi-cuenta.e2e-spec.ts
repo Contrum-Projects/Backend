@@ -245,11 +245,21 @@ describe('Cuentas · datos personales y direcciones (e2e)', () => {
       .send({ rut: RUT_PROPIO })
       .expect(403);
 
+    // SCRUM-163: el nombre se compara con el del SII, así que tampoco cambia
+    const nombre = await request(app.getHttpServer())
+      .patch(RUTA_DATOS)
+      .auth(token, { type: 'bearer' })
+      .send({ nombre: 'Otro nombre' })
+      .expect(403);
+    expect((nombre.body as { message: string }).message).toBe(
+      'Tienes una verificación profesional en curso. Podrás cambiar tu nombre cuando se resuelva.',
+    );
+
     // Los demás datos sí se pueden editar
     await request(app.getHttpServer())
       .patch(RUTA_DATOS)
       .auth(token, { type: 'bearer' })
-      .send({ nombre: 'Sigue editando' })
+      .send({ telefono: '+56912345678' })
       .expect(200);
     await prisma.solicitudVerificacion.deleteMany({
       where: { solicitanteId: id },

@@ -53,6 +53,7 @@ class ProveedorPeluqueria extends ProveedorSituacionTributaria {
           fechaInicio: '2020-01-15',
         },
       ],
+      contribuyente: 'SOTO PEREZ ANDREA',
       operacion: 'operacion-de-prueba',
     });
   }

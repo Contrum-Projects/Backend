@@ -116,27 +116,55 @@ describe('validarEntorno · IA', () => {
 });
 
 describe('validarEntorno · consulta al SII', () => {
-  it('E10-H1 · arranca sin clave de Khipu, también en producción: se piden documentos', () => {
+  it('E10-H1 · arranca sin credenciales de Khipu, también en producción: se piden documentos', () => {
     const entorno = validarEntorno({
       ...BASE,
       ...CORREO,
       NODE_ENV: 'production',
-      KHIPU_API_KEY: '',
+      KHIPU_CLIENT_ID: '',
+      KHIPU_CLIENT_SECRET: '',
     });
 
-    expect(entorno.KHIPU_API_KEY).toBeUndefined();
+    expect(entorno.KHIPU_CLIENT_ID).toBeUndefined();
+    expect(entorno.KHIPU_CLIENT_SECRET).toBeUndefined();
     expect(entorno.KHIPU_URL_BASE).toBeUndefined();
+    expect(entorno.KHIPU_URL_AUTH).toBeUndefined();
     expect(entorno.SII_PROVEEDOR).toBe('khipu');
   });
 
-  it('E10-H1 · la URL de Khipu va con https y sin barra final', () => {
+  it('E10-H1 · el id de cobrador y la llave de Khipu van juntos: con uno solo no arranca', () => {
+    expect(() => validarEntorno({ ...BASE, KHIPU_CLIENT_ID: '12345' })).toThrow(
+      'KHIPU_CLIENT_SECRET',
+    );
+    expect(() =>
+      validarEntorno({ ...BASE, KHIPU_CLIENT_SECRET: 'llave' }),
+    ).toThrow('KHIPU_CLIENT_ID');
     expect(
-      validarEntorno({ ...BASE, KHIPU_URL_BASE: 'https://api.khipu.com/' })
-        .KHIPU_URL_BASE,
-    ).toBe('https://api.khipu.com');
+      validarEntorno({
+        ...BASE,
+        KHIPU_CLIENT_ID: '12345',
+        KHIPU_CLIENT_SECRET: 'llave',
+      }).KHIPU_CLIENT_ID,
+    ).toBe('12345');
+  });
+
+  it('E10-H1 · las URL de Khipu van con https y sin barra final', () => {
+    const entorno = validarEntorno({
+      ...BASE,
+      KHIPU_URL_BASE: 'https://api.khipu.com/',
+      KHIPU_URL_AUTH: 'https://auth-server.khipu.com/',
+    });
+    expect(entorno.KHIPU_URL_BASE).toBe('https://api.khipu.com');
+    expect(entorno.KHIPU_URL_AUTH).toBe('https://auth-server.khipu.com');
     expect(() =>
       validarEntorno({ ...BASE, KHIPU_URL_BASE: 'http://api.khipu.com' }),
     ).toThrow('KHIPU_URL_BASE');
+    expect(() =>
+      validarEntorno({
+        ...BASE,
+        KHIPU_URL_AUTH: 'http://auth-server.khipu.com',
+      }),
+    ).toThrow('KHIPU_URL_AUTH');
   });
 
   it('E10-H1 · el proveedor simulado sirve en desarrollo y en las pruebas, pero no en producción', () => {
