@@ -89,6 +89,15 @@ export const esquemaEntorno = z
         .regex(/^\d{7,8}$/)
         .transform(Number),
     ),
+    /**
+     * Tarjeta Cliente Chilexpress (TCC) con que se crean las OT al despachar (SCRUM-153). Sin ella
+     * (o sin la clave de Envíos), la OT se crea en el portal y el personal escribe su número.
+     */
+    CHILEXPRESS_TCC: opcional(z.string().regex(/^\d{1,12}$/)),
+    /** Remitente de las OT (SCRUM-153): Chilexpress exige nombre, teléfono y correo. */
+    CHILEXPRESS_REMITENTE_NOMBRE: opcional(z.string().max(100)),
+    CHILEXPRESS_REMITENTE_TELEFONO: opcional(z.string().max(15)),
+    CHILEXPRESS_REMITENTE_CORREO: opcional(z.email()),
     /** Sin ella se usa el sandbox, salvo en producción con clave: ahí la app no arranca. */
     CHILEXPRESS_URL_BASE: opcional(
       z.url({ protocol: /^https$/ }).transform((v) => v.replace(/\/+$/, '')),

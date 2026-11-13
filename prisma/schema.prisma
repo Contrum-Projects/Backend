@@ -534,6 +534,8 @@ model Envio {
   pedidoId          Int       @unique @map("id_pedido")
   comunaId          Int       @map("id_comuna")
   servicioEnvio     String    @map("servicio_envio") @db.VarChar(50)
+  /// Código del servicio cotizado (`serviceTypeCode`): lo pide la OT (SCRUM-153).
+  codigoServicio    Int?      @map("codigo_servicio")
   costoNeto         Decimal   @map("costo_neto") @db.Decimal(12, 2)
   codigoSeguimiento String?   @unique @map("codigo_seguimiento") @db.VarChar(100)
   fechaEstimada     DateTime? @map("fecha_estimada") @db.Date
@@ -543,6 +545,8 @@ model Envio {
   calle             String    @db.VarChar(150)
   numero            String    @db.VarChar(20)
   referencia        String?   @db.VarChar(255)
+  /// Etiqueta de la OT creada por la API (base64, como la entrega Chilexpress; SCRUM-153).
+  etiqueta          String?   @db.Text
 
   pedido Pedido @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
   comuna Comuna @relation(fields: [comunaId], references: [id])
@@ -747,6 +751,8 @@ model Bodega {
   tipo                String  @db.VarChar(30)
   abasteceVentaOnline Boolean @default(true) @map("abastece_venta_online")
   activa              Boolean @default(true)
+  /// Desde aquí salen los despachos: origen de la cotización y de la OT (SCRUM-153). Solo una.
+  esDespacho          Boolean @default(false) @map("es_despacho")
 
   comuna      Comuna      @relation(fields: [comunaId], references: [id])
   ubicaciones Ubicacion[]

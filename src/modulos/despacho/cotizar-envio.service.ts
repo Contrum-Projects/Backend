@@ -16,7 +16,7 @@ import { PrismaService } from '../../prisma/prisma.service.js';
 import { REDIS } from '../../redis/redis.module.js';
 import { CuponCarritoService } from '../cupones/cupon-carrito.service.js';
 import { CarritoService } from '../carrito/carrito.service.js';
-import { armarBulto, type UnidadesBulto } from './bulto.js';
+import { armarBulto, MEDIDAS, unidades } from './bulto.js';
 import { COTIZACION_NO_DISPONIBLE } from './cotizador-chilexpress.js';
 import {
   type Bulto,
@@ -36,29 +36,12 @@ const VIGENCIA_CACHE_SEGUNDOS = 15 * 60;
 
 type Cliente = Prisma.TransactionClient | PrismaService;
 
-const MEDIDAS = {
-  pesoGramos: true,
-  altoCm: true,
-  anchoCm: true,
-  largoCm: true,
-} satisfies Prisma.FormatoProductoSelect;
-
-type Medidas = Prisma.FormatoProductoGetPayload<{
-  select: typeof MEDIDAS;
-}>;
-
-const unidades = (medidas: Medidas, cantidad: number): UnidadesBulto => ({
-  pesoGramos: medidas.pesoGramos,
-  altoCm: Number(medidas.altoCm),
-  anchoCm: Number(medidas.anchoCm),
-  largoCm: Number(medidas.largoCm),
-  cantidad,
-});
-
 /** Lo que cuesta despachar: se guarda neto y el cliente lo paga con IVA (RNF-11). */
 export interface EnvioCotizado {
   servicio: string;
   costoNeto: number;
+  /** El código del servicio para la OT (SCRUM-153); `null` si la cotización en caché no lo trae. */
+  codigoServicio: number | null;
 }
 
 /** E7-H2 · Lo que ve el cliente antes de pagar. No informa el servicio: se cobra el más barato. */
@@ -184,6 +167,7 @@ export class CotizarEnvioService {
     if (!tarifa) throw new ConflictException(SIN_COBERTURA);
     return {
       servicio: tarifa.servicio,
+      codigoServicio: tarifa.codigoServicio ?? null,
       costoNeto: netoDesdeConIva(
         tarifa.tarifa,
         this.config.get('IVA_PORCENTAJE', { infer: true }),
@@ -191,11 +175,17 @@ export class CotizarEnvioService {
     };
   }
 
-  /** La bodega central: la primera que sigue activa y abastece la venta online. */
+  /**
+   * Desde dónde sale el despacho: la bodega de despacho (SCRUM-153), la misma que usa la OT. Sin
+   * ella, la primera que sigue activa y abastece la venta online, como antes.
+   */
   private async comunaDeOrigen(): Promise<string> {
     const bodega = await this.prisma.bodega.findFirst({
-      where: { activa: true, abasteceVentaOnline: true },
-      orderBy: { id: 'asc' },
+      where: {
+        activa: true,
+        OR: [{ esDespacho: true }, { abasteceVentaOnline: true }],
+      },
+      orderBy: [{ esDespacho: 'desc' }, { id: 'asc' }],
       select: { comuna: { select: { codigoCut: true } } },
     });
     if (!bodega) {

@@ -190,6 +190,7 @@ ninguno. El administrador tiene todos, también los que se agreguen.
 | `proveedores.gestionar`                                                                               | Proveedores (E11-H1)                                               |      ✅       |          |    ✅     |
 | `inventario.registrar`                                                                                | Entradas, salidas, ajustes y transferencias (E11-H2 a H4)          |      ✅       |          |    ✅     |
 | `inventario.consultar`                                                                                | Stock por formato y ubicación (E11-H5)                             |      ✅       |    ✅    |    ✅     |
+| `bodegas.gestionar`                                                                                   | Crear, editar y desactivar bodegas y ubicaciones (SCRUM-151)       |      ✅       |          |           |
 | `catalogo.gestionar`                                                                                  | Productos, formatos, imágenes, marcas, categorías y packs (E3, E4) |      ✅       |    ✅    |           |
 | `precios.gestionar`                                                                                   | Precio minorista y mayorista (E3-H5)                               |      ✅       |          |           |
 | `pedidos.gestionar`                                                                                   | Ver pedidos y cambiar su estado en el panel (E8-H2)                |      ✅       |    ✅    |    ✅     |
@@ -416,10 +417,17 @@ movimiento `TIPOS_MOVIMIENTO.ENTRADA` por formato con `id_entrada` y ubicación 
 Ubicaciones (SCRUM-150, 6 nov): `GET /api/inventario/ubicaciones` con `inventario.consultar`
 lista las ubicaciones activas de bodegas activas (`[{ id, codigo, bodega: { id, nombre } }]`,
 por bodega y código): el destino de entradas, ajustes y transferencias y el filtro por bodega.
-PENDIENTE: ninguna historia crea bodegas ni ubicaciones (ni las comunas que la bodega exige).
-Mientras tanto, `pnpm db:seed` fuera de producción crea dos bodegas de prueba («Bodega de
-desarrollo» con A-01, A-02 y B-01, y «Sala de ventas de desarrollo» con S-01; SCRUM-150), y
-`bodega.tipo` sigue sin lista en `valores.ts` (las pruebas usan `bodega` y `tienda`).
+Decisiones del 8 nov (SCRUM-151): el administrador (`bodegas.gestionar`) gestiona las bodegas y
+sus ubicaciones en `/api/inventario/bodegas` (`GET` todas, también las desactivadas, con sus
+ubicaciones y las unidades que guarda cada una; `POST`; `PATCH /:id`; `POST /:id/ubicaciones`;
+`PATCH /:id/ubicaciones/:ubicacionId`). Bodega: nombre (1-100), dirección (1-200), comuna por
+código CUT (400 si no existe), `tipo` de `TIPOS_BODEGA` (`bodega` o `tienda`) y si abastece la
+venta online (por omisión, sí); nace activa. Ubicación: código (1-30, en mayúsculas, **único en su
+bodega**: 409 junto a `codigo`) y, opcionales, zona, pasillo, estante y nivel (hasta 20). No se
+borran: se desactivan, y **con stock no se desactivan** (409; primero se transfiere o se ajusta a
+cero). Desactivada, no recibe stock nuevo y su stock no cuenta para la venta online. El bodeguero
+sigue viendo las activas en `GET /inventario/ubicaciones`. `pnpm db:seed` fuera de producción sigue
+creando las dos bodegas de prueba.
 Totales y lista de entradas (SCRUM-150, 6 nov): la respuesta del `POST` trae `subtotalNeto` por
 formato (cantidad × costo, con Decimal), `unidades` y `costoNetoTotal`.
 `GET /api/inventario/entradas?bodegaId&buscar&desde&hasta&pagina&limite` (`inventario.registrar`)
@@ -708,6 +716,32 @@ pasada se corta solo ante una falla general (red, plazo, 5xx, 401, 403, 429). El
 repetirla responde 409 y volver el pedido a en preparación la libera. Sin ceros a la izquierda, porque `0123`
 y `123` serían la misma OT. **Referencia:** el personal crea la OT con `pedido.codigo_publico` como
 referencia, y ese valor se envía como `reference`. Cambia el MER: agrega la restricción de unicidad.
+Decisiones del 9 nov (SCRUM-153, reemplaza la creación de la OT fuera de la API): **la OT se crea
+sola al despachar**. Al pasar un pedido con despacho a `despachado` **sin** `codigoSeguimiento`, el
+backend crea la OT con la API Envíos (`POST /transport-orders/api/v1.0/transport-orders`) **antes**
+de abrir la transacción, y después guarda el número (`envio.codigo_seguimiento`) y la etiqueta
+(`envio.etiqueta`, base64 como la entrega Chilexpress, `labelType` 2) con el cambio de estado.
+**Origen y devolución:** la **bodega de despacho** (`bodega.es_despacho`, una sola por índice único
+parcial, debe estar activa; desactivarla le quita la marca), que también es el origen de la
+cotización (sin ella, la primera activa que abastece la venta online, como antes). **Destino y
+contacto:** los que guardó el pedido (calle, número, referencia, comuna; destinatario y su teléfono, o
+el de la cuenta) y el correo de la cuenta; **remitente** de la configuración. **Bulto:** el mismo de
+la cotización (peso en kg con dos decimales, mínimo 0,01). **Servicio:** el `serviceTypeCode` que se
+cotizó al comprar (`envio.codigo_servicio`, nuevo; los pedidos anteriores no lo tienen). Producto
+encomienda (3), contenido «otros» (5, PROPUESTA), valor declarado = total con IVA menos el despacho,
+referencia = código del pedido. **Falla:** sin bodega de despacho, sin cobertura, sin servicio
+cotizado o sin teléfono responde 409; si Chilexpress rechaza o no responde (30 s), 503; en todos los
+casos el pedido no cambia y el mensaje ofrece el **respaldo**: escribir el número de una OT creada en
+el portal, como antes (con número escrito no se llama a Chilexpress y no hay etiqueta). Si la OT se
+crea pero el cambio de estado falla después, queda una advertencia en el log con su número para
+anularla. Sin `CHILEXPRESS_CLAVE_ENVIOS`, `CHILEXPRESS_TCC` o el remitente
+(`CHILEXPRESS_REMITENTE_NOMBRE`, `_TELEFONO`, `_CORREO`), no se crea sola y el número sigue siendo
+obligatorio. El detalle del panel trae `cambiosPermitidos[].creaOt` y `tieneEtiqueta`, y la etiqueta se
+descarga en `GET /api/gestion/pedidos/:codigoPedido/etiqueta` (PDF o imagen según los primeros bytes;
+404 si no la tiene). **Prueba manual:** `pnpm chilexpress:probar-ot` crea una OT de ejemplo en el
+ambiente de prueba (TCC 18578680 y RUT 96756430 que publica Chilexpress, salvo que el `.env` traiga
+otros), guarda su etiqueta y consulta su seguimiento. Cambio al MER: `bodega.es_despacho`,
+`envio.codigo_servicio` y `envio.etiqueta` (migración `ot_automatica`).
 **PENDIENTE:** (1) `con_problema` no tiene código de Chilexpress conocido, así que hoy solo lo asigna la
 corrección del personal. (2) Falta probar contra el sandbox con una OT real.
 
@@ -1250,10 +1284,11 @@ pendientes la reencola (RNF-29). Al enviar se revisa otra vez el consentimiento 
 y la oferta se leen de la base: **la oferta va si está activa al enviarse** (CA2). El correo usa la
 base de los demás («Hola, {nombre}:», el saludo, la oferta en un recuadro y botón a `/catalogo`),
 con remitente y correo para pedir la baja (RNF-26); sin diseño en Figma. Sin cambios al MER.
-PENDIENTE (auditoría del 5 nov): la cuenta puede editar su fecha de nacimiento (solo se valida que
-no sea futura), así que puede poner la de hoy para recibir la oferta, una vez al año por cuenta. Hay
-que decidir si se acepta (la oferta se canjea a mano) o si se limita (fecha no editable una vez
-fijada, o no saludar si cambió hace poco, que cambiaría el MER).
+Decisión del 8 nov (SCRUM-152, resuelve la auditoría del 5 nov): la fecha de nacimiento **se indica
+una sola vez**. Si la cuenta se registró sin ella, puede agregarla después en `PATCH
+/cuentas/yo`; ya guardada, cambiarla o borrarla responde **409** junto a `fechaNacimiento` (enviar
+la misma fecha no es un error). Así nadie la mueve al día de hoy para recibir la oferta. Si hay un
+error, la corrige el personal (hoy, directamente en la base: no hay pantalla). Sin cambios al MER.
 
 **Cupones** (decisiones del 7 nov 2026, SCRUM-150; módulo `cupones`). **Cambio al MER:** tablas
 CUPON, CUPON_ARTICULO, CUPON_CATEGORIA y CUPON_MARCA, y en PEDIDO `id_cupon` y `monto_descuento`

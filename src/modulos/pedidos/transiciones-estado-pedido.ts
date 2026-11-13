@@ -99,6 +99,11 @@ export interface CambioPermitido {
   sentido: SentidoCambio;
   /** Al despachar se pide el número de la OT de Chilexpress (E7-H3). */
   pideCodigoSeguimiento: boolean;
+  /**
+   * Al despachar sin escribir el número, la OT se crea sola en Chilexpress (SCRUM-153); el número
+   * escrito a mano queda como respaldo.
+   */
+  creaOt: boolean;
   /** Si se avisa al cliente por correo (`ESTADOS_CON_AVISO`; volver atrás nunca avisa). */
   avisaAlCliente: boolean;
   /** Si exige un comentario: volver a un estado anterior lo pide (SCRUM-150). */
@@ -112,6 +117,8 @@ export interface CambioPermitido {
 export const cambiosPermitidos = (
   actual: string,
   tipoEntrega: string,
+  /** Si la creación automática de la OT está configurada (SCRUM-153). */
+  creaOtAutomatica = false,
 ): CambioPermitido[] => {
   const avances =
     (
@@ -126,6 +133,7 @@ export const cambiosPermitidos = (
       estado,
       sentido: 'avance' as const,
       pideCodigoSeguimiento: estado === ESTADOS_PEDIDO.DESPACHADO,
+      creaOt: estado === ESTADOS_PEDIDO.DESPACHADO && creaOtAutomatica,
       avisaAlCliente: ESTADOS_CON_AVISO.includes(estado),
       pideComentario: false,
     })),
@@ -135,6 +143,7 @@ export const cambiosPermitidos = (
             estado: retroceso,
             sentido: 'retroceso' as const,
             pideCodigoSeguimiento: false,
+            creaOt: false,
             avisaAlCliente: false,
             pideComentario: true,
           },

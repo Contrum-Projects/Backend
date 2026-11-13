@@ -51,12 +51,17 @@ describe('MiCuentaService', () => {
   let tx: ReturnType<typeof crearPrisma>['tx'];
   let servicio: MiCuentaService;
 
-  const cuentaConRol = (rol: string, rut: string | null = '12345678-5') =>
+  const cuentaConRol = (
+    rol: string,
+    rut: string | null = '12345678-5',
+    fechaNacimiento: Date | null = null,
+  ) =>
     tx.usuario.findUniqueOrThrow.mockResolvedValue({
       rol,
       rut,
       nombre: 'Andrea',
       apellido: 'Soto',
+      fechaNacimiento,
     });
 
   beforeEach(() => {
@@ -140,6 +145,44 @@ describe('MiCuentaService', () => {
         fechaNacimiento: null,
       });
       expect(tx.usuario.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('SCRUM-152 · CA2 con la fecha de nacimiento guardada no se cambia ni se borra (409 junto al campo)', async () => {
+      const guardada = new Date('1990-05-21T00:00:00Z');
+      cuentaConRol(ROLES.CLIENTE, '12345678-5', guardada);
+
+      await expect(
+        servicio.actualizar(CODIGO, { fechaNacimiento: '2000-11-08' }),
+      ).rejects.toThrow(ConflictException);
+      await expect(
+        servicio.actualizar(CODIGO, { fechaNacimiento: null }),
+      ).rejects.toThrow(/no se puede cambiar/);
+      expect(tx.usuario.update).not.toHaveBeenCalled();
+    });
+
+    it('SCRUM-152 · CA2 enviar la misma fecha o no enviarla no es un error', async () => {
+      const guardada = new Date('1990-05-21T00:00:00Z');
+      cuentaConRol(ROLES.CLIENTE, '12345678-5', guardada);
+      tx.usuario.update.mockResolvedValue({
+        ...usuarioGuardado,
+        fechaNacimiento: guardada,
+      });
+
+      await servicio.actualizar(CODIGO, { fechaNacimiento: '1990-05-21' });
+      await servicio.actualizar(CODIGO, { nombre: 'Camila' });
+
+      expect(tx.usuario.update).toHaveBeenCalledTimes(2);
+    });
+
+    it('SCRUM-152 · CA1 sin fecha guardada se puede agregar', async () => {
+      cuentaConRol(ROLES.CLIENTE);
+      tx.usuario.update.mockResolvedValue(usuarioGuardado);
+
+      await servicio.actualizar(CODIGO, { fechaNacimiento: '1990-05-21' });
+
+      expect(tx.usuario.update.mock.calls[0][0].data.fechaNacimiento).toEqual(
+        new Date('1990-05-21T00:00:00Z'),
+      );
     });
 
     it('E1-H5 · RUT de otra cuenta: rechaza el cambio e informa que el RUT ya está en uso', async () => {

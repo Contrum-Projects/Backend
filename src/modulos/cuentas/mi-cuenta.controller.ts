@@ -47,7 +47,7 @@ export class MiCuentaController {
   @ApiOperation({
     summary: 'Editar mis datos personales (E1-H5)',
     description:
-      'Guarda solo los datos enviados; null o texto vacío borra un dato opcional. El correo no se edita.',
+      'Guarda solo los datos enviados; null o texto vacío borra un dato opcional. El correo no se edita. La fecha de nacimiento se indica una sola vez (SCRUM-152): ya guardada, no se cambia ni se borra.',
   })
   @ApiOkResponse({ description: 'Datos guardados; devuelve la cuenta.' })
   @ApiBadRequestResponse({ description: 'Datos inválidos.' })
@@ -55,7 +55,10 @@ export class MiCuentaController {
     description:
       'Cambio de RUT de un profesional o con una verificación en curso.',
   })
-  @ApiConflictResponse({ description: 'El RUT está en otra cuenta.' })
+  @ApiConflictResponse({
+    description:
+      'El RUT está en otra cuenta, o se intentó cambiar la fecha de nacimiento ya guardada.',
+  })
   @ApiTooManyRequestsResponse({
     description: 'Más de 10 ediciones por hora en la cuenta.',
   })

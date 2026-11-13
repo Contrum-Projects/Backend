@@ -89,6 +89,7 @@ describe('cambiosPermitidos (SCRUM-150)', () => {
         estado: 'despachado',
         sentido: 'avance',
         pideCodigoSeguimiento: true,
+        creaOt: false,
         avisaAlCliente: true,
         pideComentario: false,
       },
@@ -96,6 +97,7 @@ describe('cambiosPermitidos (SCRUM-150)', () => {
         estado: 'pagado',
         sentido: 'retroceso',
         pideCodigoSeguimiento: false,
+        creaOt: false,
         avisaAlCliente: false,
         pideComentario: true,
       },
@@ -106,10 +108,27 @@ describe('cambiosPermitidos (SCRUM-150)', () => {
         estado: 'en_preparacion',
         sentido: 'avance',
         pideCodigoSeguimiento: false,
+        creaOt: false,
         avisaAlCliente: false,
         pideComentario: false,
       },
     ]);
+  });
+
+  it('SCRUM-153 · con la OT automática configurada, despachar indica que la OT se crea sola', () => {
+    const [despachar, volver] = cambiosPermitidos(
+      'en_preparacion',
+      'despacho',
+      true,
+    );
+    expect(despachar).toMatchObject({ estado: 'despachado', creaOt: true });
+    expect(volver).toMatchObject({ estado: 'pagado', creaOt: false });
+    expect(
+      cambiosPermitidos('en_preparacion', 'retiro', true)[0],
+    ).toMatchObject({
+      estado: 'listo_para_retiro',
+      creaOt: false,
+    });
   });
 
   it('E8-H2 · cada cambio ofrecido es uno que sentidoDelCambio acepta; sin cambios en pendiente de pago ni cancelado', () => {
