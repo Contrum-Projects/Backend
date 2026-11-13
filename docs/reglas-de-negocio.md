@@ -904,8 +904,12 @@ detección del mismo documento (hash) en otra cuenta no aparece en las historias
 Decisiones del 2 nov (E10-H1, SCRUM-62): `POST /api/verificaciones` (sin cuerpo) y
 `GET /api/verificaciones/yo`, solo para cliente y profesional. La consulta pasa por la interfaz
 `ProveedorSituacionTributaria`; el proveedor es **Khipu** (`POST /v1/cl/services/sii.cl/tax-situation`,
-clave en `KHIPU_API_KEY`, URL en `KHIPU_URL_BASE`), así se puede cambiar sin tocar el servicio.
-La consulta es síncrona, con plazo de **10 s**; sin clave la app arranca, pero toda consulta falla y
+URL en `KHIPU_URL_BASE`), así se puede cambiar sin tocar el servicio. Se autentica con
+`Authorization: Bearer <JWT>` (Khipu retira el `x-api-key`): el token se pide con
+`client_credentials` a `KHIPU_URL_AUTH` usando `KHIPU_CLIENT_ID` («Id de cobrador») y
+`KHIPU_CLIENT_SECRET` («Llave»); dura un año, sin `refresh_token`, y se guarda en memoria hasta un
+día antes de vencer; si Khipu lo rechaza (401) se pide otro una vez.
+La consulta es síncrona, con plazo de **10 s** (incluye pedir el token); sin credenciales la app arranca, pero toda consulta falla y
 se piden documentos. `SII_PROVEEDOR=simulado` es solo para desarrollo (último dígito del RUT:
 0 sin actividades, 1 otro giro, 2 falla, 3 peluquería a nombre de otra persona, otro peluquería a
 nombre de la cuenta con ese RUT) y la app no arranca con él en producción.

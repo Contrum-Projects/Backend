@@ -26,7 +26,8 @@ import { ProveedorSituacionTributaria } from './sii/proveedor-situacion-tributar
 /**
  * Épica 10: verificación de profesionales, solicitud de la cuenta (ver src/modulos/README.md). El
  * SII se consulta por el proveedor que se inyecta como `ProveedorSituacionTributaria`: Khipu; sin
- * `KHIPU_API_KEY` la app arranca, pero la consulta falla y se piden documentos, que se guardan en el
+ * `KHIPU_CLIENT_ID` y `KHIPU_CLIENT_SECRET` la app arranca, pero la consulta falla y se piden
+ * documentos, que se guardan en el
  * almacén de archivos (E10-H2).
  * El personal resuelve las solicitudes en revisión manual (E10-H3) y las consulta con sus
  * documentos (E10-H7). Aprobada, la cuenta pasa a `profesional` y se encola el correo que lo avisa
@@ -62,16 +63,18 @@ import { ProveedorSituacionTributaria } from './sii/proveedor-situacion-tributar
           );
           return new ProveedorSimulado(prisma);
         }
-        const clave = config.get('KHIPU_API_KEY', { infer: true });
-        if (!clave) {
+        const idCliente = config.get('KHIPU_CLIENT_ID', { infer: true });
+        const secreto = config.get('KHIPU_CLIENT_SECRET', { infer: true });
+        if (!idCliente || !secreto) {
           new Logger('Verificacion').warn(
             'Khipu sin configurar: toda solicitud de verificación pedirá documentos.',
           );
           return new ProveedorNoConfigurado();
         }
         return new ProveedorKhipu(
-          clave,
+          { idCliente, secreto },
           config.get('KHIPU_URL_BASE', { infer: true }),
+          config.get('KHIPU_URL_AUTH', { infer: true }),
         );
       },
     },
