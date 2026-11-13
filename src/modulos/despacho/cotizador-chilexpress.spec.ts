@@ -72,6 +72,8 @@ describe('CotizadorChilexpress', () => {
     await expect(cotizador.cotizar(SOLICITUD)).resolves.toEqual({
       servicio: 'EXPRESS',
       tarifa: 7310,
+      // SCRUM-153: el código del servicio, que pide la OT
+      codigoServicio: 3,
     });
   });
 

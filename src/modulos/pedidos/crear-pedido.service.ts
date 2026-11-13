@@ -372,6 +372,7 @@ export class CrearPedidoService {
                 create: {
                   comunaId: direccion.comunaId,
                   servicioEnvio: envioCotizado.servicio,
+                  codigoServicio: envioCotizado.codigoServicio,
                   costoNeto: envioCotizado.costoNeto,
                   estadoEnvio: ESTADOS_ENVIO.PENDIENTE,
                   destinatario: `${cuenta.nombre} ${cuenta.apellido}`.slice(

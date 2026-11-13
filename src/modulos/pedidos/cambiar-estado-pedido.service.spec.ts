@@ -17,6 +17,7 @@ import {
   PEDIDO_SIN_ENVIO,
 } from './cambiar-estado-pedido.service.js';
 import { errorDeCampo } from '../../common/errores/error-de-campo.js';
+import type { GenerarOtService } from '../despacho/generar-ot.service.js';
 
 const PERSONAL = '3f0c2a52-0b9e-4c55-9d0e-6a3a4f6d1b2c';
 const CODIGO = 'AB12CD34EF56';
@@ -42,7 +43,10 @@ const crearDb = () => {
       count: vi.fn().mockResolvedValue(0),
       create: vi.fn().mockResolvedValue({}),
     },
-    pedido: { update: vi.fn().mockResolvedValue({}) },
+    pedido: {
+      update: vi.fn().mockResolvedValue({}),
+      findUnique: vi.fn().mockResolvedValue(null),
+    },
     envio: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
     notificacion: { create: vi.fn().mockResolvedValue({ id: 55 }) },
     $transaction: vi.fn(),
@@ -60,6 +64,8 @@ describe('CambiarEstadoPedidoService', () => {
     addBulk: ReturnType<typeof vi.fn>;
   };
   let servicio: CambiarEstadoPedidoService;
+  /** Sin configurar, como antes de SCRUM-153: el número se escribe a mano. */
+  let ordenes: { configurado: boolean; generar: ReturnType<typeof vi.fn> };
 
   const pedidoEn = (estado: string, tipoEntrega = 'despacho') =>
     db.$queryRaw.mockResolvedValue([
@@ -72,9 +78,16 @@ describe('CambiarEstadoPedidoService', () => {
       add: vi.fn().mockResolvedValue({}),
       addBulk: vi.fn().mockResolvedValue([]),
     };
+    ordenes = {
+      configurado: false,
+      generar: vi
+        .fn()
+        .mockResolvedValue({ numero: '712100833404', etiqueta: 'JVBERi0x' }),
+    };
     servicio = new CambiarEstadoPedidoService(
       db as unknown as PrismaService,
       correos as unknown as Queue,
+      ordenes as unknown as GenerarOtService,
     );
   });
 
@@ -144,6 +157,68 @@ describe('CambiarEstadoPedidoService', () => {
       estado: 'despachado',
       tipoEntrega: 'despacho',
     });
+  });
+
+  it('SCRUM-153 · CA2 al despachar sin número crea la OT y guarda su número y su etiqueta', async () => {
+    ordenes.configurado = true;
+    pedidoEn('en_preparacion', 'despacho');
+    db.pedido.findUnique.mockResolvedValue({
+      estadoActual: 'en_preparacion',
+      tipoEntrega: 'despacho',
+    });
+
+    await servicio.cambiar(PERSONAL, CODIGO, { estado: 'despachado' });
+
+    expect(ordenes.generar).toHaveBeenCalledWith(CODIGO);
+    expect(db.envio.updateMany.mock.calls[0][0].data).toEqual({
+      codigoSeguimiento: '712100833404',
+      etiqueta: 'JVBERi0x',
+      estadoEnvio: 'en_transito',
+    });
+  });
+
+  it('SCRUM-153 · con un número escrito a mano no crea la OT (respaldo) y no guarda etiqueta', async () => {
+    ordenes.configurado = true;
+    pedidoEn('en_preparacion', 'despacho');
+
+    await servicio.cambiar(PERSONAL, CODIGO, {
+      estado: 'despachado',
+      codigoSeguimiento: '99887766',
+    });
+
+    expect(ordenes.generar).not.toHaveBeenCalled();
+    expect(db.envio.updateMany.mock.calls[0][0].data).toMatchObject({
+      codigoSeguimiento: '99887766',
+      etiqueta: null,
+    });
+  });
+
+  it('SCRUM-153 · CA3 si Chilexpress falla, el pedido no cambia', async () => {
+    ordenes.configurado = true;
+    ordenes.generar.mockRejectedValue(new Error('Chilexpress no respondió.'));
+    db.pedido.findUnique.mockResolvedValue({
+      estadoActual: 'en_preparacion',
+      tipoEntrega: 'despacho',
+    });
+
+    await expect(
+      servicio.cambiar(PERSONAL, CODIGO, { estado: 'despachado' }),
+    ).rejects.toThrow('Chilexpress no respondió.');
+    expect(db.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('SCRUM-153 · un cambio que no corresponde no gasta una OT: responde su error de siempre', async () => {
+    ordenes.configurado = true;
+    pedidoEn('pagado', 'despacho');
+    db.pedido.findUnique.mockResolvedValue({
+      estadoActual: 'pagado',
+      tipoEntrega: 'despacho',
+    });
+
+    await expect(
+      servicio.cambiar(PERSONAL, CODIGO, { estado: 'despachado' }),
+    ).rejects.toThrow(ConflictException);
+    expect(ordenes.generar).not.toHaveBeenCalled();
   });
 
   it('E8-H2 · retiro en tienda: «listo para retiro» avisa al cliente y después se puede pasar a «retirado», que también avisa', async () => {
@@ -219,7 +294,11 @@ describe('CambiarEstadoPedidoService', () => {
 
     expect(db.envio.updateMany).toHaveBeenCalledWith({
       where: { pedidoId: 40 },
-      data: { codigoSeguimiento: 'OT1', estadoEnvio: 'en_transito' },
+      data: {
+        codigoSeguimiento: 'OT1',
+        etiqueta: null,
+        estadoEnvio: 'en_transito',
+      },
     });
   });
 
@@ -308,6 +387,7 @@ describe('CambiarEstadoPedidoService', () => {
 
     expect(db.envio.updateMany.mock.calls[0][0].data).toEqual({
       codigoSeguimiento: null,
+      etiqueta: null,
       estadoEnvio: 'pendiente',
     });
   });

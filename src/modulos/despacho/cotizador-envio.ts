@@ -20,6 +20,8 @@ export interface TarifaEnvio {
   servicio: string;
   /** Lo que cobra el courier, con IVA incluido, en pesos (decisión del 31 de octubre de 2026). */
   tarifa: number;
+  /** `serviceTypeCode` del servicio: lo pide la OT (SCRUM-153). Falta en cotizaciones anteriores en caché. */
+  codigoServicio?: number;
 }
 
 /**

@@ -21,6 +21,7 @@ import {
   type CambioPermitido,
   cambiosPermitidos,
 } from './transiciones-estado-pedido.js';
+import { GenerarOtService } from '../despacho/generar-ot.service.js';
 
 export interface PedidoGestion {
   codigoPublico: string;
@@ -63,7 +64,22 @@ export interface DetallePedidoGestion extends Omit<
   }[];
   cambiosPermitidos: CambioPermitido[];
   sePuedeCancelar: boolean;
+  tieneEtiqueta: boolean;
 }
+
+/** La etiqueta de la OT para descargarla (SCRUM-153). */
+export interface EtiquetaOt {
+  contenido: Buffer;
+  tipo: string;
+  extension: string;
+}
+
+/** El tipo de la etiqueta según sus primeros bytes: Chilexpress la entrega como imagen en binario. */
+const TIPOS_ETIQUETA: readonly [string, string, string][] = [
+  ['%PDF', 'application/pdf', 'pdf'],
+  ['\x89PNG', 'image/png', 'png'],
+  ['\xFF\xD8\xFF', 'image/jpeg', 'jpg'],
+];
 
 const nombreCompleto = (usuario: { nombre: string; apellido: string }) =>
   `${usuario.nombre} ${usuario.apellido}`;
@@ -78,7 +94,27 @@ export class GestionPedidosService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly misPedidos: MisPedidosService,
+    private readonly ordenes: GenerarOtService,
   ) {}
+
+  /** SCRUM-153 · La etiqueta de la OT creada por la API; 404 si el pedido no la tiene. */
+  async etiqueta(codigoPedido: string): Promise<EtiquetaOt> {
+    const envio = await this.prisma.envio.findFirst({
+      where: { pedido: { codigoPublico: codigoPedido } },
+      select: { etiqueta: true },
+    });
+    if (!envio?.etiqueta) {
+      throw new NotFoundException(
+        'El pedido no tiene una etiqueta de Chilexpress.',
+      );
+    }
+    const contenido = Buffer.from(envio.etiqueta, 'base64');
+    const inicio = contenido.subarray(0, 4).toString('latin1');
+    const [, tipo, extension] = TIPOS_ETIQUETA.find(([firma]) =>
+      inicio.startsWith(firma),
+    ) ?? ['', 'application/octet-stream', 'bin'];
+    return { contenido, tipo, extension };
+  }
 
   /**
    * Del más reciente al más antiguo, del grupo pedido (por defecto «por preparar») y con la
@@ -195,6 +231,7 @@ export class GestionPedidosService {
         usuarioId: true,
         estadoActual: true,
         tipoEntrega: true,
+        envio: { select: { etiqueta: true } },
         usuario: {
           select: { nombre: true, apellido: true, email: true, telefono: true },
         },
@@ -236,7 +273,9 @@ export class GestionPedidosService {
       cambiosPermitidos: cambiosPermitidos(
         extra.estadoActual,
         extra.tipoEntrega,
+        this.ordenes.configurado,
       ),
+      tieneEtiqueta: Boolean(extra.envio?.etiqueta),
       // E8-H3: el personal cancela solo lo que aún no se paga
       sePuedeCancelar: extra.estadoActual === ESTADOS_PEDIDO.PENDIENTE_PAGO,
     };

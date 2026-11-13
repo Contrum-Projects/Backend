@@ -32,11 +32,14 @@ import {
   sentidoDelCambio,
 } from './transiciones-estado-pedido.js';
 import { errorDeCampo } from '../../common/errores/error-de-campo.js';
+import { GenerarOtService } from '../despacho/generar-ot.service.js';
+import type { OtCreada } from '../despacho/orden-transporte.js';
 
 export const COMENTARIO_AL_RETROCEDER =
   'El comentario es obligatorio al volver a un estado anterior.';
 export const CODIGO_AL_DESPACHAR =
   'El código de seguimiento es obligatorio al despachar el pedido.';
+
 export const CODIGO_SOLO_AL_DESPACHAR =
   'El código de seguimiento solo se indica al despachar el pedido.';
 export const PEDIDO_SIN_ENVIO = 'El pedido no tiene los datos del envío.';
@@ -75,10 +78,16 @@ const datosDelEnvio = (
   actual: string,
   destino: string,
   codigoSeguimiento: string | undefined,
+  /** La etiqueta de la OT creada por la API (SCRUM-153); `null` si se escribió el número. */
+  etiqueta: string | null,
 ): Prisma.EnvioUpdateManyMutationInput | null => {
   if (sentido === 'avance') {
     if (destino === ESTADOS_PEDIDO.DESPACHADO) {
-      return { codigoSeguimiento, estadoEnvio: ESTADOS_ENVIO.EN_TRANSITO };
+      return {
+        codigoSeguimiento,
+        etiqueta,
+        estadoEnvio: ESTADOS_ENVIO.EN_TRANSITO,
+      };
     }
     return destino === ESTADOS_PEDIDO.ENTREGADO
       ? { estadoEnvio: ESTADOS_ENVIO.ENTREGADO }
@@ -88,7 +97,11 @@ const datosDelEnvio = (
     return { estadoEnvio: ESTADOS_ENVIO.CON_PROBLEMA };
   }
   return actual === ESTADOS_PEDIDO.DESPACHADO
-    ? { codigoSeguimiento: null, estadoEnvio: ESTADOS_ENVIO.PENDIENTE }
+    ? {
+        codigoSeguimiento: null,
+        etiqueta: null,
+        estadoEnvio: ESTADOS_ENVIO.PENDIENTE,
+      }
     : null;
 };
 
@@ -105,7 +118,43 @@ export class CambiarEstadoPedidoService {
   constructor(
     private readonly prisma: PrismaService,
     @InjectQueue(COLAS.CORREOS) private readonly correos: Queue,
+    private readonly ordenes: GenerarOtService,
   ) {}
+
+  /** Si al despachar sin número la OT se crea sola (SCRUM-153). */
+  get creaOtAutomatica(): boolean {
+    return this.ordenes.configurado;
+  }
+
+  /**
+   * SCRUM-153 · Al despachar sin escribir el número, crea la OT en Chilexpress antes de abrir la
+   * transacción (es una llamada externa). Solo si el cambio es posible: si no, la transacción
+   * responde con su error de siempre sin gastar una OT.
+   */
+  private async crearOtSiCorresponde(
+    codigoPedido: string,
+    dto: CambiarEstadoPedidoDto,
+  ): Promise<OtCreada | null> {
+    if (
+      dto.estado !== ESTADOS_PEDIDO.DESPACHADO ||
+      dto.codigoSeguimiento ||
+      !this.ordenes.configurado
+    ) {
+      return null;
+    }
+    const pedido = await this.prisma.pedido.findUnique({
+      where: { codigoPublico: codigoPedido },
+      select: { estadoActual: true, tipoEntrega: true },
+    });
+    if (
+      !pedido ||
+      sentidoDelCambio(pedido.estadoActual, dto.estado, pedido.tipoEntrega) !==
+        'avance'
+    ) {
+      return null;
+    }
+    return this.ordenes.generar(codigoPedido);
+  }
 
   /**
    * E8-H2 · Pasa el pedido `codigoPedido` a `dto.estado` en nombre del integrante del personal
@@ -118,6 +167,8 @@ export class CambiarEstadoPedidoService {
     codigoPedido: string,
     dto: CambiarEstadoPedidoDto,
   ): Promise<PedidoConNuevoEstado> {
+    const ot = await this.crearOtSiCorresponde(codigoPedido, dto);
+    const codigoSeguimiento = dto.codigoSeguimiento ?? ot?.numero;
     const transaccion = this.prisma.$transaction(async (tx) => {
       const filas = await tx.$queryRaw<
         Omit<PedidoBloqueado, 'codigoPublico'>[]
@@ -151,7 +202,7 @@ export class CambiarEstadoPedidoService {
       }
       const seDespacha =
         sentido === 'avance' && dto.estado === ESTADOS_PEDIDO.DESPACHADO;
-      if (seDespacha && !dto.codigoSeguimiento) {
+      if (seDespacha && !codigoSeguimiento) {
         throw errorDeCampo(
           BadRequestException,
           CODIGO_AL_DESPACHAR,
@@ -170,7 +221,8 @@ export class CambiarEstadoPedidoService {
         sentido,
         pedido.estado,
         dto.estado,
-        dto.codigoSeguimiento,
+        codigoSeguimiento,
+        ot?.etiqueta ?? null,
       );
       if (datosEnvio && pedido.tipoEntrega === TIPOS_ENTREGA.DESPACHO) {
         const { count } = await tx.envio.updateMany({
@@ -203,8 +255,14 @@ export class CambiarEstadoPedidoService {
 
     // La restricción UNIQUE decide también entre dos despachos simultáneos con la misma OT
     const { respuesta, aviso } = await transaccion.catch((error: unknown) => {
+      // La OT ya existe en Chilexpress pero el pedido no cambió: queda en el log para anularla
+      if (ot) {
+        this.logger.warn(
+          `Se creó la OT ${ot.numero} del pedido ${codigoPedido}, pero el cambio de estado falló.`,
+        );
+      }
       if (
-        dto.codigoSeguimiento &&
+        codigoSeguimiento &&
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {

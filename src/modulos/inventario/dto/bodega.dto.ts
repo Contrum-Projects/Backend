@@ -46,6 +46,13 @@ export class ActualizarBodegaDto extends PartialType(CrearBodegaDto) {
   })
   @Booleano({ etiqueta: 'Activa' })
   activa?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Marcarla como la bodega de despacho (SCRUM-153): origen de la cotización y de las OT. Solo una lo es; marcar otra le quita la marca a la anterior. Debe estar activa.',
+  })
+  @Booleano({ etiqueta: 'Bodega de despacho' })
+  esDespacho?: boolean;
 }
 
 const Parte = (etiqueta: string) => TextoOpcional({ etiqueta, maximo: 20 });
@@ -142,6 +149,12 @@ export class BodegaPanelDto {
 
   @ApiProperty()
   activa: boolean;
+
+  @ApiProperty({
+    description:
+      'Desde aquí salen los despachos: origen de la cotización y de las OT (SCRUM-153).',
+  })
+  esDespacho: boolean;
 
   @ApiProperty({ type: LugarDto })
   comuna: LugarDto;

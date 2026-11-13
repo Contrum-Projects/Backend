@@ -1,4 +1,11 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  Query,
+  StreamableFile,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -6,6 +13,7 @@ import {
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiProduces,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
@@ -74,5 +82,28 @@ export class GestionPedidosController {
     @Param('codigoPedido', new CodigoPedidoPipe()) codigoPedido: string,
   ): Promise<DetallePedidoGestion> {
     return this.gestion.obtener(codigoPedido);
+  }
+
+  @Get(':codigoPedido/etiqueta')
+  @ApiOperation({
+    summary: 'Descargar la etiqueta de la OT de Chilexpress (SCRUM-153)',
+    description:
+      'La etiqueta que entregó Chilexpress al crear la OT al despachar, para imprimirla. Su tipo depende de lo que entrega Chilexpress (PDF o imagen).',
+  })
+  @ApiProduces('application/pdf', 'image/png', 'image/jpeg')
+  @ApiOkResponse({ description: 'La etiqueta, como descarga.' })
+  @ApiNotFoundResponse({
+    description: 'El pedido no existe o su OT no se creó por la API.',
+  })
+  async etiqueta(
+    @Param('codigoPedido', new CodigoPedidoPipe()) codigoPedido: string,
+  ): Promise<StreamableFile> {
+    const { contenido, tipo, extension } =
+      await this.gestion.etiqueta(codigoPedido);
+    return new StreamableFile(contenido, {
+      type: tipo,
+      disposition: `attachment; filename="etiqueta-${codigoPedido}.${extension}"`,
+      length: contenido.length,
+    });
   }
 }
