@@ -14,6 +14,15 @@ COPY package.json pnpm-lock.yaml prisma.config.ts ./
 COPY prisma ./prisma
 RUN pnpm install --frozen-lockfile
 
+# ── Semilla (regiones, comunas y cuenta del administrador) ───────────
+# Se corre una vez al instalar: `docker compose run --rm semilla` (ver despliegue/README.md).
+# Necesita el código fuente y el cliente generado, que la imagen final no trae.
+FROM deps AS semilla
+COPY tsconfig.json ./
+COPY src ./src
+RUN pnpm prisma generate
+CMD ["pnpm", "db:seed"]
+
 # ── Compilación ───────────────────────────────────────────────────────
 FROM deps AS build
 COPY tsconfig.json tsconfig.build.json nest-cli.json ./
