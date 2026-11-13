@@ -329,6 +329,15 @@ export const ESTADOS_OCR = {
 } as const;
 
 /**
+ * BODEGA.tipo (decisión del 8 de noviembre de 2026, SCRUM-151): un almacén o una sala de ventas
+ * (tienda, donde también se retira).
+ */
+export const TIPOS_BODEGA = {
+  BODEGA: 'bodega',
+  TIENDA: 'tienda',
+} as const;
+
+/**
  * CUPON.tipo_descuento (decisión del 7 de noviembre de 2026, SCRUM-150): un porcentaje (1 a 100,
  * con tope opcional en pesos) o un monto fijo en pesos con IVA.
  */
