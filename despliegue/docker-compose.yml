@@ -1,0 +1,115 @@
+# Cabello Perfecto — servidor completo: base, Redis, API y tienda (SCRUM-166)
+#
+# Espera los dos repositorios uno al lado del otro:
+#   ~/cabello-perfecto/cp-backend    (este repo)
+#   ~/cabello-perfecto/cp-frontend
+#
+#   cd cp-backend/despliegue
+#   cp .env.example .env              # y complétalo
+#   docker compose up -d --build
+#   docker compose run --rm semilla   # solo la primera vez
+#
+# Solo la tienda publica un puerto, y únicamente en 127.0.0.1: nginx es la única entrada desde
+# internet. La base, Redis y la API quedan en la red interna de Docker. Pasos completos en README.md.
+
+# Distinto del compose de desarrollo, para que en una misma máquina no compartan contenedores
+# ni el volumen de la base
+name: cabello-perfecto-prod
+
+x-base-de-datos: &base-de-datos
+  DATABASE_URL: postgresql://${POSTGRES_USER:-cp}:${POSTGRES_PASSWORD:?falta POSTGRES_PASSWORD en .env}@db:5432/${POSTGRES_DB:-cabello_perfecto}?schema=public
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-cp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?falta POSTGRES_PASSWORD en .env}
+      POSTGRES_DB: ${POSTGRES_DB:-cabello_perfecto}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    # AOF: si el contenedor se reinicia no se pierden las colas (RNF-21)
+    command: ['redis-server', '--appendonly', 'yes']
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Aplica las migraciones pendientes y termina; la API espera a que salga bien.
+  migrate:
+    build:
+      context: ..
+      target: deps
+    command: ['pnpm', 'prisma', 'migrate', 'deploy']
+    environment:
+      <<: *base-de-datos
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Regiones, comunas y la cuenta del administrador. No arranca con `up`:
+  # se corre a mano con `docker compose run --rm semilla` (es idempotente).
+  semilla:
+    build:
+      context: ..
+      target: semilla
+    profiles: ['semilla']
+    environment:
+      <<: *base-de-datos
+      NODE_ENV: production
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  api:
+    build:
+      context: ..
+      target: runtime
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      <<: *base-de-datos
+      NODE_ENV: production
+      PORT: 3000
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      # Redis no es obligatorio para vender (RNF-32): basta con que se haya iniciado
+      redis:
+        condition: service_started
+
+  tienda:
+    build:
+      context: ../../cp-frontend
+      # Se fijan al compilar (next/image y metadatos): si cambian, hay que reconstruir
+      args:
+        URL_IMAGENES: ${R2_URL_PUBLICA:-}
+        NEXT_PUBLIC_URL_SITIO: ${URL_TIENDA:?falta URL_TIENDA en .env}
+    restart: unless-stopped
+    environment:
+      API_URL: http://api:3000
+    ports:
+      - '127.0.0.1:3001:3001'
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  db-data:
+  redis-data:

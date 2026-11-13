@@ -5,7 +5,9 @@
  * ubicaciones (SCRUM-150): ninguna historia crea bodegas, y sin ellas no se puede registrar
  * ninguna entrada de inventario.
  *
- * Ejecutar: pnpm db:seed  (es idempotente: se puede correr varias veces)
+ * Ejecutar: pnpm db:seed  (es idempotente: se puede correr varias veces). En producción exige
+ * SEED_ADMIN_EMAIL y SEED_ADMIN_PASSWORD; en el servidor se corre con el servicio `semilla` de
+ * despliegue/docker-compose.yml.
  */
 import 'dotenv/config';
 import { randomUUID } from 'node:crypto';
@@ -69,6 +71,16 @@ async function cargarBodegasDesarrollo() {
 }
 
 async function main() {
+  // En un servidor, la cuenta por defecto sería un administrador con contraseña pública
+  if (
+    process.env.NODE_ENV === 'production' &&
+    (!process.env.SEED_ADMIN_EMAIL || !process.env.SEED_ADMIN_PASSWORD)
+  ) {
+    throw new Error(
+      'En producción la semilla necesita SEED_ADMIN_EMAIL y SEED_ADMIN_PASSWORD.',
+    );
+  }
+
   await cargarTerritorio(prisma);
 
   const email = (
