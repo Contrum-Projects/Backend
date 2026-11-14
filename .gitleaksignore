@@ -4,3 +4,8 @@
 #
 # Secreto de webhook de prueba en entorno.spec.ts (reemplazado por uno evidente en SCRUM-161).
 5bf4043b8336a383850742e415bb89a8fe391095:src/config/entorno.spec.ts:generic-api-key:177
+#
+# despliegue/.env.example (SCRUM-166): RESEND_API_KEY vacía seguida de CORREO_REMITENTE, y la
+# regla tomó «Cabello Perfecto <no-responder@…>» como valor de la clave. El archivo no tiene
+# claves; ahora un comentario separa las dos líneas.
+81162c586b9666d78d2a256f507bace4e0183cf1:despliegue/.env.example:generic-api-key:30
