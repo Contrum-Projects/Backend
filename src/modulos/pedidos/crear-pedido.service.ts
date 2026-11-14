@@ -20,6 +20,7 @@ import {
   TIPOS_ENTREGA,
   TIPOS_PRECIO,
 } from '../../common/dominio/valores.js';
+import { errorDeCampo } from '../../common/errores/error-de-campo.js';
 import { MAXIMO_INT4 } from '../../common/validacion/enteros.js';
 import type { Entorno } from '../../config/entorno.js';
 import type { Prisma } from '../../generated/prisma/client.js';
@@ -59,6 +60,15 @@ export const SIN_DATOS_FACTURACION =
   'Debes registrar tus datos de facturación antes de pedir factura.';
 export const FALTA_ELEGIR_DATOS_FACTURACION =
   'Los datos de facturación son obligatorios para la factura.';
+
+export const TELEFONO_PARA_DESPACHO =
+  'El teléfono de contacto es obligatorio para el despacho a domicilio.';
+
+/** SCRUM-167 · El teléfono del despacho: el que se escribió al comprar o, si no, el de la cuenta. */
+const telefonoDelDespacho = (
+  dto: CrearPedidoDto,
+  telefonoCuenta: string | null,
+): string | null => dto.telefonoContacto ?? telefonoCuenta;
 
 /** El despacho ya cotizado y lo que se cotizó, para comprobarlo dentro de la transacción. */
 interface EnvioPorCrear extends EnvioCotizado {
@@ -159,9 +169,11 @@ export class CrearPedidoService {
     if (dto.tipoEntrega !== TIPOS_ENTREGA.DESPACHO) return null;
     const cuenta = await this.prisma.usuario.findUnique({
       where: { codigoPublico },
-      select: { id: true, fechaVerificacionCorreo: true },
+      select: { id: true, fechaVerificacionCorreo: true, telefono: true },
     });
     if (!cuenta?.fechaVerificacionCorreo) return null;
+    // Sin teléfono la transacción responde 400: no se gasta la consulta al courier (SCRUM-167)
+    if (!telefonoDelDespacho(dto, cuenta.telefono)) return null;
     const anterior = await this.prisma.pedido.findFirst({
       where: {
         usuarioId: cuenta.id,
@@ -265,6 +277,14 @@ export class CrearPedidoService {
       dto,
     );
     const direccion = await this.exigirDireccion(tx, usuarioId, dto);
+    const telefonoContacto = telefonoDelDespacho(dto, cuenta.telefono);
+    if (direccion && !telefonoContacto) {
+      throw errorDeCampo(
+        BadRequestException,
+        TELEFONO_PARA_DESPACHO,
+        'telefonoContacto',
+      );
+    }
     if (direccion) {
       // Con la cuenta bloqueada: lo que se cotizó debe ser lo que se va a despachar
       const bulto = await this.envios.bultoDelCarrito(tx, usuarioId);
@@ -379,7 +399,7 @@ export class CrearPedidoService {
                     0,
                     LARGO_DESTINATARIO,
                   ),
-                  telefonoContacto: cuenta.telefono,
+                  telefonoContacto,
                   calle: direccion.calle,
                   numero: direccion.numero,
                   referencia: direccion.referencia,

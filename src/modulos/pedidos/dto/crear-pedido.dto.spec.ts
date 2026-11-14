@@ -1,7 +1,10 @@
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { mensajesValidacion } from '../../../common/validacion/mensajes-validacion.js';
-import { CrearPedidoDto } from './crear-pedido.dto.js';
+import {
+  CrearPedidoDto,
+  TELEFONO_SOLO_CON_DESPACHO,
+} from './crear-pedido.dto.js';
 
 const mensajes = async (datos: object) =>
   mensajesValidacion(await validate(plainToInstance(CrearPedidoDto, datos)));
@@ -53,6 +56,31 @@ describe('CrearPedidoDto', () => {
     expect(await mensajes({ ...base(), direccionId: 12 })).toEqual([
       'La dirección solo se indica con despacho a domicilio.',
     ]);
+  });
+
+  it('SCRUM-167 · CA1 el teléfono de contacto es opcional con despacho, se recorta y no pasa de 20', async () => {
+    const despacho = { ...base(), tipoEntrega: 'despacho', direccionId: 12 };
+    expect(await mensajes(despacho)).toEqual([]);
+    expect(
+      await mensajes({ ...despacho, telefonoContacto: ' +56912345678 ' }),
+    ).toEqual([]);
+    const dto = plainToInstance(CrearPedidoDto, {
+      ...despacho,
+      telefonoContacto: ' +56912345678 ',
+    });
+    expect(dto.telefonoContacto).toBe('+56912345678');
+    expect(
+      await mensajes({ ...despacho, telefonoContacto: '9'.repeat(21) }),
+    ).toEqual(['El teléfono de contacto no puede superar los 20 caracteres.']);
+  });
+
+  it('SCRUM-167 · CA3 el teléfono de contacto no se admite con retiro', async () => {
+    expect(
+      await mensajes({ ...base(), telefonoContacto: '+56912345678' }),
+    ).toEqual([TELEFONO_SOLO_CON_DESPACHO]);
+    // Vacío o null equivale a no mandarlo
+    expect(await mensajes({ ...base(), telefonoContacto: '' })).toEqual([]);
+    expect(await mensajes({ ...base(), telefonoContacto: null })).toEqual([]);
   });
 
   it('E9-H1 · factura sin indicar datos: pasa al servicio, que revisa si la cuenta los tiene', async () => {

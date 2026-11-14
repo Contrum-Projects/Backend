@@ -54,6 +54,8 @@ describe('Despacho · cotizar el envío con Chilexpress (e2e)', () => {
         email,
         contrasenaHash: hashContrasena,
         rol,
+        // SCRUM-167: el despacho exige un teléfono de contacto
+        telefono: '+56911111111',
         fechaVerificacionCorreo: new Date(),
       },
     });

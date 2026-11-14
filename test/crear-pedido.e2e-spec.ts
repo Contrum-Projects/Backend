@@ -55,7 +55,8 @@ describe('Pedidos · crear el pedido desde el carrito (e2e)', () => {
   const unico = () => randomUUID().slice(0, 8);
   const servidor = () => request(app.getHttpServer());
 
-  const cuenta = async (rol: Rol) => {
+  /** Con teléfono, salvo que se pida sin él (SCRUM-167: el despacho lo exige). */
+  const cuenta = async (rol: Rol, telefono: string | null = '+56911111111') => {
     const email = `${PREFIJO_CORREO}${randomUUID()}@prueba.cl`;
     const usuario = await prisma.usuario.create({
       data: {
@@ -65,6 +66,7 @@ describe('Pedidos · crear el pedido desde el carrito (e2e)', () => {
         email,
         contrasenaHash: hashContrasena,
         rol,
+        telefono,
         fechaVerificacionCorreo: new Date(),
       },
     });
@@ -477,6 +479,55 @@ describe('Pedidos · crear el pedido desde el carrito (e2e)', () => {
       where: { id: envio.id },
     });
     expect(copia.calle).toBe('Av. Prueba');
+  });
+
+  it('SCRUM-167 · despacho sin teléfono: 400 en el campo hasta que lo escribe, y se guarda en el envío sin tocar la cuenta', async () => {
+    const comprador = await cuenta(ROLES.CLIENTE, null);
+    const formato = await nuevoFormato(5);
+    await llenarCarrito(comprador.id, [
+      { articuloId: formato.id, cantidad: 1 },
+    ]);
+    const direccion = await prisma.direccion.create({
+      data: {
+        usuarioId: comprador.id,
+        comunaId,
+        calle: 'Av. Prueba',
+        numero: '123',
+      },
+    });
+    const despacho = { tipoEntrega: 'despacho', direccionId: direccion.id };
+
+    // CA2: sin teléfono en el pedido ni en la cuenta no se crea y el stock no cambia
+    const sinTelefono = await confirmar(comprador.token, despacho).expect(400);
+    expect(sinTelefono.body).toMatchObject({
+      message:
+        'El teléfono de contacto es obligatorio para el despacho a domicilio.',
+      errores: [{ campo: 'telefonoContacto' }],
+    });
+    expect(await pedidosDe(comprador.id)).toBe(0);
+    expect(await stockDe(formato.id)).toBe(5);
+    expect(await itemsDelCarrito(comprador.id)).toBe(1);
+
+    // CA3: con retiro no se admite
+    await confirmar(comprador.token, {
+      telefonoContacto: '+56922222222',
+    }).expect(400);
+
+    // CA1: escrito al comprar, se guarda en el envío y la cuenta sigue sin teléfono
+    const respuesta = await confirmar(comprador.token, {
+      ...despacho,
+      telefonoContacto: '+56922222222',
+    }).expect(201);
+    const envio = await prisma.envio.findFirstOrThrow({
+      where: {
+        pedido: { codigoPublico: (respuesta.body as Pedido).codigoPublico },
+      },
+    });
+    expect(envio.telefonoContacto).toBe('+56922222222');
+    const guardada = await prisma.usuario.findUniqueOrThrow({
+      where: { id: comprador.id },
+    });
+    expect(guardada.telefono).toBeNull();
   });
 
   it('E5-H3 · pedido creado: la factura exige datos activos de la cuenta', async () => {

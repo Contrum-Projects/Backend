@@ -42,6 +42,8 @@ export const CODIGO_AL_DESPACHAR =
 
 export const CODIGO_SOLO_AL_DESPACHAR =
   'El código de seguimiento solo se indica al despachar el pedido.';
+export const TELEFONO_SOLO_AL_DESPACHAR =
+  'El teléfono de contacto solo se indica al despachar el pedido.';
 export const PEDIDO_SIN_ENVIO = 'El pedido no tiene los datos del envío.';
 export const OT_YA_REGISTRADA =
   'Ese código de seguimiento ya está registrado en otro pedido.';
@@ -80,6 +82,8 @@ const datosDelEnvio = (
   codigoSeguimiento: string | undefined,
   /** La etiqueta de la OT creada por la API (SCRUM-153); `null` si se escribió el número. */
   etiqueta: string | null,
+  /** El teléfono que completó el personal al despachar (SCRUM-167); sin él no se toca. */
+  telefonoContacto: string | undefined,
 ): Prisma.EnvioUpdateManyMutationInput | null => {
   if (sentido === 'avance') {
     if (destino === ESTADOS_PEDIDO.DESPACHADO) {
@@ -87,6 +91,7 @@ const datosDelEnvio = (
         codigoSeguimiento,
         etiqueta,
         estadoEnvio: ESTADOS_ENVIO.EN_TRANSITO,
+        ...(telefonoContacto ? { telefonoContacto } : {}),
       };
     }
     return destino === ESTADOS_PEDIDO.ENTREGADO
@@ -153,7 +158,7 @@ export class CambiarEstadoPedidoService {
     ) {
       return null;
     }
-    return this.ordenes.generar(codigoPedido);
+    return this.ordenes.generar(codigoPedido, dto.telefonoContacto);
   }
 
   /**
@@ -216,6 +221,13 @@ export class CambiarEstadoPedidoService {
           'codigoSeguimiento',
         );
       }
+      if (!seDespacha && dto.telefonoContacto) {
+        throw errorDeCampo(
+          BadRequestException,
+          TELEFONO_SOLO_AL_DESPACHAR,
+          'telefonoContacto',
+        );
+      }
 
       const datosEnvio = datosDelEnvio(
         sentido,
@@ -223,6 +235,7 @@ export class CambiarEstadoPedidoService {
         dto.estado,
         codigoSeguimiento,
         ot?.etiqueta ?? null,
+        dto.telefonoContacto,
       );
       if (datosEnvio && pedido.tipoEntrega === TIPOS_ENTREGA.DESPACHO) {
         const { count } = await tx.envio.updateMany({

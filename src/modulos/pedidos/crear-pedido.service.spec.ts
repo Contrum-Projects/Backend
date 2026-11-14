@@ -21,6 +21,7 @@ import {
   PEDIDO_PENDIENTE,
   ROL_CAMBIADO,
   SIN_DATOS_FACTURACION,
+  TELEFONO_PARA_DESPACHO,
 } from './crear-pedido.service.js';
 import type { AplicarCuponService } from '../cupones/aplicar-cupon.service.js';
 import type { CrearPedidoDto } from './dto/crear-pedido.dto.js';
@@ -41,9 +42,11 @@ const crearDb = () => {
   const db = {
     $queryRaw: vi.fn().mockResolvedValue([{ id: 7 }]),
     usuario: {
-      findUnique: vi
-        .fn()
-        .mockResolvedValue({ id: 7, fechaVerificacionCorreo: new Date() }),
+      findUnique: vi.fn().mockResolvedValue({
+        id: 7,
+        fechaVerificacionCorreo: new Date(),
+        telefono: '+56911111111',
+      }),
       findUniqueOrThrow: vi.fn().mockResolvedValue({
         nombre: 'Marcela',
         apellido: 'Soto',
@@ -408,6 +411,86 @@ describe('CrearPedidoService', () => {
         servicio.crear(CUENTA, ROLES.CLIENTE, dtoDespacho()),
       ).rejects.toBeInstanceOf(ForbiddenException);
       expect(envios.cotizar).not.toHaveBeenCalled();
+    });
+
+    describe('teléfono de contacto (SCRUM-167)', () => {
+      /** La cuenta no tiene teléfono, ni al cotizar ni dentro de la transacción. */
+      const cuentaSinTelefono = () => {
+        db.usuario.findUnique.mockResolvedValue({
+          id: 7,
+          fechaVerificacionCorreo: new Date(),
+          telefono: null,
+        });
+        db.usuario.findUniqueOrThrow.mockResolvedValue({
+          nombre: 'Marcela',
+          apellido: 'Soto',
+          telefono: null,
+          fechaVerificacionCorreo: new Date(),
+          rol: ROLES.CLIENTE,
+        });
+      };
+
+      it('SCRUM-167 · CA1 el teléfono escrito al comprar se guarda en el envío, en vez del de la cuenta', async () => {
+        await servicio.crear(
+          CUENTA,
+          ROLES.CLIENTE,
+          dtoRetiro({
+            tipoEntrega: 'despacho',
+            direccionId: 12,
+            telefonoContacto: '+56922222222',
+          }),
+        );
+
+        expect(datosPedido().envio.create.telefonoContacto).toBe(
+          '+56922222222',
+        );
+      });
+
+      it('SCRUM-167 · CA1 la cuenta sin teléfono compra con despacho si lo escribe', async () => {
+        cuentaSinTelefono();
+
+        await servicio.crear(
+          CUENTA,
+          ROLES.CLIENTE,
+          dtoRetiro({
+            tipoEntrega: 'despacho',
+            direccionId: 12,
+            telefonoContacto: '+56922222222',
+          }),
+        );
+
+        expect(envios.cotizar).toHaveBeenCalled();
+        expect(datosPedido().envio.create.telefonoContacto).toBe(
+          '+56922222222',
+        );
+      });
+
+      it('SCRUM-167 · CA2 sin teléfono en el pedido ni en la cuenta: 400 en el campo, sin cotizar, crear el pedido ni tocar el stock', async () => {
+        cuentaSinTelefono();
+
+        const error = await servicio
+          .crear(CUENTA, ROLES.CLIENTE, dtoDespacho())
+          .catch((e: unknown) => e);
+
+        expect(error).toBeInstanceOf(BadRequestException);
+        expect((error as BadRequestException).getResponse()).toMatchObject({
+          message: TELEFONO_PARA_DESPACHO,
+          errores: [
+            { campo: 'telefonoContacto', mensaje: TELEFONO_PARA_DESPACHO },
+          ],
+        });
+        expect(envios.cotizar).not.toHaveBeenCalled();
+        expect(db.pedido.create).not.toHaveBeenCalled();
+        expect(ventaStock.descontarPorPedido).not.toHaveBeenCalled();
+      });
+
+      it('SCRUM-167 · con retiro la cuenta sin teléfono compra igual', async () => {
+        cuentaSinTelefono();
+
+        await servicio.crear(CUENTA, ROLES.CLIENTE, dtoRetiro());
+
+        expect(db.pedido.create).toHaveBeenCalled();
+      });
     });
 
     it('E7-H2 · con retiro nunca consulta al courier', async () => {

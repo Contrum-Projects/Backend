@@ -58,7 +58,7 @@ export class CambiarEstadoPedidoController {
   @ApiOkResponse({ description: 'Pedido con su nuevo estado.' })
   @ApiBadRequestResponse({
     description:
-      'Estado inválido, comentario demasiado largo, falta el comentario al volver a un estado anterior, o el código de seguimiento falta al despachar, es inválido o se envía en otro cambio.',
+      'Estado inválido, comentario demasiado largo, falta el comentario al volver a un estado anterior, o el código de seguimiento falta al despachar, es inválido o se envía en otro cambio, o el teléfono de contacto se envía en otro cambio (SCRUM-167).',
   })
   @ApiNotFoundResponse({ description: 'El pedido no existe.' })
   @ApiConflictResponse({

@@ -45,7 +45,14 @@ export class GenerarOtService {
     return this.creador.configurado;
   }
 
-  async generar(codigoPedido: string): Promise<OtCreada> {
+  /**
+   * Crea la OT del pedido. `telefonoContacto` es el que escribió el personal al despachar
+   * (SCRUM-167): tiene prioridad sobre el del envío y el de la cuenta.
+   */
+  async generar(
+    codigoPedido: string,
+    telefonoContacto?: string,
+  ): Promise<OtCreada> {
     if (!this.creador.configurado) {
       throw new ServiceUnavailableException(OT_NO_CONFIGURADA);
     }
@@ -114,7 +121,8 @@ export class GenerarOtService {
         ),
       );
     }
-    const telefono = envio.telefonoContacto ?? pedido.usuario.telefono;
+    const telefono =
+      telefonoContacto ?? envio.telefonoContacto ?? pedido.usuario.telefono;
     if (!telefono) {
       throw new ConflictException(
         conRespaldo(

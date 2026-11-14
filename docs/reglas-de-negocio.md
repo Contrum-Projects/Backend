@@ -744,6 +744,16 @@ otros), guarda su etiqueta y consulta su seguimiento. Cambio al MER: `bodega.es_
 `envio.codigo_servicio` y `envio.etiqueta` (migración `ot_automatica`).
 **PENDIENTE:** (1) `con_problema` no tiene código de Chilexpress conocido, así que hoy solo lo asigna la
 corrección del personal. (2) Falta probar contra el sandbox con una OT real.
+Decisiones del 14 nov (SCRUM-167, **teléfono de contacto**): el teléfono de la cuenta es opcional,
+pero Chilexpress lo exige para la OT. **Al comprar:** `CrearPedidoDto.telefonoContacto` (opcional,
+hasta 20, solo con despacho; con retiro responde 400) se guarda en `envio.telefono_contacto`; sin
+él se usa el de la cuenta. Con despacho y sin teléfono en el pedido ni en la cuenta responde 400 en
+el campo `telefonoContacto`, sin cotizar ni crear el pedido. El teléfono del pedido **no** se copia
+a la cuenta. **Al despachar:** `CambiarEstadoPedidoDto.telefonoContacto` (opcional, hasta 20, solo
+al pasar a `despachado`; en otro cambio responde 400) tiene prioridad al crear la OT y queda en
+`envio.telefono_contacto` en la misma transacción, también con el número escrito a mano. Sirve
+para los pedidos creados antes sin teléfono. Sin teléfono en ningún lado sigue el 409 con el
+respaldo. Sin cambios al MER.
 
 **E9 Facturación.** Boleta: el comprobante de Mercado Pago. Factura: el cliente elige uno de sus
 datos de facturación; el personal registra la factura emitida en el SII con folio (único por tipo)

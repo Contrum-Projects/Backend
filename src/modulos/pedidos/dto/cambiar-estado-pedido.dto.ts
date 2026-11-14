@@ -3,6 +3,7 @@ import { Transform } from 'class-transformer';
 import { IsIn, ValidateBy } from 'class-validator';
 import { ESTADOS_PEDIDO } from '../../../common/dominio/valores.js';
 import { TextoOpcional } from '../../../common/validacion/texto-opcional.js';
+import { MAXIMO_TELEFONO_CONTACTO } from './crear-pedido.dto.js';
 
 /** Largo máximo del comentario con que el personal cambia el estado de un pedido. */
 export const MAXIMO_COMENTARIO_ESTADO = 500;
@@ -69,4 +70,16 @@ export class CambiarEstadoPedidoDto {
   })
   @FormatoCodigoSeguimiento()
   codigoSeguimiento?: string;
+
+  @ApiPropertyOptional({
+    example: '+56912345678',
+    maxLength: MAXIMO_TELEFONO_CONTACTO,
+    description:
+      'Teléfono de quien recibe, para el pedido que no lo tiene (SCRUM-167). Solo al pasar a despachado: se usa para crear la OT y queda guardado en el envío.',
+  })
+  @TextoOpcional({
+    etiqueta: 'El teléfono de contacto',
+    maximo: MAXIMO_TELEFONO_CONTACTO,
+  })
+  telefonoContacto?: string;
 }

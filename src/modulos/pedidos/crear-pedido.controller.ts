@@ -45,7 +45,7 @@ export class CrearPedidoController {
   @ApiCreatedResponse({ description: 'Detalle del pedido.' })
   @ApiBadRequestResponse({
     description:
-      'Datos del pedido inválidos, o factura sin indicar cuáles datos de facturación usar.',
+      'Datos del pedido inválidos, factura sin indicar cuáles datos de facturación usar, o despacho sin teléfono de contacto en el pedido ni en la cuenta (SCRUM-167).',
   })
   @ApiForbiddenResponse({
     description:
