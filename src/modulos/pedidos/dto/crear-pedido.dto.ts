@@ -58,6 +58,24 @@ const IdSegun = ({
   });
 };
 
+/** Largo de `envio.telefono_contacto`, igual que el teléfono de la cuenta. */
+export const MAXIMO_TELEFONO_CONTACTO = 20;
+
+export const TELEFONO_SOLO_CON_DESPACHO =
+  'El teléfono de contacto solo se indica con despacho a domicilio.';
+
+/** SCRUM-167 · Un dato que solo se acepta con despacho a domicilio. */
+const SoloConDespacho = () =>
+  ValidateBy({
+    name: 'soloConDespacho',
+    validator: {
+      validate: (_valor: unknown, argumentos?: ValidationArguments) =>
+        (argumentos?.object as CrearPedidoDto | undefined)?.tipoEntrega ===
+        TIPOS_ENTREGA.DESPACHO,
+      defaultMessage: () => TELEFONO_SOLO_CON_DESPACHO,
+    },
+  });
+
 /** Confirmación del carrito de la cuenta como pedido (E5-H3, RF-05.04 a RF-05.09 y RF-05.11). */
 export class CrearPedidoDto {
   @ApiProperty({
@@ -118,4 +136,19 @@ export class CrearPedidoDto {
   })
   @TextoOpcional({ etiqueta: 'El código del cupón', maximo: 40 })
   codigoCupon?: string | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    example: '+56912345678',
+    maxLength: MAXIMO_TELEFONO_CONTACTO,
+    description:
+      'Teléfono de quien recibe el despacho (SCRUM-167); solo con despacho. Sin él se usa el de la cuenta, y si la cuenta tampoco tiene, el pedido no se crea. No cambia el teléfono de la cuenta.',
+  })
+  @TextoOpcional({
+    etiqueta: 'El teléfono de contacto',
+    maximo: MAXIMO_TELEFONO_CONTACTO,
+  })
+  @SoloConDespacho()
+  telefonoContacto?: string | null;
 }

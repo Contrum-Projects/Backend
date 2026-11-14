@@ -123,7 +123,10 @@ describe('Despacho · crear la OT al despachar (e2e)', () => {
 
   /** Un pedido con despacho en preparación, con su servicio cotizado y 2 unidades. */
   const nuevoPedido = async (
-    cambios: { codigoServicio?: number | null } = {},
+    cambios: {
+      codigoServicio?: number | null;
+      telefonoContacto?: string | null;
+    } = {},
   ) => {
     const codigoPublico = randomUUID()
       .replaceAll('-', '')
@@ -166,7 +169,10 @@ describe('Despacho · crear la OT al despachar (e2e)', () => {
             costoNeto: 3000,
             estadoEnvio: ESTADOS_ENVIO.PENDIENTE,
             destinatario: 'Camila Rojas',
-            telefonoContacto: '+56912345678',
+            telefonoContacto:
+              cambios.telefonoContacto === undefined
+                ? '+56912345678'
+                : cambios.telefonoContacto,
             calle: 'Avenida Manuel Montt',
             numero: '427',
             referencia: 'Depto. 301',
@@ -428,5 +434,49 @@ describe('Despacho · crear la OT al despachar (e2e)', () => {
     const respuesta = await despachar(codigo).expect(409);
     expect(mensaje(respuesta.body)).toContain('servicio de Chilexpress');
     expect(creador.solicitudes).toHaveLength(0);
+  });
+
+  it('SCRUM-167 · CA6 sin teléfono en el pedido ni en la cuenta responde 409 con el respaldo y no llama a Chilexpress', async () => {
+    const codigo = await nuevoPedido({ telefonoContacto: null });
+
+    const respuesta = await despachar(codigo).expect(409);
+    expect(mensaje(respuesta.body)).toContain('teléfono del destinatario');
+    expect(creador.solicitudes).toHaveLength(0);
+    const pedido = await prisma.pedido.findUniqueOrThrow({
+      where: { codigoPublico: codigo },
+    });
+    expect(pedido.estadoActual).toBe(ESTADOS_PEDIDO.EN_PREPARACION);
+  });
+
+  it('SCRUM-167 · CA5 el personal escribe el teléfono al despachar: crea la OT con él y lo guarda en el envío', async () => {
+    const codigo = await nuevoPedido({ telefonoContacto: null });
+
+    await despachar(codigo, { telefonoContacto: ' +56933333333 ' }).expect(200);
+
+    expect(creador.solicitudes).toHaveLength(1);
+    expect(creador.solicitudes[0]).toMatchObject({
+      destinatario: { telefono: '+56933333333' },
+    });
+    expect(await envioDe(codigo)).toMatchObject({
+      telefonoContacto: '+56933333333',
+      estadoEnvio: ESTADOS_ENVIO.EN_TRANSITO,
+    });
+  });
+
+  it('SCRUM-167 · CA5 el teléfono en otro cambio que no sea despachar responde 400', async () => {
+    const codigo = await nuevoPedido();
+
+    const respuesta = await servidor()
+      .post(`/api/pedidos/${codigo}/estado`)
+      .auth(bodeguero, { type: 'bearer' })
+      .send({
+        estado: 'pagado',
+        comentario: 'Corrección.',
+        telefonoContacto: '+56933333333',
+      })
+      .expect(400);
+    expect(mensaje(respuesta.body)).toContain(
+      'El teléfono de contacto solo se indica al despachar el pedido.',
+    );
   });
 });

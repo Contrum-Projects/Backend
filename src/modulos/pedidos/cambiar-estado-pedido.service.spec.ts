@@ -15,6 +15,7 @@ import {
   estadoNoPermitido,
   OT_YA_REGISTRADA,
   PEDIDO_SIN_ENVIO,
+  TELEFONO_SOLO_AL_DESPACHAR,
 } from './cambiar-estado-pedido.service.js';
 import { errorDeCampo } from '../../common/errores/error-de-campo.js';
 import type { GenerarOtService } from '../despacho/generar-ot.service.js';
@@ -169,7 +170,7 @@ describe('CambiarEstadoPedidoService', () => {
 
     await servicio.cambiar(PERSONAL, CODIGO, { estado: 'despachado' });
 
-    expect(ordenes.generar).toHaveBeenCalledWith(CODIGO);
+    expect(ordenes.generar).toHaveBeenCalledWith(CODIGO, undefined);
     expect(db.envio.updateMany.mock.calls[0][0].data).toEqual({
       codigoSeguimiento: '712100833404',
       etiqueta: 'JVBERi0x',
@@ -219,6 +220,59 @@ describe('CambiarEstadoPedidoService', () => {
       servicio.cambiar(PERSONAL, CODIGO, { estado: 'despachado' }),
     ).rejects.toThrow(ConflictException);
     expect(ordenes.generar).not.toHaveBeenCalled();
+  });
+
+  it('SCRUM-167 · CA5 el teléfono que escribe el personal crea la OT y queda guardado en el envío', async () => {
+    ordenes.configurado = true;
+    pedidoEn('en_preparacion', 'despacho');
+    db.pedido.findUnique.mockResolvedValue({
+      estadoActual: 'en_preparacion',
+      tipoEntrega: 'despacho',
+    });
+
+    await servicio.cambiar(PERSONAL, CODIGO, {
+      estado: 'despachado',
+      telefonoContacto: '+56933333333',
+    });
+
+    expect(ordenes.generar).toHaveBeenCalledWith(CODIGO, '+56933333333');
+    expect(db.envio.updateMany.mock.calls[0][0].data).toEqual({
+      codigoSeguimiento: '712100833404',
+      etiqueta: 'JVBERi0x',
+      estadoEnvio: 'en_transito',
+      telefonoContacto: '+56933333333',
+    });
+  });
+
+  it('SCRUM-167 · CA5 con un número escrito a mano el teléfono también queda guardado', async () => {
+    pedidoEn('en_preparacion', 'despacho');
+
+    await servicio.cambiar(PERSONAL, CODIGO, {
+      estado: 'despachado',
+      codigoSeguimiento: '99887766',
+      telefonoContacto: '+56933333333',
+    });
+
+    expect(db.envio.updateMany.mock.calls[0][0].data).toMatchObject({
+      codigoSeguimiento: '99887766',
+      telefonoContacto: '+56933333333',
+    });
+  });
+
+  it('SCRUM-167 · CA5 el teléfono en otro cambio que no sea despachar: 400 y no guarda nada', async () => {
+    await expect(
+      servicio.cambiar(PERSONAL, CODIGO, {
+        estado: 'en_preparacion',
+        telefonoContacto: '+56933333333',
+      }),
+    ).rejects.toThrow(
+      errorDeCampo(
+        BadRequestException,
+        TELEFONO_SOLO_AL_DESPACHAR,
+        'telefonoContacto',
+      ),
+    );
+    expect(db.pedido.update).not.toHaveBeenCalled();
   });
 
   it('E8-H2 · retiro en tienda: «listo para retiro» avisa al cliente y después se puede pasar a «retirado», que también avisa', async () => {

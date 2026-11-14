@@ -94,6 +94,20 @@ describe('CambiarEstadoPedidoDto', () => {
     ).toEqual(['El código de seguimiento debe ser un texto.']);
   });
 
+  it('SCRUM-167 · CA5 recorta el teléfono de contacto y no pasa de 20 caracteres', async () => {
+    const { dto, mensajes } = await probar({
+      estado: 'despachado',
+      telefonoContacto: ' +56933333333 ',
+    });
+    expect(mensajes).toEqual([]);
+    expect(dto.telefonoContacto).toBe('+56933333333');
+
+    expect(
+      (await probar({ estado: 'despachado', telefonoContacto: '9'.repeat(21) }))
+        .mensajes,
+    ).toEqual(['El teléfono de contacto no puede superar los 20 caracteres.']);
+  });
+
   it('no admite campos de más', async () => {
     expect((await probar({ estado: 'pagado', usuarioId: 1 })).mensajes).toEqual(
       ['El campo «usuarioId» no se admite.'],
