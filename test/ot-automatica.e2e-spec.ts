@@ -33,6 +33,7 @@ const PREFIJO_CORREO = 'e2e-ot-';
 /** Santiago (STGO) y Providencia (PROV) en `CODIGOS_CHILEXPRESS`. */
 const COMUNA_BODEGA = '13101';
 const COMUNA_DESTINO = '13123';
+const REGION_METROPOLITANA = '13';
 /** Una etiqueta PDF mínima, en base64, como la entrega Chilexpress. */
 const ETIQUETA = Buffer.from('%PDF-1.4 etiqueta de prueba').toString('base64');
 
@@ -65,8 +66,39 @@ describe('Despacho · crear la OT al despachar (e2e)', () => {
   let compradorId: number;
   let formatoId: number;
   let bodegaDespachoAnterior: number | null = null;
+  /** Lo que la prueba creó porque la base no traía la semilla; se borra al terminar. */
+  const territorioCreado = { region: false, comunas: [] as string[] };
 
   const unico = () => randomUUID().slice(0, 8);
+
+  /**
+   * El CI corre los e2e sin la semilla de comunas (SCRUM-161). Estas deben ser las reales:
+   * Chilexpress las reconoce por su código CUT (`CODIGOS_CHILEXPRESS`).
+   */
+  const asegurarTerritorio = async () => {
+    let region = await prisma.region.findUnique({
+      where: { codigoCut: REGION_METROPOLITANA },
+    });
+    if (!region) {
+      region = await prisma.region.create({
+        data: {
+          codigoCut: REGION_METROPOLITANA,
+          nombre: 'Metropolitana de Santiago',
+        },
+      });
+      territorioCreado.region = true;
+    }
+    for (const [codigoCut, nombre] of [
+      [COMUNA_BODEGA, 'Santiago'],
+      [COMUNA_DESTINO, 'Providencia'],
+    ]) {
+      if (await prisma.comuna.findUnique({ where: { codigoCut } })) continue;
+      await prisma.comuna.create({
+        data: { codigoCut, nombre, regionId: region.id },
+      });
+      territorioCreado.comunas.push(codigoCut);
+    }
+  };
   const servidor = () => request(app.getHttpServer());
 
   const tokenDe = async (rol: Rol) => {
@@ -191,6 +223,7 @@ describe('Despacho · crear la OT al despachar (e2e)', () => {
     redis = app.get(REDIS);
     hashContrasena = await argon2.hash(CONTRASENA);
     await limpiar();
+    await asegurarTerritorio();
     // La base de desarrollo puede tener su bodega de despacho: se devuelve al terminar
     bodegaDespachoAnterior =
       (await prisma.bodega.findFirst({ where: { esDespacho: true } }))?.id ??
@@ -255,6 +288,14 @@ describe('Despacho · crear la OT al despachar (e2e)', () => {
       await prisma.bodega.update({
         where: { id: bodegaDespachoAnterior },
         data: { esDespacho: true },
+      });
+    }
+    await prisma.comuna.deleteMany({
+      where: { codigoCut: { in: territorioCreado.comunas } },
+    });
+    if (territorioCreado.region) {
+      await prisma.region.deleteMany({
+        where: { codigoCut: REGION_METROPOLITANA },
       });
     }
     await app.close();

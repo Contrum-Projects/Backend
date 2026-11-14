@@ -20,6 +20,9 @@ const CONTRASENA = 'Secreta123';
 const RUTA = '/api/inventario/bodegas';
 const PREFIJO = 'E2E-bodegas';
 const PREFIJO_CORREO = 'e2e-bodegas-';
+/** Territorio propio: el CI corre los e2e sin la semilla de comunas (SCRUM-161). */
+const REGION = '86';
+const COMUNA = '86001';
 
 interface Bodega {
   id: number;
@@ -162,13 +165,27 @@ describe('Inventario · bodegas y ubicaciones (e2e)', () => {
     hashContrasena = await argon2.hash(CONTRASENA);
     await limpiar();
     administrador = await tokenDe(ROLES.ADMINISTRADOR);
-    comuna = await prisma.comuna.findFirstOrThrow({
-      select: { codigoCut: true, region: { select: { codigoCut: true } } },
+    const region = await prisma.region.upsert({
+      where: { codigoCut: REGION },
+      update: {},
+      create: { codigoCut: REGION, nombre: 'Región de prueba bodegas' },
     });
+    await prisma.comuna.upsert({
+      where: { codigoCut: COMUNA },
+      update: {},
+      create: {
+        codigoCut: COMUNA,
+        nombre: 'Comuna de prueba bodegas',
+        regionId: region.id,
+      },
+    });
+    comuna = { codigoCut: COMUNA, region: { codigoCut: REGION } };
   });
 
   afterAll(async () => {
     await limpiar();
+    await prisma.comuna.deleteMany({ where: { codigoCut: COMUNA } });
+    await prisma.region.deleteMany({ where: { codigoCut: REGION } });
     await app.close();
   });
 
