@@ -956,7 +956,9 @@ día antes de vencer; si Khipu lo rechaza (401) se pide otro una vez.
 La consulta es síncrona, con plazo de **10 s** (incluye pedir el token); sin credenciales la app arranca, pero toda consulta falla y
 se piden documentos. `SII_PROVEEDOR=simulado` es solo para desarrollo (último dígito del RUT:
 0 sin actividades, 1 otro giro, 2 falla, 3 peluquería a nombre de otra persona, otro peluquería a
-nombre de la cuenta con ese RUT) y la app no arranca con él en producción.
+nombre de la cuenta con ese RUT) y la app no arranca con él en producción, salvo en el servidor de
+demo con `PERMITIR_SII_SIMULADO=true` (decisión del 15 nov 2026: sin cuenta de Khipu en producción,
+el sandbox no consulta el SII de verdad). Esa variable se saca antes de abrir la tienda.
 **Regla de aprobación:** alguna actividad con `Code` `960200` y `Date` ya cumplida; Khipu no trae un
 campo de vigencia, así que «vigente» es «está en la lista del SII y su fecha de inicio ya pasó».
 Una fecha que falta no aprueba. **Además, el nombre del contribuyente debe calzar con la cuenta**

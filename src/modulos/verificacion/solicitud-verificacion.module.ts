@@ -58,8 +58,11 @@ import { ProveedorSituacionTributaria } from './sii/proveedor-situacion-tributar
         prisma: PrismaService,
       ): ProveedorSituacionTributaria => {
         if (config.get('SII_PROVEEDOR', { infer: true }) === 'simulado') {
+          // En producción solo llega aquí con PERMITIR_SII_SIMULADO (entorno.ts): servidor de demo
           new Logger('Verificacion').warn(
-            'SII simulado: la consulta responde según el último dígito del RUT. Solo para desarrollo.',
+            config.get('NODE_ENV', { infer: true }) === 'production'
+              ? 'SII simulado EN PRODUCCIÓN (PERMITIR_SII_SIMULADO): todo RUT terminado en 4 a 9 queda profesional. Solo para la demo: sácalo antes de abrir la tienda.'
+              : 'SII simulado: la consulta responde según el último dígito del RUT. Solo para desarrollo.',
           );
           return new ProveedorSimulado(prisma);
         }

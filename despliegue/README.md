@@ -78,7 +78,7 @@ Abre `https://TU_SUBDOMINIO` y entra al panel en `/ingresar` con `SEED_ADMIN_EMA
 | **Resend** | Verifica el subdominio en Resend (te da registros DNS para el remitente). Sin eso, los correos de confirmación no salen y no se puede activar una cuenta. Webhook opcional: `https://TU_SUBDOMINIO/api/marketing/rebotes`, evento `email.bounced` |
 | **Mercado Pago** | En «Tus integraciones», usa las **credenciales de prueba**. Webhook: `https://TU_SUBDOMINIO/api/pagos/notificaciones`, evento «Pagos», y copia la clave secreta a `MERCADOPAGO_WEBHOOK_SECRET`. Para pagar, crea un comprador de prueba y usa las tarjetas de prueba |
 | **Chilexpress** | Claves del ambiente de prueba de Chilexpress Developers. `CHILEXPRESS_URL_BASE` ya apunta a `testservices` |
-| **Khipu** | Opcional. Sin credenciales, la verificación de profesionales pasa a revisión manual con documentos, que se resuelve en el panel |
+| **Khipu** | Opcional. Sin credenciales, la verificación de profesionales pasa a revisión manual con documentos, que se resuelve en el panel. Las credenciales de sandbox no consultan el SII de verdad. Para mostrar la aprobación automática en la demo: `SII_PROVEEDOR=simulado` y `PERMITIR_SII_SIMULADO=true` (un RUT terminado en 4 a 9 antes del guion se aprueba solo). Vuelve a `false` antes de abrir la tienda |
 | **R2** | Sin las cinco variables no se pueden subir fotos. Si cambias `R2_URL_PUBLICA`, reconstruye la tienda (`docker compose build tienda`) |
 
 Después de cambiar el `.env`: `docker compose up -d` (la API se recrea sola).
