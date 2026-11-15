@@ -183,6 +183,33 @@ describe('validarEntorno · consulta al SII', () => {
       'SII_PROVEEDOR',
     );
   });
+
+  it('E10-H1 · demo: el simulado arranca en producción solo con PERMITIR_SII_SIMULADO=true', () => {
+    const produccion = { ...BASE, ...CORREO, NODE_ENV: 'production' };
+    const demo = validarEntorno({
+      ...produccion,
+      SII_PROVEEDOR: 'simulado',
+      PERMITIR_SII_SIMULADO: 'true',
+    });
+    expect(demo.SII_PROVEEDOR).toBe('simulado');
+    expect(demo.PERMITIR_SII_SIMULADO).toBe(true);
+
+    // Cualquier otro valor no lo habilita
+    for (const valor of ['false', undefined]) {
+      expect(() =>
+        validarEntorno({
+          ...produccion,
+          SII_PROVEEDOR: 'simulado',
+          PERMITIR_SII_SIMULADO: valor,
+        }),
+      ).toThrow('SII_PROVEEDOR');
+    }
+    expect(() =>
+      validarEntorno({ ...produccion, PERMITIR_SII_SIMULADO: 'si' }),
+    ).toThrow('PERMITIR_SII_SIMULADO');
+    // Por defecto está apagada
+    expect(validarEntorno(BASE).PERMITIR_SII_SIMULADO).toBe(false);
+  });
 });
 
 describe('validarEntorno · seguimiento de correos', () => {

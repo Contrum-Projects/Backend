@@ -164,6 +164,15 @@ export const esquemaEntorno = z
      * último dígito del RUT, sin consultar a nadie. En producción la app no arranca con él.
      */
     SII_PROVEEDOR: z.enum(['khipu', 'simulado']).default('khipu'),
+    /**
+     * `true` acepta el SII simulado en producción, solo para el servidor de demo mientras no hay
+     * cuenta de Khipu en producción. Cualquiera con un RUT terminado en 4 a 9 queda profesional:
+     * hay que sacarla antes de abrir la tienda. Sin `SII_PROVEEDOR=simulado` no hace nada.
+     */
+    PERMITIR_SII_SIMULADO: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((v) => v === 'true'),
     /** `false` apaga el envío en esta instancia: los e2e leen los trabajos de la cola. */
     CORREOS_WORKER_ACTIVO: z
       .enum(['true', 'false'])
@@ -196,15 +205,18 @@ export const esquemaEntorno = z
         message: 'van juntos: falta uno de los dos datos del cliente de Khipu',
       });
     }
-    // Con el simulado, cualquiera con RUT acabado en 3..9 sería profesional sin serlo (E10-H1)
+    // Con el simulado, cualquiera con RUT acabado en 4..9 sería profesional sin serlo (E10-H1).
+    // Solo el servidor de demo lo acepta, y tiene que pedirlo de forma explícita
     if (
       entorno.NODE_ENV === 'production' &&
-      entorno.SII_PROVEEDOR === 'simulado'
+      entorno.SII_PROVEEDOR === 'simulado' &&
+      !entorno.PERMITIR_SII_SIMULADO
     ) {
       contexto.addIssue({
         code: 'custom',
         path: ['SII_PROVEEDOR'],
-        message: 'no puede ser «simulado» en producción',
+        message:
+          'no puede ser «simulado» en producción (solo para la demo, con PERMITIR_SII_SIMULADO=true)',
       });
     }
     // Nunca cobrar tarifas de prueba a clientes reales por olvidar la URL (E7-H2)
