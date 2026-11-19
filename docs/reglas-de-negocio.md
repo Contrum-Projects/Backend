@@ -1343,7 +1343,7 @@ las reglas del catálogo público (de venta general, a la venta; el pack vigente
 categoría existente. Al guardar, un destino no disponible responde 400; si deja de estarlo
 después, `GET /api/portada` (pública) omite el slide y el panel lo marca `disponible: false`.
 
-**E14 Reportes.** Solo administrador. OE1 30 %, OE2 70 % en 48 h, OE3 80 %; ventas por período y
+**E14 Reportes.** Solo administrador. OE1 facturación digital +20 %, OE2 quiebres de stock −80 %, OE3 alcance territorial 30 % (decisión del 18 nov 2026); ventas por período y
 tipo de cliente; carritos abandonados y recuperados; resultado de campañas; stock bajo el mínimo.
 Decisiones del 30 oct (E14-H4): `GET /api/reportes/stock-bajo-minimo` con `reportes.ver` (solo
 administrador; bodeguero, vendedor, cliente y profesional reciben 403 y sin sesión 401).
@@ -1389,6 +1389,25 @@ SCRUM-150 (6 nov): cada indicador trae `estado` (`ESTADOS_OBJETIVO`): `sobre-la-
 redondeado), `bajo-la-meta` si no, y `sin-datos` sin total. El reporte de carritos trae
 `porcentajeRecuperados` (recuperados / abandonados, al entero; `null` sin abandonos) por mes y en
 el total. Las dos respuestas quedan tipadas en el Swagger.
+**Decisión del 18 nov 2026 (reemplaza los OE1 a OE3 del 5 nov):** cambian los objetivos
+específicos del proyecto; la ruta, el período, la forma de la respuesta y `estado` siguen iguales.
+El **período anterior** tiene los mismos días que el consultado y termina justo antes de `desde`.
+**OE1 Facturación digital** (meta 20): crecimiento del monto total (`monto_total`) de los pedidos
+pagados (todo estado salvo `ESTADOS_SIN_VENTA`) del período frente al anterior;
+`cumplidos` = pesos del período, `total` = pesos del anterior, `porcentaje` = (cumplidos − total) /
+total. El sistema solo registra las ventas en línea, así que la «facturación digital sobre las
+ventas totales» se mide como su crecimiento. **OE2 Quiebres de stock** (meta 80): reducción de los
+quiebres frente al período anterior; un quiebre es un `movimiento_inventario` que deja en 0 o menos
+el stock total del formato (suma con signo de todos sus movimientos: entradas suman; ventas y
+salidas restan; la transferencia no cambia el total) cuando antes tenía stock. `cumplidos` =
+quiebres del período, `total` = del anterior, `porcentaje` = (total − cumplidos) / total. **OE3
+Alcance territorial** (meta 30): de los pedidos pagados del período (`total`), cuántos se
+despachan (`envio.id_comuna`) fuera de Talcahuano y sus comunas aledañas, por código CUT:
+Concepción 08101, Chiguayante 08103, Penco 08107, San Pedro de la Paz 08108, Talcahuano 08110 y
+Hualpén 08112 (`COMUNAS_LOCALES`); el retiro en tienda cuenta como local. Sin `total` (sin ventas o
+sin quiebres en el período anterior, o sin pedidos) el indicador queda `sin-datos`. En OE1 y OE2 el
+porcentaje puede ser negativo. `sobre-la-meta` se compara con los conteos, como antes. Sin cambios
+al MER.
 Decisiones del 6 nov (E14-H3, SCRUM-76): dos rutas con `reportes.ver` (401 sin sesión, 403 sin el
 permiso). **Carritos:** `GET /api/reportes/carritos-abandonados?desde=AAAA-MM&hasta=AAAA-MM`, ambos
 meses obligatorios e incluidos, en hora de Chile; **400** si un mes no es válido (AAAA-MM, años
