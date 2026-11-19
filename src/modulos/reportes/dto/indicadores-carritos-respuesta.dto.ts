@@ -10,7 +10,7 @@ class IndicadorDto {
   @ApiProperty({ enum: ['OE1', 'OE2', 'OE3'] })
   codigo: 'OE1' | 'OE2' | 'OE3';
 
-  @ApiProperty({ example: 'Profesionales verificados que compran' })
+  @ApiProperty({ example: 'Alcance territorial' })
   nombre: string;
 
   @ApiProperty({ example: 30, description: 'Meta en porcentaje.' })
@@ -20,17 +20,23 @@ class IndicadorDto {
     type: Number,
     nullable: true,
     example: 42.9,
-    description: 'Con un decimal; `null` sin nada que medir en el período.',
+    description:
+      'Con un decimal; `null` sin nada que medir. En OE1 (crecimiento) y OE2 (reducción) puede ser negativo.',
   })
   porcentaje: number | null;
 
   @ApiProperty({
     example: 3,
-    description: 'Lo que cumple el objetivo, de `total`.',
+    description:
+      'OE1: pesos vendidos en el período. OE2: quiebres de stock en el período. OE3: pedidos despachados fuera de la zona local.',
   })
   cumplidos: number;
 
-  @ApiProperty({ example: 7 })
+  @ApiProperty({
+    example: 7,
+    description:
+      'OE1: pesos vendidos en el período anterior. OE2: quiebres de stock en el período anterior. OE3: pedidos pagados del período.',
+  })
   total: number;
 
   @ApiProperty()

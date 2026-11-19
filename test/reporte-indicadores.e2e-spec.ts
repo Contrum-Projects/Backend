@@ -9,11 +9,13 @@ import { AppModule } from '../src/app.module.js';
 import { ROLES, type Rol } from '../src/common/dominio/roles.js';
 import {
   CANALES_VENTA,
+  ESTADOS_ENVIO,
   ESTADOS_PEDIDO,
-  ESTADOS_SOLICITUD,
   ORIGENES_DESCRIPCION,
+  TIPOS_ARTICULO,
   TIPOS_DOCUMENTO,
   TIPOS_ENTREGA,
+  TIPOS_MOVIMIENTO,
 } from '../src/common/dominio/valores.js';
 import { configurarApp } from '../src/configurar-app.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
@@ -26,7 +28,9 @@ const RUTA = '/api/reportes/indicadores';
 // Todo lo que crean estas pruebas lleva este prefijo, para borrarlo al terminar
 const PREFIJO = 'E2E-reporte-indicadores';
 const PREFIJO_CORREO = 'e2e-reporte-indicadores-';
-const HORA_MS = 3_600_000;
+// Talcahuano (local) y Santiago (fuera de la zona local), por código CUT
+const TALCAHUANO = '08110';
+const SANTIAGO = '13101';
 
 interface Indicador {
   codigo: string;
@@ -44,9 +48,9 @@ interface Reporte {
 }
 
 /**
- * Los datos de estas pruebas van en junio de 2021, un mes ya pasado en que no hay otros registros
- * en la base: así los conteos son exactos y toda solicitud sin resolver lleva más de 48 h. En
- * junio Chile está en UTC-4.
+ * Los datos de estas pruebas van en junio de 2021 (y su período anterior, del 2 al 31 de mayo),
+ * meses ya pasados en que no hay otros registros en la base: así los conteos son exactos. En
+ * mayo y junio Chile está en UTC-4.
  */
 const DESDE = '2021-06-01';
 const HASTA = '2021-06-30';
@@ -86,57 +90,91 @@ describe('Reportes · indicadores de los objetivos (e2e)', () => {
     return (respuesta.body as { tokenAcceso: string }).tokenAcceso;
   };
 
-  const nuevaSolicitud = async (datos: {
-    estado: string;
-    presentada: string;
-    horasHastaResolver?: number;
-  }) => {
-    const { id } = await nuevaCuenta(ROLES.CLIENTE);
-    const presentada = new Date(datos.presentada);
-    await prisma.solicitudVerificacion.create({
-      data: {
-        solicitanteId: id,
-        estado: datos.estado,
-        fechaSolicitud: presentada,
-        fechaResolucion:
-          datos.horasHastaResolver === undefined
-            ? null
-            : new Date(
-                presentada.getTime() + datos.horasHastaResolver * HORA_MS,
-              ),
-      },
-    });
-    return id;
-  };
-
-  const nuevoPedido = (usuarioId: number, fecha: string, estado: string) =>
-    prisma.pedido.create({
+  const nuevoPedido = async (
+    fecha: string,
+    datos: { estado?: string; montoTotal?: number; comunaCut?: string } = {},
+  ) => {
+    const { id: usuarioId } = await nuevaCuenta(ROLES.CLIENTE);
+    const montoTotal = datos.montoTotal ?? 11900;
+    const montoNeto = Math.round(montoTotal / 1.19);
+    const pedido = await prisma.pedido.create({
       data: {
         codigoPublico: randomUUID().replace(/-/g, '').slice(0, 12),
         usuarioId,
         fechaPedido: new Date(fecha),
         fechaExpiracionPago: new Date(new Date(fecha).getTime() + 15 * 60_000),
-        estadoActual: estado,
-        tipoEntrega: TIPOS_ENTREGA.RETIRO,
+        estadoActual: datos.estado ?? ESTADOS_PEDIDO.PAGADO,
+        tipoEntrega: datos.comunaCut
+          ? TIPOS_ENTREGA.DESPACHO
+          : TIPOS_ENTREGA.RETIRO,
         tipoDocumentoSolicitado: TIPOS_DOCUMENTO.BOLETA,
         porcentajeIva: 19,
-        montoNeto: 10000,
-        montoIva: 1900,
-        montoTotal: 11900,
+        montoNeto,
+        montoIva: montoTotal - montoNeto,
+        montoTotal,
       },
     });
+    if (datos.comunaCut) {
+      const comuna = await prisma.comuna.findUniqueOrThrow({
+        where: { codigoCut: datos.comunaCut },
+      });
+      await prisma.envio.create({
+        data: {
+          pedidoId: pedido.id,
+          comunaId: comuna.id,
+          servicioEnvio: 'Prueba',
+          costoNeto: 0,
+          estadoEnvio: ESTADOS_ENVIO.PENDIENTE,
+          destinatario: 'Camila Rojas',
+          calle: 'Calle de prueba',
+          numero: '100',
+        },
+      });
+    }
+    return pedido;
+  };
 
-  const nuevoProducto = (origenDescripcion: string, fecha: string) =>
-    prisma.producto.create({
+  const nuevoFormato = async () => {
+    const producto = await prisma.producto.create({
       data: {
         categoriaId,
         nombre: `${PREFIJO} ${randomUUID().slice(0, 8)}`,
         descripcion: 'Descripción de prueba',
-        origenDescripcion,
+        origenDescripcion: ORIGENES_DESCRIPCION.MANUAL,
         canalVenta: CANALES_VENTA.GENERAL,
-        fechaCreacion: new Date(fecha),
       },
     });
+    const articulo = await prisma.articuloVenta.create({
+      data: {
+        sku: `${PREFIJO}-${randomUUID().slice(0, 8)}`,
+        tipo: TIPOS_ARTICULO.FORMATO,
+      },
+    });
+    await prisma.formatoProducto.create({
+      data: {
+        id: articulo.id,
+        productoId: producto.id,
+        nombreFormato: '300 ml',
+        pesoGramos: 320,
+        altoCm: 18,
+        anchoCm: 6,
+        largoCm: 6,
+      },
+    });
+    return articulo.id;
+  };
+
+  /** Movimientos de un formato, en orden: `[tipo, cantidad, fecha]`. */
+  const movimientos = async (
+    formatoId: number,
+    lista: [string, number, string][],
+  ) => {
+    for (const [tipo, cantidad, fecha] of lista) {
+      await prisma.movimientoInventario.create({
+        data: { formatoId, tipo, cantidad, fechaHora: new Date(fecha) },
+      });
+    }
+  };
 
   const consultar = (
     desde = DESDE,
@@ -153,13 +191,17 @@ describe('Reportes · indicadores de los objetivos (e2e)', () => {
 
   const limpiarDatos = async () => {
     const usuario = { email: { startsWith: PREFIJO_CORREO } };
+    await prisma.envio.deleteMany({ where: { pedido: { usuario } } });
     await prisma.pedido.deleteMany({ where: { usuario } });
-    await prisma.solicitudVerificacion.deleteMany({
-      where: { solicitante: usuario },
+    const producto = { nombre: { startsWith: PREFIJO } };
+    await prisma.movimientoInventario.deleteMany({
+      where: { formato: { producto } },
     });
-    await prisma.producto.deleteMany({
-      where: { nombre: { startsWith: PREFIJO } },
+    await prisma.formatoProducto.deleteMany({ where: { producto } });
+    await prisma.articuloVenta.deleteMany({
+      where: { sku: { startsWith: PREFIJO } },
     });
+    await prisma.producto.deleteMany({ where: producto });
   };
 
   beforeAll(async () => {
@@ -175,6 +217,22 @@ describe('Reportes · indicadores de los objetivos (e2e)', () => {
     tokenAdministrador = await tokenDe(ROLES.ADMINISTRADOR);
     categoriaId = (await prisma.categoria.create({ data: { nombre: PREFIJO } }))
       .id;
+    // Las dos comunas que usan los despachos (ya existen si la base tiene la semilla)
+    for (const [region, codigoCut, nombre] of [
+      ['08', TALCAHUANO, 'Talcahuano'],
+      ['13', SANTIAGO, 'Santiago'],
+    ]) {
+      const { id: regionId } = await prisma.region.upsert({
+        where: { codigoCut: region },
+        update: {},
+        create: { codigoCut: region, nombre: `Región ${region}` },
+      });
+      await prisma.comuna.upsert({
+        where: { codigoCut },
+        update: {},
+        create: { codigoCut, nombre, regionId },
+      });
+    }
   });
 
   // Todas las peticiones salen de la misma IP: cada prueba parte sin contadores ni datos
@@ -197,27 +255,24 @@ describe('Reportes · indicadores de los objetivos (e2e)', () => {
   });
 
   it('E14-H1 · CA1 indicadores con datos: devuelve cada indicador como porcentaje junto a su meta', async () => {
-    // OE1: dos verificados en junio; uno compró después de aprobarse y otro solo antes
-    const compra = await nuevaSolicitud({
-      estado: ESTADOS_SOLICITUD.APROBADA,
-      presentada: '2021-06-05T12:00:00Z',
-      horasHastaResolver: 0,
+    // OE1: $100.000 en mayo y $150.000 en junio, +50 %
+    await nuevoPedido('2021-05-10T12:00:00Z', { montoTotal: 100_000 });
+    await nuevoPedido('2021-06-10T12:00:00Z', {
+      montoTotal: 100_000,
+      comunaCut: SANTIAGO,
     });
-    await nuevoPedido(compra, '2021-06-20T12:00:00Z', ESTADOS_PEDIDO.ENTREGADO);
-    const soloAntes = await nuevaSolicitud({
-      estado: ESTADOS_SOLICITUD.APROBADA,
-      presentada: '2021-06-10T12:00:00Z',
-      horasHastaResolver: 0,
+    await nuevoPedido('2021-06-11T12:00:00Z', {
+      montoTotal: 50_000,
+      comunaCut: TALCAHUANO,
     });
-    await nuevoPedido(soloAntes, '2021-06-09T12:00:00Z', ESTADOS_PEDIDO.PAGADO);
-    // OE3: 3 de 4 productos con la IA (aceptada o corregida)
-    await nuevoProducto(ORIGENES_DESCRIPCION.IA, '2021-06-02T12:00:00Z');
-    await nuevoProducto(
-      ORIGENES_DESCRIPCION.IA_EDITADA,
-      '2021-06-03T12:00:00Z',
-    );
-    await nuevoProducto(ORIGENES_DESCRIPCION.IA, '2021-06-04T12:00:00Z');
-    await nuevoProducto(ORIGENES_DESCRIPCION.MANUAL, '2021-06-05T12:00:00Z');
+    // OE2: un quiebre en mayo y ninguno en junio, -100 %
+    const formato = await nuevoFormato();
+    await movimientos(formato, [
+      [TIPOS_MOVIMIENTO.ENTRADA, 5, '2021-05-03T12:00:00Z'],
+      [TIPOS_MOVIMIENTO.VENTA, 5, '2021-05-20T12:00:00Z'],
+      [TIPOS_MOVIMIENTO.ENTRADA, 5, '2021-06-02T12:00:00Z'],
+      [TIPOS_MOVIMIENTO.VENTA, 2, '2021-06-15T12:00:00Z'],
+    ]);
 
     const respuesta = await consultar().expect(200);
 
@@ -225,148 +280,107 @@ describe('Reportes · indicadores de los objetivos (e2e)', () => {
     expect(reporte.desde).toBe(DESDE);
     expect(reporte.hasta).toBe(HASTA);
     expect(indicador(reporte, 'OE1')).toMatchObject({
+      meta: 20,
+      cumplidos: 150_000,
+      total: 100_000,
+      porcentaje: 50,
+      sinDatos: false,
+    });
+    expect(indicador(reporte, 'OE2')).toMatchObject({
+      meta: 80,
+      cumplidos: 0,
+      total: 1,
+      porcentaje: 100,
+    });
+    // OE3: el pedido de mayo no es del período; 1 de 2 se despacha fuera
+    expect(indicador(reporte, 'OE3')).toMatchObject({
       meta: 30,
       cumplidos: 1,
       total: 2,
       porcentaje: 50,
-      sinDatos: false,
     });
-    // Las dos aprobadas por el SII al instante: ambas dentro de las 48 h
+  });
+
+  it('E14-H1 · OE1: solo cuentan los pedidos pagados, y el período anterior tiene los mismos días', async () => {
+    // El 1 de mayo queda fuera del período anterior (2 al 31 de mayo)
+    await nuevoPedido('2021-05-01T12:00:00Z', { montoTotal: 999_000 });
+    await nuevoPedido('2021-05-02T12:00:00Z', { montoTotal: 100_000 });
+    await nuevoPedido('2021-06-05T12:00:00Z', { montoTotal: 90_000 });
+    await nuevoPedido('2021-06-06T12:00:00Z', {
+      montoTotal: 500_000,
+      estado: ESTADOS_PEDIDO.PENDIENTE_PAGO,
+    });
+    await nuevoPedido('2021-06-07T12:00:00Z', {
+      montoTotal: 500_000,
+      estado: ESTADOS_PEDIDO.CANCELADO,
+    });
+
+    const reporte = (await consultar().expect(200)).body as Reporte;
+
+    expect(indicador(reporte, 'OE1')).toMatchObject({
+      cumplidos: 90_000,
+      total: 100_000,
+      porcentaje: -10,
+      estado: 'bajo-la-meta',
+    });
+  });
+
+  it('E14-H1 · OE2: un quiebre es cuando el stock total del formato pasa de tener a 0; la transferencia no cambia el total', async () => {
+    const formato = await nuevoFormato();
+    await movimientos(formato, [
+      // Mayo: llega a 0 una vez
+      [TIPOS_MOVIMIENTO.ENTRADA, 3, '2021-05-05T12:00:00Z'],
+      [TIPOS_MOVIMIENTO.TRANSFERENCIA, 3, '2021-05-06T12:00:00Z'],
+      [TIPOS_MOVIMIENTO.MERMA_DANO, 3, '2021-05-07T12:00:00Z'],
+      // Junio: dos veces (por un ajuste y por una venta), con un reingreso entre medio
+      [TIPOS_MOVIMIENTO.AJUSTE_POSITIVO, 2, '2021-06-03T12:00:00Z'],
+      [TIPOS_MOVIMIENTO.AJUSTE_NEGATIVO, 2, '2021-06-04T12:00:00Z'],
+      [TIPOS_MOVIMIENTO.REINGRESO, 1, '2021-06-05T12:00:00Z'],
+      [TIPOS_MOVIMIENTO.VENTA, 1, '2021-06-06T12:00:00Z'],
+    ]);
+    // Otro formato que baja sin llegar a 0 no suma quiebres
+    const otro = await nuevoFormato();
+    await movimientos(otro, [
+      [TIPOS_MOVIMIENTO.ENTRADA, 10, '2021-05-05T12:00:00Z'],
+      [TIPOS_MOVIMIENTO.VENTA, 9, '2021-06-05T12:00:00Z'],
+    ]);
+
+    const reporte = (await consultar().expect(200)).body as Reporte;
+
     expect(indicador(reporte, 'OE2')).toMatchObject({
-      meta: 70,
       cumplidos: 2,
-      total: 2,
-      porcentaje: 100,
-    });
-    expect(indicador(reporte, 'OE3')).toMatchObject({
-      meta: 80,
-      cumplidos: 3,
-      total: 4,
-      porcentaje: 75,
-    });
-  });
-
-  it('E14-H1 · OE1: una compra posterior al fin del período no cuenta, y la del mismo instante de la aprobación sí', async () => {
-    const despues = await nuevaSolicitud({
-      estado: ESTADOS_SOLICITUD.APROBADA,
-      presentada: '2021-06-05T12:00:00Z',
-      horasHastaResolver: 0,
-    });
-    await nuevoPedido(despues, '2021-07-02T12:00:00Z', ESTADOS_PEDIDO.PAGADO);
-    const mismoInstante = await nuevaSolicitud({
-      estado: ESTADOS_SOLICITUD.APROBADA,
-      presentada: '2021-06-06T12:00:00Z',
-      horasHastaResolver: 0,
-    });
-    await nuevoPedido(
-      mismoInstante,
-      '2021-06-06T12:00:00Z',
-      ESTADOS_PEDIDO.PAGADO,
-    );
-
-    const reporte = (await consultar().expect(200)).body as Reporte;
-
-    expect(indicador(reporte, 'OE1')).toMatchObject({
-      cumplidos: 1,
-      total: 2,
-    });
-  });
-
-  it('E14-H1 · OE1: una cuenta con dos aprobaciones en el período cuenta una sola vez', async () => {
-    const cuenta = await nuevaSolicitud({
-      estado: ESTADOS_SOLICITUD.APROBADA,
-      presentada: '2021-06-05T12:00:00Z',
-      horasHastaResolver: 0,
-    });
-    await prisma.solicitudVerificacion.create({
-      data: {
-        solicitanteId: cuenta,
-        estado: ESTADOS_SOLICITUD.APROBADA,
-        fechaSolicitud: new Date('2021-06-20T12:00:00Z'),
-        fechaResolucion: new Date('2021-06-20T12:00:00Z'),
-      },
-    });
-
-    const reporte = (await consultar().expect(200)).body as Reporte;
-
-    expect(indicador(reporte, 'OE1').total).toBe(1);
-  });
-
-  it('E14-H1 · OE2: una solicitud sin resolver que aún está dentro de sus 48 h no cuenta en el total', async () => {
-    // En un período que incluye hoy puede haber otros datos: se mide cuánto cambia el total
-    const hoy = new Date().toISOString().slice(0, 10);
-    const ayer = new Date(Date.now() - 24 * HORA_MS).toISOString().slice(0, 10);
-    const totalOe2 = async () =>
-      indicador((await consultar(ayer, hoy).expect(200)).body as Reporte, 'OE2')
-        .total;
-    const antes = await totalOe2();
-
-    await nuevaSolicitud({
-      estado: ESTADOS_SOLICITUD.PENDIENTE,
-      presentada: new Date(Date.now() - HORA_MS).toISOString(),
-    });
-
-    expect(await totalOe2()).toBe(antes);
-  });
-
-  it('E14-H1 · OE1: una compra sin pagar o cancelada no cuenta como compra', async () => {
-    const cuenta = await nuevaSolicitud({
-      estado: ESTADOS_SOLICITUD.APROBADA,
-      presentada: '2021-06-05T12:00:00Z',
-      horasHastaResolver: 1,
-    });
-    await nuevoPedido(
-      cuenta,
-      '2021-06-06T12:00:00Z',
-      ESTADOS_PEDIDO.PENDIENTE_PAGO,
-    );
-    await nuevoPedido(cuenta, '2021-06-07T12:00:00Z', ESTADOS_PEDIDO.CANCELADO);
-
-    const reporte = (await consultar().expect(200)).body as Reporte;
-
-    expect(indicador(reporte, 'OE1')).toMatchObject({
-      cumplidos: 0,
       total: 1,
-      porcentaje: 0,
+      porcentaje: -100,
+      estado: 'bajo-la-meta',
     });
   });
 
-  it('E14-H1 · OE2: cumple la resuelta en 48 h o menos (aprobada o rechazada); una resuelta tarde o sin resolver pasadas las 48 h no cumple', async () => {
-    await nuevaSolicitud({
-      estado: ESTADOS_SOLICITUD.RECHAZADA,
-      presentada: '2021-06-01T12:00:00Z',
-      horasHastaResolver: 48,
-    });
-    await nuevaSolicitud({
-      estado: ESTADOS_SOLICITUD.APROBADA,
-      presentada: '2021-06-02T12:00:00Z',
-      horasHastaResolver: 49,
-    });
-    await nuevaSolicitud({
-      estado: ESTADOS_SOLICITUD.REVISION_MANUAL,
-      presentada: '2021-06-03T12:00:00Z',
-    });
-    await nuevaSolicitud({
-      estado: ESTADOS_SOLICITUD.PENDIENTE,
-      presentada: '2021-06-04T12:00:00Z',
+  it('E14-H1 · OE3: el retiro en tienda cuenta como local, y un pedido sin pagar no cuenta', async () => {
+    await nuevoPedido('2021-06-05T12:00:00Z');
+    await nuevoPedido('2021-06-06T12:00:00Z', { comunaCut: TALCAHUANO });
+    await nuevoPedido('2021-06-07T12:00:00Z', { comunaCut: SANTIAGO });
+    await nuevoPedido('2021-06-08T12:00:00Z', {
+      comunaCut: SANTIAGO,
+      estado: ESTADOS_PEDIDO.PENDIENTE_PAGO,
     });
 
     const reporte = (await consultar().expect(200)).body as Reporte;
 
-    expect(indicador(reporte, 'OE2')).toMatchObject({
+    expect(indicador(reporte, 'OE3')).toMatchObject({
       cumplidos: 1,
-      total: 4,
-      porcentaje: 25,
+      total: 3,
+      porcentaje: 33.3,
+      estado: 'sobre-la-meta',
     });
   });
 
   it('E14-H1 · los días se cortan a medianoche de Chile, con ambos extremos incluidos', async () => {
     // 1 de junio 00:30 en Chile (04:30 UTC) entra; 30 de junio 23:30 en Chile (1 jul 03:30 UTC) entra
-    await nuevoProducto(ORIGENES_DESCRIPCION.IA, '2021-06-01T04:30:00Z');
-    await nuevoProducto(ORIGENES_DESCRIPCION.IA, '2021-07-01T03:30:00Z');
+    await nuevoPedido('2021-06-01T04:30:00Z');
+    await nuevoPedido('2021-07-01T03:30:00Z');
     // 31 de mayo 23:30 en Chile y 1 de julio 00:30 en Chile quedan fuera
-    await nuevoProducto(ORIGENES_DESCRIPCION.IA, '2021-06-01T03:30:00Z');
-    await nuevoProducto(ORIGENES_DESCRIPCION.IA, '2021-07-01T04:30:00Z');
+    await nuevoPedido('2021-06-01T03:30:00Z');
+    await nuevoPedido('2021-07-01T04:30:00Z');
 
     const reporte = (await consultar().expect(200)).body as Reporte;
 
@@ -379,23 +393,36 @@ describe('Reportes · indicadores de los objetivos (e2e)', () => {
     expect(reporte.indicadores).toEqual([
       expect.objectContaining({
         codigo: 'OE1',
-        meta: 30,
+        meta: 20,
         porcentaje: null,
         sinDatos: true,
       }),
       expect.objectContaining({
         codigo: 'OE2',
-        meta: 70,
+        meta: 80,
         porcentaje: null,
         sinDatos: true,
       }),
       expect.objectContaining({
         codigo: 'OE3',
-        meta: 80,
+        meta: 30,
         porcentaje: null,
         sinDatos: true,
       }),
     ]);
+  });
+
+  it('E14-H1 · CA2 OE1: con ventas en el período pero no en el anterior, no hay con qué comparar', async () => {
+    await nuevoPedido('2021-06-10T12:00:00Z');
+
+    const reporte = (await consultar().expect(200)).body as Reporte;
+
+    expect(indicador(reporte, 'OE1')).toMatchObject({
+      cumplidos: 11900,
+      total: 0,
+      porcentaje: null,
+      sinDatos: true,
+    });
   });
 
   it('E14-H1 · período: fechas faltantes o inválidas, rango invertido o de más de 366 días responden 400', async () => {
