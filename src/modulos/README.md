@@ -30,5 +30,6 @@ src/modulos/<modulo>/
 | `notificaciones` | transversal | Cola de correos y su envío                                                                                                 |
 | `reportes`       | E14         | Indicadores y reportes del panel                                                                                           |
 | `territorio`     | transversal | Regiones y comunas                                                                                                         |
+| `registro-errores` | transversal | Registro de errores (SCRUM-168): filtro global de la API y reportes de la tienda y el panel en `registro_error`          |
 
 La numeración de épicas sigue el backlog del proyecto; confirma la épica de cada historia en Jira.

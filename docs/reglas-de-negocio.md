@@ -85,6 +85,33 @@ suscribirse a ofertas. No hay compra como invitado.
   `errorDeCampo()` (`src/common/errores/error-de-campo.ts`). Los que no son de un campo (estado del
   pedido, permisos, servicio caído) no lo traen y el frontend los muestra como aviso general.
 
+## Registro de errores (SCRUM-168)
+
+Observación de la presentación del proyecto: además de avisar a la persona, el sistema registra
+**qué pasó, cuándo y en qué componente**.
+
+- **Código de seguimiento:** cada petición lleva un `x-request-id`. Lo genera el proxy de la tienda
+  (o el backend, si no llega uno válido: letras, dígitos y guiones, de 8 a 64). Se devuelve en la
+  cabecera y aparece en cada línea del log (pino-http).
+- **Errores de la API:** un filtro global (`src/modulos/registro-errores/filtro-errores.ts`) responde
+  igual que Nest y, si el error es **5xx o no controlado**, lo escribe en el log y lo guarda en la
+  tabla `registro_error`. El cuerpo agrega `codigoSeguimiento`. Los 4xx son respuestas esperadas
+  (validación, permisos, no encontrado) y no se registran.
+- **Errores de la tienda y el panel:** `POST /api/registros/errores-cliente` (pública, 30/min por
+  IP, con la cuenta si llega el token). La pantalla de error del navegador reporta con origen
+  `navegador`; `instrumentation.ts` de Next reporta los errores del servidor con origen
+  `servidor_web` y el `digest` como código.
+- **Qué se guarda:** código, fecha y hora, origen (`ORIGENES_ERROR`), componente (`Clase.metodo` del
+  backend, o la pantalla), método, ruta **sin la query** (puede llevar tokens), estado HTTP, tipo y
+  mensaje del error, traza (solo los marcos `at …`, nunca el mensaje) y la cuenta si había sesión.
+  De un error de Prisma se guarda solo el motivo y su código (`P2002`): el mensaje completo trae los
+  argumentos de la consulta. Nunca cuerpos de la petición, contraseñas ni tokens (RNF-02, RNF-05).
+- **Nunca rompe la respuesta:** el registro se guarda después de responder; si la base falla, queda
+  solo en el log.
+- La persona ve los 8 primeros caracteres del código («Código de seguimiento: 3F1C2B9E»). Para
+  buscarlo: `SELECT * FROM registro_error WHERE codigo_seguimiento ILIKE '3f1c2b9e%'`.
+- **Pendiente:** sin pantalla en el panel para consultarlo ni limpieza automática de filas antiguas.
+
 ## Por épica (lo que el backend debe respetar)
 
 **E1 Cuentas.** Registro con nombre, apellido, correo y contraseña; teléfono, RUT, fecha de

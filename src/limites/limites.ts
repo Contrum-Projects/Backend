@@ -74,6 +74,11 @@ export const LIMITES = {
    */
   SOLICITAR_VERIFICACION: { limit: 5, ttl: 60 * 60_000 },
   /**
+   * Reportar un error de la tienda o el panel (SCRUM-168): 30/min por IP. Es pública: alcanza
+   * para una pantalla que falla varias veces seguidas y frena llenar `registro_error`.
+   */
+  REPORTAR_ERROR: { limit: 30, ttl: 60_000 },
+  /**
    * Adjuntar los documentos de la verificación (E10-H2, decisión del 2 nov 2026): 5/hora por
    * cuenta, con `LimitePorCuentaGuard`. Cada envío sube hasta 5 archivos de 4 MB al almacén: frena
    * llenarlo.

@@ -29,6 +29,8 @@ import { PortadaModule } from './modulos/portada/portada.module.js';
 import { ReportesModule } from './modulos/reportes/reportes.module.js';
 import { TerritorioModule } from './modulos/territorio/territorio.module.js';
 import { SolicitudVerificacionModule } from './modulos/verificacion/solicitud-verificacion.module.js';
+import { RegistroErroresModule } from './modulos/registro-errores/registro-errores.module.js';
+import { asignarCodigoSeguimiento } from './common/errores/codigo-seguimiento.js';
 import { SaludController } from './salud/salud.controller.js';
 
 @Module({
@@ -45,6 +47,8 @@ import { SaludController } from './salud/salud.controller.js';
         return {
           pinoHttp: {
             level: env === 'production' ? 'info' : 'debug',
+            // Código de seguimiento de cada petición, en el log y en la cabecera x-request-id (SCRUM-168)
+            genReqId: asignarCodigoSeguimiento,
             transport:
               env === 'development'
                 ? { target: 'pino-pretty', options: { singleLine: true } }
@@ -111,6 +115,7 @@ import { SaludController } from './salud/salud.controller.js';
     MarketingModule,
     PortadaModule,
     NotificacionesModule,
+    RegistroErroresModule,
   ],
   controllers: [SaludController],
 })

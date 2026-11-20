@@ -548,3 +548,13 @@ export const PAGINAS_PORTADA = {
   PACKS: 'packs',
   PRECIO_PROFESIONAL: 'precio-profesional',
 } as const;
+
+/** REGISTRO_ERROR.origen (SCRUM-168): dónde ocurrió el error que se registra. */
+export const ORIGENES_ERROR = {
+  /** Error no controlado de esta API (5xx). */
+  API: 'api',
+  /** Error de una pantalla de la tienda o el panel, en el navegador. */
+  NAVEGADOR: 'navegador',
+  /** Error del servidor de Next (render o proxy). */
+  SERVIDOR_WEB: 'servidor_web',
+} as const;
