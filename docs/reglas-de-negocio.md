@@ -110,7 +110,11 @@ Observación de la presentación del proyecto: además de avisar a la persona, e
   solo en el log.
 - La persona ve los 8 primeros caracteres del código («Código de seguimiento: 3F1C2B9E»). Para
   buscarlo: `SELECT * FROM registro_error WHERE codigo_seguimiento ILIKE '3f1c2b9e%'`.
-- **Pendiente:** sin pantalla en el panel para consultarlo ni limpieza automática de filas antiguas.
+- **Consulta en el panel:** `GET /api/registros/errores`, solo el administrador (permiso
+  `registro_errores.ver`). Paginado, más recientes primero; busca por el comienzo del código o por
+  texto en el componente o el mensaje, y filtra por origen y por días en hora de Chile.
+- **Retención (decisión del 20 nov 2026): 90 días.** Una tarea diaria de BullMQ
+  (`limpieza-registro-errores`) borra las filas más antiguas, para que la tabla no crezca sin fin.
 
 ## Por épica (lo que el backend debe respetar)
 
@@ -225,6 +229,7 @@ ninguno. El administrador tiene todos, también los que se agreguen.
 | `verificacion.gestionar`                                                                              | Revisión manual de profesionales (E10-H3)                          |      ✅       |          |           |
 | `campanas.gestionar`                                                                                  | Campañas de correo (E12-H3)                                        |      ✅       |          |           |
 | `reportes.ver`                                                                                        | Indicadores y reportes (E14)                                       |      ✅       |          |           |
+| `registro_errores.ver`                                                                                | Registro de errores del sistema (SCRUM-168)                        |      ✅       |          |           |
 | Decisiones del 18 oct (E13-H1): el administrador crea la cuenta con nombre, apellido, correo y un     |
 | único rol (`vendedor`, `bodeguero` o `administrador`); la cuenta nace con una contraseña aleatoria    |
 | que nadie conoce y se envía una invitación de un uso (`TIPOS_TOKEN.INVITACION_PERSONAL`, 72 h,        |
