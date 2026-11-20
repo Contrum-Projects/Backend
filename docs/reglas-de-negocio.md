@@ -106,6 +106,9 @@ Observación de la presentación del proyecto: además de avisar a la persona, e
   mensaje del error, traza (solo los marcos `at …`, nunca el mensaje) y la cuenta si había sesión.
   De un error de Prisma se guarda solo el motivo y su código (`P2002`): el mensaje completo trae los
   argumentos de la consulta. Nunca cuerpos de la petición, contraseñas ni tokens (RNF-02, RNF-05).
+- **Log de peticiones sin tokens:** pino-http escribe la URL con `?token=[Redacted]` (enlaces de
+  los correos) y oculta el token del seguimiento de la publicidad, que va en el camino; no escribe
+  `params` (`src/common/errores/url-sin-secretos.ts`).
 - **Nunca rompe la respuesta:** el registro se guarda después de responder; si la base falla, queda
   solo en el log.
 - La persona ve los 8 primeros caracteres del código («Código de seguimiento: 3F1C2B9E»). Para

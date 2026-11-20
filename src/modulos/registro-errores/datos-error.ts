@@ -1,4 +1,5 @@
 import { HttpException } from '@nestjs/common';
+import { urlSinSecretos } from '../../common/errores/url-sin-secretos.js';
 
 export const LARGO_COMPONENTE = 150;
 export const LARGO_RUTA = 500;
@@ -13,9 +14,12 @@ const MENSAJE_ERROR_INTERNO = 'Internal server error';
 export const recortar = (texto: string, maximo: number): string =>
   texto.length > maximo ? `${texto.slice(0, maximo - 1)}…` : texto;
 
-/** La ruta sin la query ni el fragmento: la query puede llevar tokens (`?token=`). */
+/**
+ * La ruta sin la query ni el fragmento (la query puede llevar tokens, `?token=`) y sin el token
+ * del seguimiento de la publicidad, que va en el camino.
+ */
 export const rutaSinQuery = (url: string): string =>
-  recortar(url.split(/[?#]/, 1)[0] ?? '', LARGO_RUTA);
+  recortar(urlSinSecretos(url.split(/[?#]/, 1)[0] ?? ''), LARGO_RUTA);
 
 export interface RespuestaError {
   estado: number;

@@ -128,4 +128,10 @@ describe('rutaSinQuery', () => {
       '/api/cuentas/confirmar',
     );
   });
+
+  it('SCRUM-168 · criterio 4: oculta el token del seguimiento, que va en el camino', () => {
+    expect(rutaSinQuery('/api/marketing/seguimiento/clic/abc?destino=x')).toBe(
+      '/api/marketing/seguimiento/clic/[Redacted]',
+    );
+  });
 });
