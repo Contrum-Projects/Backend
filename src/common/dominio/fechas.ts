@@ -35,3 +35,28 @@ export function aFechaSinHora(valor: string | null | undefined) {
 /** Una columna `@db.Date` como AAAA-MM-DD. */
 export const deFechaSinHora = (fecha: Date | null) =>
   fecha?.toISOString().slice(0, 10) ?? null;
+
+/**
+ * Instante en que empieza ese día (AAAA-MM-DD) en la zona horaria de la tienda, para filtrar
+ * columnas `Timestamptz` por días de Chile (SCRUM-168). El desfase se toma al mediodía, lejos del
+ * cambio de hora, que en Chile ocurre a medianoche.
+ */
+export const inicioDelDiaEnLaTienda = (fecha: string): Date => {
+  const mediodia = new Date(`${fecha}T12:00:00Z`);
+  const desfase =
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: ZONA_HORARIA_TIENDA,
+      timeZoneName: 'longOffset',
+    })
+      .formatToParts(mediodia)
+      .find((parte) => parte.type === 'timeZoneName')
+      ?.value.replace('GMT', '') || '+00:00';
+  return new Date(`${fecha}T00:00:00${desfase}`);
+};
+
+/** El día siguiente (AAAA-MM-DD). */
+export const diaSiguiente = (fecha: string): string => {
+  const dia = new Date(`${fecha}T00:00:00Z`);
+  dia.setUTCDate(dia.getUTCDate() + 1);
+  return dia.toISOString().slice(0, 10);
+};

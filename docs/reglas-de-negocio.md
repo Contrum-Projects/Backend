@@ -85,6 +85,40 @@ suscribirse a ofertas. No hay compra como invitado.
   `errorDeCampo()` (`src/common/errores/error-de-campo.ts`). Los que no son de un campo (estado del
   pedido, permisos, servicio caído) no lo traen y el frontend los muestra como aviso general.
 
+## Registro de errores (SCRUM-168)
+
+Observación de la presentación del proyecto: además de avisar a la persona, el sistema registra
+**qué pasó, cuándo y en qué componente**.
+
+- **Código de seguimiento:** cada petición lleva un `x-request-id`. Lo genera el proxy de la tienda
+  (o el backend, si no llega uno válido: letras, dígitos y guiones, de 8 a 64). Se devuelve en la
+  cabecera y aparece en cada línea del log (pino-http).
+- **Errores de la API:** un filtro global (`src/modulos/registro-errores/filtro-errores.ts`) responde
+  igual que Nest y, si el error es **5xx o no controlado**, lo escribe en el log y lo guarda en la
+  tabla `registro_error`. El cuerpo agrega `codigoSeguimiento`. Los 4xx son respuestas esperadas
+  (validación, permisos, no encontrado) y no se registran.
+- **Errores de la tienda y el panel:** `POST /api/registros/errores-cliente` (pública, 30/min por
+  IP, con la cuenta si llega el token). La pantalla de error del navegador reporta con origen
+  `navegador`; `instrumentation.ts` de Next reporta los errores del servidor con origen
+  `servidor_web` y el `digest` como código.
+- **Qué se guarda:** código, fecha y hora, origen (`ORIGENES_ERROR`), componente (`Clase.metodo` del
+  backend, o la pantalla), método, ruta **sin la query** (puede llevar tokens), estado HTTP, tipo y
+  mensaje del error, traza (solo los marcos `at …`, nunca el mensaje) y la cuenta si había sesión.
+  De un error de Prisma se guarda solo el motivo y su código (`P2002`): el mensaje completo trae los
+  argumentos de la consulta. Nunca cuerpos de la petición, contraseñas ni tokens (RNF-02, RNF-05).
+- **Log de peticiones sin tokens:** pino-http escribe la URL con `?token=[Redacted]` (enlaces de
+  los correos) y oculta el token del seguimiento de la publicidad, que va en el camino; no escribe
+  `params` (`src/common/errores/url-sin-secretos.ts`).
+- **Nunca rompe la respuesta:** el registro se guarda después de responder; si la base falla, queda
+  solo en el log.
+- La persona ve los 8 primeros caracteres del código («Código de seguimiento: 3F1C2B9E»). Para
+  buscarlo: `SELECT * FROM registro_error WHERE codigo_seguimiento ILIKE '3f1c2b9e%'`.
+- **Consulta en el panel:** `GET /api/registros/errores`, solo el administrador (permiso
+  `registro_errores.ver`). Paginado, más recientes primero; busca por el comienzo del código o por
+  texto en el componente o el mensaje, y filtra por origen y por días en hora de Chile.
+- **Retención (decisión del 20 nov 2026): 90 días.** Una tarea diaria de BullMQ
+  (`limpieza-registro-errores`) borra las filas más antiguas, para que la tabla no crezca sin fin.
+
 ## Por épica (lo que el backend debe respetar)
 
 **E1 Cuentas.** Registro con nombre, apellido, correo y contraseña; teléfono, RUT, fecha de
@@ -198,6 +232,7 @@ ninguno. El administrador tiene todos, también los que se agreguen.
 | `verificacion.gestionar`                                                                              | Revisión manual de profesionales (E10-H3)                          |      ✅       |          |           |
 | `campanas.gestionar`                                                                                  | Campañas de correo (E12-H3)                                        |      ✅       |          |           |
 | `reportes.ver`                                                                                        | Indicadores y reportes (E14)                                       |      ✅       |          |           |
+| `registro_errores.ver`                                                                                | Registro de errores del sistema (SCRUM-168)                        |      ✅       |          |           |
 | Decisiones del 18 oct (E13-H1): el administrador crea la cuenta con nombre, apellido, correo y un     |
 | único rol (`vendedor`, `bodeguero` o `administrador`); la cuenta nace con una contraseña aleatoria    |
 | que nadie conoce y se envía una invitación de un uso (`TIPOS_TOKEN.INVITACION_PERSONAL`, 72 h,        |

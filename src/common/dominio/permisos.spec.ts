@@ -61,7 +61,8 @@ describe('tienePermiso', () => {
       );
     }
     // 12 desde SCRUM-151 (8 nov): `bodegas.gestionar`, solo del administrador
-    expect(Object.values(PERMISOS)).toHaveLength(12);
+    // 13 desde SCRUM-168 (20 nov): `registro_errores.ver`, solo del administrador
+    expect(Object.values(PERMISOS)).toHaveLength(13);
   });
 
   it('RNF-03 · la matriz no se puede ampliar en ejecución', () => {

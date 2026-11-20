@@ -29,6 +29,9 @@ import { PortadaModule } from './modulos/portada/portada.module.js';
 import { ReportesModule } from './modulos/reportes/reportes.module.js';
 import { TerritorioModule } from './modulos/territorio/territorio.module.js';
 import { SolicitudVerificacionModule } from './modulos/verificacion/solicitud-verificacion.module.js';
+import { RegistroErroresModule } from './modulos/registro-errores/registro-errores.module.js';
+import { asignarCodigoSeguimiento } from './common/errores/codigo-seguimiento.js';
+import { peticionParaElLog } from './common/errores/url-sin-secretos.js';
 import { SaludController } from './salud/salud.controller.js';
 
 @Module({
@@ -45,6 +48,10 @@ import { SaludController } from './salud/salud.controller.js';
         return {
           pinoHttp: {
             level: env === 'production' ? 'info' : 'debug',
+            // Código de seguimiento de cada petición, en el log y en la cabecera x-request-id (SCRUM-168)
+            genReqId: asignarCodigoSeguimiento,
+            // La URL sin los tokens de los enlaces de los correos ni del seguimiento (RNF-02, RNF-05)
+            serializers: { req: peticionParaElLog },
             transport:
               env === 'development'
                 ? { target: 'pino-pretty', options: { singleLine: true } }
@@ -61,6 +68,7 @@ import { SaludController } from './salud/salud.controller.js';
               'req.body.password',
               'req.body.confirmacionContrasena',
               'req.body.token',
+              'req.query.token',
               'res.headers["set-cookie"]',
             ],
           },
@@ -111,6 +119,7 @@ import { SaludController } from './salud/salud.controller.js';
     MarketingModule,
     PortadaModule,
     NotificacionesModule,
+    RegistroErroresModule,
   ],
   controllers: [SaludController],
 })

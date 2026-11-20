@@ -44,6 +44,8 @@ export const COLAS = {
    * toma cualquier trabajo de su cola, y esta tarea vive en otro módulo.
    */
   CUMPLEANOS: 'cumpleanos',
+  /** Borrado de las filas antiguas del registro de errores (SCRUM-168). */
+  LIMPIEZA_REGISTRO_ERRORES: 'limpieza-registro-errores',
 } as const;
 
 /** Nombres de los trabajos de la cola de correos. */
@@ -110,6 +112,12 @@ export const TRABAJOS_CUMPLEANOS = {
 export const TRABAJOS_LIMPIEZA_VERIFICACION = {
   /** Tarea repetible: elimina los archivos de solicitudes resueltas hace 30 días (E10-H6). */
   ELIMINAR_ARCHIVOS: 'eliminar-archivos',
+} as const;
+
+/** Nombres de los trabajos de la cola `limpieza-registro-errores`. */
+export const TRABAJOS_LIMPIEZA_REGISTRO_ERRORES = {
+  /** Tarea repetible: borra los errores registrados hace más de 90 días (SCRUM-168). */
+  ELIMINAR_ANTIGUOS: 'eliminar-antiguos',
 } as const;
 
 /** Datos de una notificación de Mercado Pago por procesar: el resto está en EVENTO_PAGO. */

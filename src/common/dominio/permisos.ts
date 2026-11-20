@@ -22,6 +22,8 @@ export const PERMISOS = {
   VERIFICACION_GESTIONAR: 'verificacion.gestionar',
   CAMPANAS_GESTIONAR: 'campanas.gestionar',
   REPORTES_VER: 'reportes.ver',
+  /** Consultar el registro de errores del sistema (SCRUM-168): solo el administrador. */
+  REGISTRO_ERRORES_VER: 'registro_errores.ver',
 } as const;
 
 export type Permiso = (typeof PERMISOS)[keyof typeof PERMISOS];
