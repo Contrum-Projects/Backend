@@ -63,6 +63,7 @@ model Usuario {
   movimientos            MovimientoInventario[]
   cambiosRol             HistorialRol[]          @relation("RolCambiado")
   cambiosRolHechos       HistorialRol[]          @relation("RolCambiadoPor")
+  erroresRegistrados     RegistroError[]
 
   @@map("usuario")
 }
@@ -860,4 +861,36 @@ model SlidePortada {
   fechaCreacion    DateTime @default(now()) @map("fecha_creacion") @db.Timestamptz(6)
 
   @@map("slide_portada")
+}
+
+// ────────────────────────────── Operación ──────────────────────────────
+
+/// Registro de errores (SCRUM-168): qué pasó, cuándo y en qué componente. Guarda los errores no
+/// controlados de la API (5xx) y los que reportan la tienda y el panel. Nunca guarda cuerpos de la
+/// petición, contraseñas, tokens ni la query de la URL.
+model RegistroError {
+  id                Int      @id @default(autoincrement()) @map("id_registro_error")
+  /// El x-request-id de la petición: el mismo código que recibe la persona y que aparece en el log.
+  codigoSeguimiento String   @map("codigo_seguimiento") @db.VarChar(64)
+  fechaHora         DateTime @default(now()) @map("fecha_hora") @db.Timestamptz(6)
+  /// ORIGENES_ERROR: api, navegador o servidor_web.
+  origen            String   @db.VarChar(20)
+  /// Dónde falló: clase y método del backend (`PedidosService.crear`) o pantalla del frontend.
+  componente        String   @db.VarChar(150)
+  metodo            String?  @db.VarChar(10)
+  /// Solo la ruta, sin la query (puede llevar tokens).
+  ruta              String?  @db.VarChar(500)
+  estadoHttp        Int?     @map("estado_http")
+  tipoError         String   @map("tipo_error") @db.VarChar(100)
+  mensaje           String   @db.VarChar(1000)
+  /// Solo las líneas de la pila (`at ...`), sin el mensaje.
+  traza             String?  @db.Text
+  usuarioId         Int?     @map("id_usuario")
+
+  usuario Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+
+  @@index([fechaHora])
+  @@index([codigoSeguimiento])
+  @@index([usuarioId])
+  @@map("registro_error")
 }
